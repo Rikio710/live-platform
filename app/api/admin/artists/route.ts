@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+
+async function requireAuth() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+  return user
+}
+
+export async function GET() {
+  try {
+    await requireAuth()
+    const admin = createAdminClient()
+    const { data, error } = await admin.from('artists').select('*').order('name')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    await requireAuth()
+    const body = await req.json()
+    const admin = createAdminClient()
+    const { data, error } = await admin.from('artists').insert({
+      name: body.name,
+      image_url: body.image_url || null,
+      description: body.description || null,
+    }).select().single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}

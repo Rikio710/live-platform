@@ -1,65 +1,126 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
+import type { Metadata } from 'next'
+import { LayoutList, Zap, Ticket, Calendar, MapPin } from 'lucide-react'
+import ArtistsSection from '@/components/ArtistsSection'
 
-export default function Home() {
+export const revalidate = 1800
+
+export const metadata: Metadata = {
+  title: 'LiveVault | ライブ参戦体験のOS',
+}
+
+export default async function TopPage() {
+  const supabase = await createClient()
+
+  const [{ data: upcomingConcerts }, { data: popularArtists }] = await Promise.all([
+    supabase
+      .from('concerts')
+      .select('id, venue_name, date, start_time, image_url, artists(id, name), tours(id, name)')
+      .gte('date', new Date().toISOString().split('T')[0])
+      .order('date', { ascending: true })
+      .limit(6),
+    supabase
+      .from('artists')
+      .select('id, name, image_url')
+      .limit(50),
+  ])
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div>
+      {/* Hero */}
+      <section className="relative overflow-hidden py-20 px-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-900/30 via-transparent to-pink-900/20 pointer-events-none" />
+        <div className="relative max-w-3xl mx-auto text-center space-y-6">
+          <div className="inline-block bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-bold px-3 py-1 rounded-full">
+            ライブ参戦体験のOS
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
+            すべての
+            <span className="gradient-text">ライブ体験</span>を
+            <br className="hidden sm:block" />
+            ひとつの場所に
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-[#8888aa] text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+            ライブ前の情報収集、当日のリアルタイム共有、<br className="hidden sm:block" />
+            参戦履歴の蓄積まで一元管理。
           </p>
+          <div className="flex justify-center gap-3 flex-wrap">
+            <Link href="/mypage"
+              className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-3 rounded-full transition-colors text-sm">
+              参戦履歴を見る
+            </Link>
+            <Link href="#upcoming"
+              className="border border-white/10 hover:border-white/20 text-white font-bold px-6 py-3 rounded-full transition-colors text-sm">
+              近日公演を見る
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* 機能説明 */}
+      <section className="max-w-5xl mx-auto px-4 pb-10">
+        <div className="grid sm:grid-cols-3 gap-4">
+          {[
+            { icon: LayoutList, title: '公演ページに全情報集約', desc: '掲示板・物販・セトリが1ページに。ライブ前から当日まで使える。' },
+            { icon: Zap, title: 'リアルタイム掲示板', desc: 'グッズ在庫・入場列の状況をファン同士でリアルタイム共有。' },
+            { icon: Ticket, title: '参戦履歴コレクション', desc: '行ったライブをカード形式で蓄積。年別・アーティスト別に振り返り。' },
+          ].map(f => (
+            <div key={f.title} className="glass rounded-2xl p-5 space-y-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center">
+                <f.icon size={16} className="text-violet-400" />
+              </div>
+              <p className="font-bold text-sm text-white">{f.title}</p>
+              <p className="text-xs text-[#8888aa] leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
         </div>
-      </main>
+      </section>
+
+      {/* 近日公演 */}
+      <section id="upcoming" className="max-w-5xl mx-auto px-4 py-8 space-y-4">
+        <h2 className="text-lg font-bold text-white">近日開催の公演</h2>
+        {(upcomingConcerts ?? []).length === 0 ? (
+          <div className="glass rounded-2xl p-10 text-center text-[#8888aa] text-sm">
+            現在登録されている公演はありません
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(upcomingConcerts ?? []).map((c: any) => (
+              <Link key={c.id} href={`/concerts/${c.id}`}
+                className="glass rounded-2xl overflow-hidden hover:border-violet-500/40 transition-all group">
+                <div className="h-36 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
+                  {c.image_url && (
+                    <img src={c.image_url} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity" />
+                  )}
+                  <div className="absolute inset-0 flex items-end p-3">
+                    <div>
+                      <p className="text-xs text-violet-300 font-bold">{c.artists?.name}</p>
+                      <p className="text-sm font-bold text-white leading-tight">{c.tours?.name}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 space-y-1">
+                  <p className="text-xs text-[#8888aa] flex items-center gap-1">
+                    <Calendar size={11} className="shrink-0" />
+                    {new Date(c.date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
+                    {c.start_time && ` ${c.start_time.slice(0, 5)}〜`}
+                  </p>
+                  <p className="text-sm font-medium text-white truncate flex items-center gap-1">
+                    <MapPin size={11} className="shrink-0 text-[#8888aa]" />
+                    {c.venue_name}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* アーティスト */}
+      {(popularArtists ?? []).length > 0 && (
+        <ArtistsSection artists={popularArtists ?? []} />
+      )}
     </div>
-  );
+  )
 }

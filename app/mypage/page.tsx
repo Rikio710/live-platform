@@ -1,0 +1,127 @@
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import type { Metadata } from 'next'
+import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
+import { Ticket, Calendar, Trophy, Mic2, Heart } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'マイページ',
+}
+
+export default async function MyPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  const { data: attendances } = await supabase
+    .from('attendances')
+    .select(`
+      id, created_at,
+      concerts(
+        id, venue_name, date, image_url,
+        artists(id, name, image_url),
+        tours(id, name)
+      )
+    `)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  const list = (attendances ?? []).filter((a: any) => a.concerts) as any[]
+
+  // 統計
+  const totalCount = list.length
+  const artistMap: Record<string, { name: string; count: number; image_url: string | null }> = {}
+  const yearMap: Record<string, number> = {}
+
+  for (const a of list) {
+    const artistId = a.concerts.artists?.id
+    const artistName = a.concerts.artists?.name ?? '不明'
+    if (artistId) {
+      if (!artistMap[artistId]) artistMap[artistId] = { name: artistName, count: 0, image_url: a.concerts.artists?.image_url }
+      artistMap[artistId].count++
+    }
+    const year = new Date(a.concerts.date).getFullYear().toString()
+    yearMap[year] = (yearMap[year] ?? 0) + 1
+  }
+
+  const topArtist = Object.values(artistMap).sort((a, b) => b.count - a.count)[0]
+  const thisYear = new Date().getFullYear().toString()
+  const thisYearCount = yearMap[thisYear] ?? 0
+
+  const { data: followsData } = await supabase
+    .from('artist_follows')
+    .select('artist_id, artists(id, name, image_url)')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  const follows = (followsData ?? []).filter((f: any) => f.artists) as any[]
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+      <h1 className="text-2xl font-black text-white">マイページ</h1>
+
+      {/* 統計カード */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: '総参戦回数', value: `${totalCount}回`, icon: Ticket },
+          { label: `${thisYear}年`, value: `${thisYearCount}回`, icon: Calendar },
+          { label: '最多参戦', value: topArtist?.name ?? '—', icon: Trophy },
+          { label: 'アーティスト', value: `${Object.keys(artistMap).length}組`, icon: Mic2 },
+        ].map(s => (
+          <div key={s.label} className="glass rounded-2xl p-4 text-center space-y-1">
+            <div className="flex justify-center mb-1">
+              <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
+                <s.icon size={14} className="text-violet-400" />
+              </div>
+            </div>
+            <p className="text-xs text-[#8888aa]">{s.label}</p>
+            <p className="font-black text-white text-lg leading-tight truncate">{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* フォロー中アーティスト */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Heart size={16} className="text-pink-400" />
+          <h2 className="text-base font-bold text-white">フォロー中のアーティスト</h2>
+          <span className="text-xs text-[#8888aa]">{follows.length}組</span>
+        </div>
+        {follows.length === 0 ? (
+          <div className="glass rounded-2xl p-6 text-center text-sm text-[#8888aa]">
+            フォロー中のアーティストがいません
+            <br />
+            <Link href="/artists" className="text-violet-400 hover:text-violet-300 mt-1 inline-block">アーティスト一覧へ →</Link>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {follows.map((f: any) => (
+              <Link key={f.artist_id} href={`/artists/${f.artists.id}`}
+                className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-pink-500/30 transition-colors text-sm font-medium">
+                {f.artists.image_url ? (
+                  <img src={f.artists.image_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <span className="w-6 h-6 rounded-full bg-violet-800/60 flex items-center justify-center">
+                    <Mic2 size={11} className="text-violet-400" />
+                  </span>
+                )}
+                <span className="text-white">{f.artists.name}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 参戦履歴 */}
+      <AttendanceHistory
+        attendances={list}
+        artistMap={artistMap}
+        yearMap={yearMap}
+      />
+    </div>
+  )
+}
