@@ -82,6 +82,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const [postMediaPreview, setPostMediaPreview] = useState<string | null>(null)
   const [postMediaType, setPostMediaType] = useState<'image' | 'video' | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
 
   // UI state
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null)
@@ -139,12 +140,14 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     }
 
     if (data.length > 0) {
-      const { data: cc } = await supabase
-        .from('post_comments').select('post_id')
-        .in('post_id', data.map((p: any) => p.id))
-      const countMap: Record<string, number> = {}
-      for (const c of cc ?? []) countMap[c.post_id] = (countMap[c.post_id] ?? 0) + 1
-      enriched = enriched.map(p => ({ ...p, comment_count: countMap[p.id] ?? 0 }))
+      try {
+        const { data: cc } = await supabase
+          .from('post_comments').select('post_id')
+          .in('post_id', data.map((p: any) => p.id))
+        const countMap: Record<string, number> = {}
+        for (const c of cc ?? []) countMap[c.post_id] = (countMap[c.post_id] ?? 0) + 1
+        enriched = enriched.map(p => ({ ...p, comment_count: countMap[p.id] ?? 0 }))
+      } catch { /* post_comments未作成の場合は無視 */ }
     }
 
     setPosts(enriched)
@@ -218,12 +221,13 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const clearModal = () => {
     setPostContent(''); setPostCategory('chat'); setPostIsSpoiler(false)
     setPostMedia(null); setPostMediaPreview(null); setPostMediaType(null)
-    setShowModal(false)
+    setPostError(null); setShowModal(false)
   }
 
   const handlePost = async () => {
     if (!postContent.trim() || !userId) return
     setSubmitting(true)
+    setPostError(null)
 
     let mediaUrl: string | null = null
     let mediaType: 'image' | 'video' | null = null
@@ -239,12 +243,17 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       }
     }
 
-    const { data } = await supabase.from('board_posts').insert({
+    const { data, error } = await supabase.from('board_posts').insert({
       concert_id: concertId, user_id: userId,
       content: postContent.trim(), category: postCategory,
       is_spoiler: postIsSpoiler, media_url: mediaUrl, media_type: mediaType,
     }).select('*, profiles(username)').single()
 
+    if (error) {
+      setPostError(`投稿失敗: ${error.message}`)
+      setSubmitting(false)
+      return
+    }
     if (data) setPosts(prev => [{ ...(data as Post), myLike: false, comment_count: 0 }, ...prev])
     clearModal()
     setSubmitting(false)
@@ -437,6 +446,10 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                   <X size={13} />
                 </button>
               </div>
+            )}
+
+            {postError && (
+              <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{postError}</p>
             )}
 
             {/* Footer */}
