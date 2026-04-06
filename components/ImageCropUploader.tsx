@@ -99,7 +99,6 @@ export default function ImageCropUploader({ onUpload, onCancel }: Props) {
           image={imageSrc}
           crop={crop}
           zoom={zoom}
-          aspect={1}
           onCropChange={setCrop}
           onZoomChange={setZoom}
           onCropComplete={onCropComplete}

@@ -41,6 +41,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   // Catalog state
   const [items, setItems] = useState<CatalogItem[]>([])
   const [reportingItemId, setReportingItemId] = useState<string | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   // Add to catalog form
   const [showAddForm, setShowAddForm] = useState(false)
@@ -211,6 +212,26 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt=""
+            className="max-w-full max-h-full rounded-xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl leading-none"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Section 1: Wait time voting */}
       <div className="glass rounded-2xl p-5 space-y-3">
         <div className="flex items-center justify-between">
@@ -414,11 +435,17 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                   <div className="flex items-start gap-3">
                     {/* Image or placeholder */}
                     {item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
-                        className="w-16 h-16 rounded-xl object-cover shrink-0"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(item.image_url!)}
+                        className="w-16 h-16 rounded-xl overflow-hidden shrink-0 hover:opacity-80 transition-opacity"
+                      >
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
                     ) : (
                       <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
                         <ShoppingBag size={22} className="text-[#8888aa]" />
