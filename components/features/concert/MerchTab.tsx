@@ -208,17 +208,15 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
     return hasSoldOut ? 'sold_out' : 'available'
   }
 
-  const getSizeStatus = (itemId: string, size: string, colors: string[]): 'available' | 'sold_out' | 'partial' | null => {
-    const checkColors = colors.length > 0 ? colors : ['']
-    let hasAvailable = false, hasSoldOut = false
-    for (const color of checkColors) {
-      const st = getComboStatus(itemId, color, size)
-      if (st === 'available') hasAvailable = true
-      if (st === 'sold_out') hasSoldOut = true
-    }
-    if (!hasAvailable && !hasSoldOut) return null
-    if (hasSoldOut && hasAvailable) return 'partial'
-    return hasSoldOut ? 'sold_out' : 'available'
+  // サイズチップ用：そのサイズで完売しているカラー名リストを返す
+  const getSoldOutColorsForSize = (itemId: string, size: string, colors: string[]): string[] => {
+    if (colors.length === 0) return []
+    return colors.filter(c => getComboStatus(itemId, c, size) === 'sold_out')
+  }
+
+  // カラーなしアイテムのサイズ全体ステータス
+  const getSizeStatusNoColor = (itemId: string, size: string): 'available' | 'sold_out' | null => {
+    return getComboStatus(itemId, '', size)
   }
 
   const statusChipClass = (st: 'available' | 'sold_out' | 'partial' | null) => {
@@ -446,12 +444,23 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-xs text-[#8888aa]">サイズ:</span>
                             {item.size_options.map(s => {
-                              const st = getSizeStatus(item.id, s, item.color_options ?? [])
-                              return (
-                                <span key={s} className={`text-xs border px-2 py-0.5 rounded-full ${statusChipClass(st)}`}>
-                                  {s}{statusLabel(st)}
-                                </span>
-                              )
+                              if (hasColors) {
+                                const soldOutColors = getSoldOutColorsForSize(item.id, s, item.color_options)
+                                const allSoldOut = soldOutColors.length === item.color_options.length && soldOutColors.length > 0
+                                const st = allSoldOut ? 'sold_out' : soldOutColors.length > 0 ? 'partial' : null
+                                return (
+                                  <span key={s} className={`text-xs border px-2 py-0.5 rounded-full ${statusChipClass(st)}`}>
+                                    {s}{soldOutColors.length > 0 && !allSoldOut ? ` ${soldOutColors.join('/')}完売` : statusLabel(st)}
+                                  </span>
+                                )
+                              } else {
+                                const st = getSizeStatusNoColor(item.id, s)
+                                return (
+                                  <span key={s} className={`text-xs border px-2 py-0.5 rounded-full ${statusChipClass(st)}`}>
+                                    {s}{statusLabel(st)}
+                                  </span>
+                                )
+                              }
                             })}
                           </div>
                         )}
@@ -461,54 +470,121 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                     {/* Stock report panel */}
                     {isReporting ? (
                       <div className="space-y-3 border-t border-white/5 pt-3">
-                        <p className="text-xs text-[#8888aa]">カラー・サイズを選んで在庫を報告</p>
-                        <div className="flex gap-2">
-                          {hasColors && (
-                            <select value={reportingColor} onChange={e => setReportingColor(e.target.value)}
-                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500/50">
-                              <option value="">カラー（全体）</option>
-                              {item.color_options.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          )}
-                          {hasSizes && (
-                            <select value={reportingSize} onChange={e => setReportingSize(e.target.value)}
-                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500/50">
-                              <option value="">サイズ（全体）</option>
-                              {item.size_options.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                          )}
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-[#8888aa]">○在庫あり　✕完売　再タップで取り消し</p>
+                          <button onClick={() => setReportingItemId(null)} className="text-xs text-[#8888aa] hover:text-white transition-colors">閉じる</button>
                         </div>
-                        {(() => {
-                          const stat = comboVotes[ck(item.id, reportingColor, reportingSize)]
-                          const total = (stat?.available ?? 0) + (stat?.sold_out ?? 0)
-                          return total > 0 ? (
-                            <p className="text-xs text-[#8888aa]">
-                              現在: 在庫あり {stat?.available ?? 0}票 / 完売 {stat?.sold_out ?? 0}票
-                            </p>
-                          ) : null
-                        })()}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleComboVote(item.id, reportingColor, reportingSize, 'available')}
-                            className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                              comboVotes[ck(item.id, reportingColor, reportingSize)]?.myVote === 'available'
-                                ? 'bg-green-500/20 border-green-500/40 text-green-400'
-                                : 'border-green-500/40 text-green-400 hover:bg-green-500/10'
-                            }`}>
-                            在庫あり
-                          </button>
-                          <button
-                            onClick={() => handleComboVote(item.id, reportingColor, reportingSize, 'sold_out')}
-                            className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                              comboVotes[ck(item.id, reportingColor, reportingSize)]?.myVote === 'sold_out'
-                                ? 'bg-red-500/20 border-red-500/40 text-red-400'
-                                : 'border-red-500/40 text-red-400 hover:bg-red-500/10'
-                            }`}>
-                            完売
-                          </button>
-                          <button onClick={() => { setReportingItemId(null); setReportingColor(''); setReportingSize('') }}
-                            className="text-xs text-[#8888aa] hover:text-white transition-colors px-2">×</button>
-                        </div>
+
+                        {/* Grid: colors × sizes */}
+                        {hasColors && hasSizes ? (
+                          <div className="overflow-x-auto">
+                            <table className="text-xs w-full">
+                              <thead>
+                                <tr>
+                                  <th className="text-left pr-3 py-1 text-[#8888aa] font-normal"></th>
+                                  {item.size_options.map(s => (
+                                    <th key={s} className="px-1 py-1 text-[#8888aa] font-normal text-center">{s}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {item.color_options.map(c => (
+                                  <tr key={c}>
+                                    <td className="pr-3 py-1 text-white whitespace-nowrap">{c}</td>
+                                    {item.size_options.map(s => {
+                                      const stat = comboVotes[ck(item.id, c, s)]
+                                      const myVote = stat?.myVote
+                                      const consensus = getComboStatus(item.id, c, s)
+                                      const total = (stat?.available ?? 0) + (stat?.sold_out ?? 0)
+                                      return (
+                                        <td key={s} className="px-1 py-1 text-center">
+                                          <div className="flex gap-1 justify-center">
+                                            <button
+                                              onClick={() => handleComboVote(item.id, c, s, 'available')}
+                                              title={`在庫あり ${stat?.available ?? 0}票`}
+                                              className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${myVote === 'available' ? 'bg-green-500/40 text-green-300' : consensus === 'available' ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20' : 'bg-white/5 text-[#8888aa] hover:text-green-400'}`}>
+                                              ○
+                                            </button>
+                                            <button
+                                              onClick={() => handleComboVote(item.id, c, s, 'sold_out')}
+                                              title={`完売 ${stat?.sold_out ?? 0}票`}
+                                              className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${myVote === 'sold_out' ? 'bg-red-500/40 text-red-300' : consensus === 'sold_out' ? 'bg-red-500/10 text-red-600 hover:bg-red-500/20' : 'bg-white/5 text-[#8888aa] hover:text-red-400'}`}>
+                                              ✕
+                                            </button>
+                                          </div>
+                                          {total > 0 && <p className="text-[10px] text-[#8888aa] mt-0.5">{total}票</p>}
+                                        </td>
+                                      )
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : hasColors ? (
+                          // Colors only
+                          <div className="space-y-1.5">
+                            {item.color_options.map(c => {
+                              const stat = comboVotes[ck(item.id, c, '')]
+                              const myVote = stat?.myVote
+                              const total = (stat?.available ?? 0) + (stat?.sold_out ?? 0)
+                              return (
+                                <div key={c} className="flex items-center gap-2">
+                                  <span className="text-xs text-white w-20 shrink-0">{c}</span>
+                                  <button onClick={() => handleComboVote(item.id, c, '', 'available')}
+                                    className={`flex-1 py-1.5 rounded-xl border text-xs font-bold transition-colors ${myVote === 'available' ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'border-green-500/30 text-green-600 hover:bg-green-500/10'}`}>
+                                    ○ 在庫あり{stat?.available ? ` ${stat.available}票` : ''}
+                                  </button>
+                                  <button onClick={() => handleComboVote(item.id, c, '', 'sold_out')}
+                                    className={`flex-1 py-1.5 rounded-xl border text-xs font-bold transition-colors ${myVote === 'sold_out' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'border-red-500/30 text-red-600 hover:bg-red-500/10'}`}>
+                                    ✕ 完売{stat?.sold_out ? ` ${stat.sold_out}票` : ''}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : hasSizes ? (
+                          // Sizes only
+                          <div className="space-y-1.5">
+                            {item.size_options.map(s => {
+                              const stat = comboVotes[ck(item.id, '', s)]
+                              const myVote = stat?.myVote
+                              return (
+                                <div key={s} className="flex items-center gap-2">
+                                  <span className="text-xs text-white w-12 shrink-0">{s}</span>
+                                  <button onClick={() => handleComboVote(item.id, '', s, 'available')}
+                                    className={`flex-1 py-1.5 rounded-xl border text-xs font-bold transition-colors ${myVote === 'available' ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'border-green-500/30 text-green-600 hover:bg-green-500/10'}`}>
+                                    ○ 在庫あり{stat?.available ? ` ${stat.available}票` : ''}
+                                  </button>
+                                  <button onClick={() => handleComboVote(item.id, '', s, 'sold_out')}
+                                    className={`flex-1 py-1.5 rounded-xl border text-xs font-bold transition-colors ${myVote === 'sold_out' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'border-red-500/30 text-red-600 hover:bg-red-500/10'}`}>
+                                    ✕ 完売{stat?.sold_out ? ` ${stat.sold_out}票` : ''}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          // No color/size
+                          <div className="flex gap-2">
+                            {(() => {
+                              const stat = comboVotes[ck(item.id, '', '')]
+                              const myVote = stat?.myVote
+                              return (
+                                <>
+                                  <button onClick={() => handleComboVote(item.id, '', '', 'available')}
+                                    className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-colors ${myVote === 'available' ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'border-green-500/40 text-green-400 hover:bg-green-500/10'}`}>
+                                    在庫あり{stat?.available ? ` ${stat.available}票` : ''}
+                                  </button>
+                                  <button onClick={() => handleComboVote(item.id, '', '', 'sold_out')}
+                                    className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-colors ${myVote === 'sold_out' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'border-red-500/40 text-red-400 hover:bg-red-500/10'}`}>
+                                    完売{stat?.sold_out ? ` ${stat.sold_out}票` : ''}
+                                  </button>
+                                </>
+                              )
+                            })()}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <button
