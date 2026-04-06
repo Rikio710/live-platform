@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { adminUpdateSong, adminDeleteSong, adminDeleteSubmission } from '../actions'
 import { ChevronDown, ChevronUp, Plus, Trash2, Check, X } from 'lucide-react'
 
 type Concert = { id: string; venue_name: string; date: string }
@@ -89,11 +90,11 @@ export default function AdminSetlistPage() {
   const handleDeleteSubmission = async (sub: Submission) => {
     const label = sub.concerts ? `${sub.concerts.venue_name} (${sub.profiles?.username ?? '匿名'})` : sub.id
     if (!confirm(`「${label}」のセトリ投稿を削除しますか？`)) return
-    const { error } = await supabase.from('setlist_submissions').delete().eq('id', sub.id)
-    if (!error) {
+    try {
+      await adminDeleteSubmission(sub.id)
       setSubmissions(prev => prev.filter(s => s.id !== sub.id))
       if (expandedId === sub.id) setExpandedId(null)
-    }
+    } catch { alert('削除に失敗しました') }
   }
 
   const startEditSong = (song: Song) => {
@@ -105,17 +106,13 @@ export default function AdminSetlistPage() {
 
   const handleSaveSong = async (submissionId: string) => {
     setSaving(true)
-    const { error } = await supabase
-      .from('setlist_songs')
-      .update({
+    try {
+      await adminUpdateSong(editSongForm.id, {
         song_name: editSongForm.song_name,
         song_type: editSongForm.song_type,
         is_encore: editSongForm.is_encore,
         order_num: editSongForm.order_num,
       })
-      .eq('id', editSongForm.id)
-    setSaving(false)
-    if (!error) {
       setSongs(prev => ({
         ...prev,
         [submissionId]: (prev[submissionId] ?? []).map(s =>
@@ -123,15 +120,16 @@ export default function AdminSetlistPage() {
         ).sort((a, b) => a.order_num - b.order_num),
       }))
       setEditingSong(null)
-    }
+    } catch { alert('保存に失敗しました') }
+    setSaving(false)
   }
 
   const handleDeleteSong = async (submissionId: string, songId: string, songName: string) => {
     if (!confirm(`「${songName}」を削除しますか？`)) return
-    const { error } = await supabase.from('setlist_songs').delete().eq('id', songId)
-    if (!error) {
+    try {
+      await adminDeleteSong(songId)
       setSongs(prev => ({ ...prev, [submissionId]: (prev[submissionId] ?? []).filter(s => s.id !== songId) }))
-    }
+    } catch { alert('削除に失敗しました') }
   }
 
   const handleAddSong = async (submissionId: string) => {

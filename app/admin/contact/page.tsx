@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { adminResolveContact, adminDeleteContact } from '../actions'
 import { ChevronDown, ChevronUp, Trash2, CheckCircle } from 'lucide-react'
 
 type ContactMessage = {
@@ -56,27 +57,21 @@ export default function AdminContactPage() {
   })
 
   const handleResolve = async (msg: ContactMessage) => {
-    // Try updating the DB column; if it fails (column doesn't exist), fall back to local state
     try {
-      const { error } = await supabase
-        .from('contact_messages')
-        .update({ is_resolved: true })
-        .eq('id', msg.id)
-      if (error) throw error
+      await adminResolveContact(msg.id)
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_resolved: true } : m))
     } catch {
-      // Column likely doesn't exist — mark locally
       setLocalResolved(prev => new Set([...prev, msg.id]))
     }
   }
 
   const handleDelete = async (msg: ContactMessage) => {
     if (!confirm('このお問い合わせを削除しますか？')) return
-    const { error } = await supabase.from('contact_messages').delete().eq('id', msg.id)
-    if (!error) {
+    try {
+      await adminDeleteContact(msg.id)
       setMessages(prev => prev.filter(m => m.id !== msg.id))
       setLocalResolved(prev => { const s = new Set(prev); s.delete(msg.id); return s })
-    }
+    } catch { alert('削除に失敗しました') }
   }
 
   const formatTime = (ts: string) =>

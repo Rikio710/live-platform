@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { adminDeletePost, adminDeleteComment } from '../actions'
 import { ChevronDown, ChevronUp, ThumbsUp, Trash2 } from 'lucide-react'
 
 type Concert = { venue_name: string; date: string }
@@ -66,22 +67,22 @@ export default function AdminPostsPage() {
   const handleDeletePost = async (post: Post) => {
     const label = post.concert?.venue_name ?? '投稿'
     if (!confirm(`「${label}」の投稿を削除しますか？`)) return
-    const { error } = await supabase.from('board_posts').delete().eq('id', post.id)
-    if (!error) {
+    try {
+      await adminDeletePost(post.id)
       setPosts(prev => prev.filter(p => p.id !== post.id))
       if (expandedPost === post.id) setExpandedPost(null)
-    }
+    } catch { alert('削除に失敗しました') }
   }
 
   const handleDeleteComment = async (postId: string, commentId: string) => {
     if (!confirm('このコメントを削除しますか？')) return
-    const { error } = await supabase.from('post_comments').delete().eq('id', commentId)
-    if (!error) {
+    try {
+      await adminDeleteComment(commentId)
       setComments(prev => ({
         ...prev,
         [postId]: (prev[postId] ?? []).filter(c => c.id !== commentId),
       }))
-    }
+    } catch { alert('削除に失敗しました') }
   }
 
   const toggleExpand = async (postId: string) => {

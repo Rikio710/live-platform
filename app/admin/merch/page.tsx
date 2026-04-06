@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { X, ShoppingBag } from 'lucide-react'
+import { adminUpdateMerch, adminDeleteMerch } from '../actions'
 
 type Tour = { id: string; name: string; artists: { name: string } | null }
 type MerchItem = {
@@ -45,11 +46,11 @@ export default function AdminMerchPage() {
 
     const { data: reports } = await supabase
       .from('merch_stock_reports')
-      .select('merch_id')
+      .select('catalog_item_id')
 
     const reportCounts: Record<string, number> = {}
     for (const r of reports ?? []) {
-      reportCounts[r.merch_id] = (reportCounts[r.merch_id] ?? 0) + 1
+      reportCounts[r.catalog_item_id] = (reportCounts[r.catalog_item_id] ?? 0) + 1
     }
 
     setItems((merch ?? []).map((m: any) => ({ ...m, report_count: reportCounts[m.id] ?? 0 })) as MerchItem[])
@@ -111,29 +112,37 @@ export default function AdminMerchPage() {
   const handleSave = async () => {
     if (!editingItem) return
     setSaving(true)
-    const { data, error } = await supabase
-      .from('merch_catalog')
-      .update({
+    try {
+      await adminUpdateMerch(editingItem.id, {
         name: form.name,
         price: form.price !== '' ? Number(form.price) : null,
         image_url: form.image_url || null,
-        size_options: form.size_options.length > 0 ? form.size_options : null,
-        color_options: form.color_options.length > 0 ? form.color_options : null,
+        size_options: form.size_options,
+        color_options: form.color_options,
       })
-      .eq('id', editingItem.id)
-      .select('*, tours(id, name, artists(name))')
-      .single()
-    setSaving(false)
-    if (!error && data) {
-      setItems(prev => prev.map(i => i.id === editingItem.id ? { ...data as MerchItem, report_count: editingItem.report_count } : i))
+      setItems(prev => prev.map(i => i.id === editingItem.id ? {
+        ...i,
+        name: form.name,
+        price: form.price !== '' ? Number(form.price) : null,
+        image_url: form.image_url || null,
+        size_options: form.size_options,
+        color_options: form.color_options,
+      } : i))
       closeEdit()
+    } catch (e) {
+      alert('保存に失敗しました')
     }
+    setSaving(false)
   }
 
   const handleDelete = async (item: MerchItem) => {
     if (!confirm(`「${item.name}」を削除しますか？`)) return
-    const { error } = await supabase.from('merch_catalog').delete().eq('id', item.id)
-    if (!error) setItems(prev => prev.filter(i => i.id !== item.id))
+    try {
+      await adminDeleteMerch(item.id)
+      setItems(prev => prev.filter(i => i.id !== item.id))
+    } catch {
+      alert('削除に失敗しました')
+    }
   }
 
   return (
