@@ -46,6 +46,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   // Add to catalog form
   const [showAddForm, setShowAddForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
   const [formName, setFormName] = useState('')
   const [formPrice, setFormPrice] = useState('')
   const [formImageUrl, setFormImageUrl] = useState('')
@@ -192,7 +193,8 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   const handleAddCatalog = async () => {
     if (!formName.trim() || !userId || !tourId) return
     setSubmitting(true)
-    const { data } = await supabase.from('merch_catalog').insert({
+    setAddError(null)
+    const { data, error } = await supabase.from('merch_catalog').insert({
       tour_id: tourId,
       user_id: userId,
       name: formName.trim(),
@@ -201,6 +203,11 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
       size_options: formSizes,
       color_options: formColors,
     }).select('id, name, image_url, price, size_options, color_options, created_at').single()
+    if (error) {
+      setAddError(`追加失敗: ${error.message}`)
+      setSubmitting(false)
+      return
+    }
     if (data) {
       setItems(prev => [...prev, { ...(data as CatalogItem), latestStock: null }])
     }
@@ -409,6 +416,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                 </div>
               )}
             </div>
+            {addError && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{addError}</p>}
             <button
               onClick={handleAddCatalog}
               disabled={submitting || !formName.trim()}
