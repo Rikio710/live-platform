@@ -2,9 +2,21 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function Header() {
   const pathname = usePathname()
+  const supabase = createClient()
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setLoggedIn(!!user))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setLoggedIn(!!session?.user)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-xl">
@@ -26,19 +38,24 @@ export default function Header() {
             className={`hover:text-white transition-colors ${pathname === '/contact' ? 'text-white' : ''}`}>
             お問い合わせ
           </Link>
-          <Link href="/admin"
-            className={`hover:text-white transition-colors ${pathname.startsWith('/admin') ? 'text-white' : ''}`}>
-            管理画面
-          </Link>
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className="text-sm font-bold px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-white transition-colors"
-          >
-            ログイン
-          </Link>
+          {loggedIn ? (
+            <Link
+              href="/mypage"
+              className="text-sm font-bold px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            >
+              マイページ
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-bold px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            >
+              ログイン
+            </Link>
+          )}
         </div>
       </div>
     </header>
