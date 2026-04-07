@@ -58,6 +58,13 @@ export async function adminDeleteSubmission(id: string) {
   if (error) throw new Error(error.message)
 }
 
+// ---- 周辺情報 ----
+export async function adminDeleteSpot(id: string) {
+  const admin = createAdminClient()
+  const { error } = await admin.from('nearby_spots').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 // ---- お問い合わせ ----
 export async function adminResolveContact(id: string) {
   const admin = createAdminClient()

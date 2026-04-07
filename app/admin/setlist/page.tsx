@@ -48,9 +48,19 @@ export default function AdminSetlistPage() {
   const load = async () => {
     const { data } = await supabase
       .from('setlist_submissions')
-      .select('id, concert_id, user_id, profiles(username), votes_count, created_at, concerts(venue_name, date)')
+      .select('id, concert_id, user_id, votes_count, created_at, concerts(venue_name, date)')
       .order('created_at', { ascending: false })
-    setSubmissions((data ?? []) as unknown as Submission[])
+
+    const rows = (data ?? []) as any[]
+    if (rows.length > 0) {
+      const userIds = [...new Set(rows.map((r: any) => r.user_id))]
+      const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
+      const profileMap: Record<string, string | null> = {}
+      for (const p of profilesData ?? []) profileMap[p.id] = p.username
+      setSubmissions(rows.map((r: any) => ({ ...r, profiles: { username: profileMap[r.user_id] ?? null } })) as unknown as Submission[])
+    } else {
+      setSubmissions([])
+    }
     setLoading(false)
   }
 
