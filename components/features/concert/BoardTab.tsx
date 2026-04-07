@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Heart, MessageCircle, MoreHorizontal, Image, X, EyeOff, Eye } from 'lucide-react'
+import { Plus, Heart, MessageCircle, MoreHorizontal, Image, X, EyeOff, Eye, Trash2 } from 'lucide-react'
 
 const CATEGORIES = [
   { value: 'all', label: '全て' },
@@ -221,6 +221,20 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     setSubmittingComment(false)
   }
 
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm('この投稿を削除しますか？')) return
+    await supabase.from('board_posts').delete().eq('id', postId).eq('user_id', userId!)
+    setPosts(prev => prev.filter(p => p.id !== postId))
+    setOpenMenuPostId(null)
+    if (expandedPostId === postId) setExpandedPostId(null)
+  }
+
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    await supabase.from('post_comments').delete().eq('id', commentId).eq('user_id', userId!)
+    setComments(prev => ({ ...prev, [postId]: (prev[postId] ?? []).filter(c => c.id !== commentId) }))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) } : p))
+  }
+
   const handleReport = async (postId: string) => {
     if (!userId) { router.push('/login'); return }
     await supabase.from('post_reports').upsert({ post_id: postId, user_id: userId }, { onConflict: 'post_id,user_id' })
@@ -349,11 +363,16 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                     </button>
                     {openMenuPostId === post.id && (
                       <div className="absolute right-0 top-8 z-20 bg-[#1a1a2e] border border-white/10 rounded-xl overflow-hidden shadow-xl min-w-[110px]">
-                        <button onClick={() => handleReport(post.id)}
-                          className="w-full text-left px-4 py-2.5 text-sm text-[#8888aa] hover:bg-white/5 hover:text-white transition-colors">通報</button>
-                        {post.user_id !== userId && (
-                          <button onClick={() => handleBlock(post.user_id)}
-                            className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors">ブロック</button>
+                        {post.user_id === userId ? (
+                          <button onClick={() => handleDeletePost(post.id)}
+                            className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors">削除</button>
+                        ) : (
+                          <>
+                            <button onClick={() => handleReport(post.id)}
+                              className="w-full text-left px-4 py-2.5 text-sm text-[#8888aa] hover:bg-white/5 hover:text-white transition-colors">通報</button>
+                            <button onClick={() => handleBlock(post.user_id)}
+                              className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors">ブロック</button>
+                          </>
                         )}
                       </div>
                     )}
@@ -405,13 +424,19 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                         <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-xs text-violet-300 shrink-0 font-bold">
                           {(c.profiles?.username ?? '?')[0].toUpperCase()}
                         </div>
-                        <div className="min-w-0">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-bold text-white">{c.profiles?.username ?? '匿名'}</span>
                             <span className="text-xs text-[#8888aa]">{timeAgo(c.created_at)}</span>
                           </div>
                           <p className="text-sm text-white mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
                         </div>
+                        {c.user_id === userId && (
+                          <button onClick={() => handleDeleteComment(post.id, c.id)}
+                            className="shrink-0 text-[#8888aa] hover:text-red-400 transition-colors p-1">
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     ))}
                     <div className="flex gap-2 pt-1">

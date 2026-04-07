@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Utensils, Hotel, ShoppingBag, MapPin, ExternalLink } from 'lucide-react'
+import { Utensils, Hotel, ShoppingBag, MapPin, ExternalLink, Trash2 } from 'lucide-react'
 
 type Category = 'restaurant' | 'hotel' | 'convenience' | 'other'
 
 type Spot = {
   id: string
+  user_id: string
   category: Category
   name: string
   description: string | null
@@ -123,6 +124,12 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
     setCategory('restaurant')
     setShowForm(false)
     setSubmitting(false)
+  }
+
+  const handleDeleteSpot = async (spotId: string) => {
+    if (!confirm('このスポットを削除しますか？')) return
+    await supabase.from('nearby_spots').delete().eq('id', spotId).eq('user_id', userId!)
+    setSpots(prev => prev.filter(s => s.id !== spotId))
   }
 
   const filtered = activeFilter === 'all' ? spots : spots.filter(s => s.category === activeFilter)
@@ -282,6 +289,12 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
                       {new Date(spot.created_at).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
+                  {spot.user_id === userId && (
+                    <button onClick={() => handleDeleteSpot(spot.id)}
+                      className="shrink-0 text-[#8888aa] hover:text-red-400 transition-colors p-1 self-start">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             )

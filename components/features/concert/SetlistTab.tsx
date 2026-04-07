@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { ThumbsUp, Trash2, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { ThumbsUp, Trash2, ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
 
 type Song = {
   id: string
@@ -252,6 +252,12 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
     await loadSubmissions(userId)
   }
 
+  const handleDeleteSubmission = async (submissionId: string) => {
+    if (!confirm('自分のセトリ投稿を削除しますか？')) return
+    await supabase.from('setlist_submissions').delete().eq('id', submissionId).eq('user_id', userId!)
+    setSubmissions(prev => prev.filter(s => s.id !== submissionId))
+  }
+
   const mySubmission = submissions.find(s => s.user_id === userId)
   const hasMySubmission = !!mySubmission
   const topSubmission = submissions[0] ?? null
@@ -311,6 +317,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
                   onMoveEditRow={moveEditRow}
                   onAddEditRow={addEditRow}
                   onRemoveEditRow={removeEditRow}
+                  onDelete={handleDeleteSubmission}
                 />
               )}
 
@@ -342,6 +349,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
                       onMoveEditRow={moveEditRow}
                       onAddEditRow={addEditRow}
                       onRemoveEditRow={removeEditRow}
+                      onDelete={handleDeleteSubmission}
                     />
                   ))}
                 </div>
@@ -455,6 +463,7 @@ function SubmissionCard({
   onMoveEditRow,
   onAddEditRow,
   onRemoveEditRow,
+  onDelete,
 }: {
   submission: Submission
   isExpanded: boolean
@@ -471,6 +480,7 @@ function SubmissionCard({
   onMoveEditRow: (i: number, dir: -1 | 1) => void
   onAddEditRow: () => void
   onRemoveEditRow: (i: number) => void
+  onDelete: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const username = submission.profiles?.username ?? '匿名'
@@ -495,13 +505,21 @@ function SubmissionCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isOwn && !isEditing && (
-            <button
-              onClick={() => onStartEdit(submission)}
-              className="flex items-center gap-1 text-xs text-[#8888aa] hover:text-violet-300 border border-white/10 hover:border-violet-500/40 px-2.5 py-1.5 rounded-full transition-colors"
-            >
-              <Pencil size={11} />
-              編集
-            </button>
+            <>
+              <button
+                onClick={() => onStartEdit(submission)}
+                className="flex items-center gap-1 text-xs text-[#8888aa] hover:text-violet-300 border border-white/10 hover:border-violet-500/40 px-2.5 py-1.5 rounded-full transition-colors"
+              >
+                <Pencil size={11} />
+                編集
+              </button>
+              <button
+                onClick={() => onDelete(submission.id)}
+                className="text-[#8888aa] hover:text-red-400 transition-colors p-1"
+              >
+                <X size={14} />
+              </button>
+            </>
           )}
           <button
             onClick={() => onVote(submission.id)}
