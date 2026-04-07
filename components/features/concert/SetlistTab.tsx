@@ -154,15 +154,18 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
 
     // Insert new songs
     const inserts = toInsert.map((r, i) => ({
-      concert_id: concertId,
-      user_id: userId,
       submission_id: subId,
       song_name: r.name,
       song_type: r.type,
       order_num: i + 1,
       is_encore: r.encore,
     }))
-    await supabase.from('setlist_songs').insert(inserts)
+    const { error: songsErr } = await supabase.from('setlist_songs').insert(inserts)
+    if (songsErr) {
+      alert(`曲の保存失敗: ${songsErr.message}`)
+      setSubmitting(false)
+      return
+    }
 
     setRows(Array.from({ length: 5 }, emptyBulkRow))
     setShowForm(false)
@@ -231,8 +234,6 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
 
     // Insert updated songs
     const inserts = toSave.map((r, i) => ({
-      concert_id: concertId,
-      user_id: userId,
       submission_id: editingSubmissionId,
       song_name: r.name,
       song_type: r.type,
