@@ -155,6 +155,8 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
     // Insert new songs
     const inserts = toInsert.map((r, i) => ({
       submission_id: subId,
+      concert_id: concertId,
+      user_id: userId,
       song_name: r.name,
       song_type: r.type,
       order_num: i + 1,
@@ -235,6 +237,8 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
     // Insert updated songs
     const inserts = toSave.map((r, i) => ({
       submission_id: editingSubmissionId,
+      concert_id: concertId,
+      user_id: userId,
       song_name: r.name,
       song_type: r.type,
       order_num: i + 1,
