@@ -47,6 +47,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
   const [spots, setSpots] = useState<Spot[]>([])
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
+  const [myUsername, setMyUsername] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<Category | 'all'>('all')
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -61,14 +62,30 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id ?? null)
+      const uid = user?.id ?? null
+      setUserId(uid)
+
+      if (uid) {
+        const { data: profile } = await supabase.from('profiles').select('username').eq('id', uid).single()
+        setMyUsername(profile?.username ?? null)
+      }
 
       const { data } = await supabase
         .from('nearby_spots')
-        .select('id, category, name, description, address, url, created_at, profiles(username)')
+        .select('id, category, name, description, address, url, created_at, user_id')
         .eq('concert_id', concertId)
         .order('created_at', { ascending: false })
-      setSpots((data as any) ?? [])
+
+      const rows = (data as any[]) ?? []
+      if (rows.length > 0) {
+        const userIds = [...new Set(rows.map((r: any) => r.user_id))]
+        const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
+        const profileMap: Record<string, string | null> = {}
+        for (const p of profilesData ?? []) profileMap[p.id] = p.username
+        setSpots(rows.map((r: any) => ({ ...r, profiles: { username: profileMap[r.user_id] ?? null } })))
+      } else {
+        setSpots([])
+      }
       setLoading(false)
     }
     init()
@@ -79,7 +96,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
     if (!userId) { router.push('/login'); return }
     setSubmitting(true)
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('nearby_spots')
       .insert({
         concert_id: concertId,
@@ -90,10 +107,15 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
         address: formAddress.trim() || null,
         url: formUrl.trim() || null,
       })
-      .select('id, category, name, description, address, url, created_at, profiles(username)')
+      .select('id, category, name, description, address, url, created_at, user_id')
       .single()
 
-    if (data) setSpots(prev => [data as any, ...prev])
+    if (error) {
+      alert(`追加失敗: ${error.message}`)
+      setSubmitting(false)
+      return
+    }
+    if (data) setSpots(prev => [{ ...(data as any), profiles: { username: myUsername } }, ...prev])
     setFormName('')
     setFormDesc('')
     setFormAddress('')

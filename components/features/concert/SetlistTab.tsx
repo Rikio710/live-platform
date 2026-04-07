@@ -87,11 +87,17 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
   const loadSubmissions = async (uid: string | null) => {
     const { data: subs } = await supabase
       .from('setlist_submissions')
-      .select('id, user_id, votes_count, created_at, profiles(username)')
+      .select('id, user_id, votes_count, created_at')
       .eq('concert_id', concertId)
       .order('votes_count', { ascending: false })
 
     if (!subs) { setSubmissions([]); return }
+
+    // Fetch profiles separately (no direct FK between setlist_submissions and profiles)
+    const userIds = [...new Set((subs as any[]).map(s => s.user_id))]
+    const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
+    const profileMap: Record<string, string | null> = {}
+    for (const p of profilesData ?? []) profileMap[p.id] = p.username
 
     const withSongs: Submission[] = await Promise.all(
       (subs as any[]).map(async (sub) => {
@@ -100,7 +106,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
           .select('id, song_name, song_type, order_num, is_encore')
           .eq('submission_id', sub.id)
           .order('order_num', { ascending: true })
-        return { ...sub, songs: (songs ?? []) as Song[] }
+        return { ...sub, profiles: { username: profileMap[sub.user_id] ?? null }, songs: (songs ?? []) as Song[] }
       })
     )
     setSubmissions(withSongs)
@@ -136,7 +142,11 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
       .select('id')
       .single()
 
-    if (subErr || !subData) { setSubmitting(false); return }
+    if (subErr || !subData) {
+      alert(`投稿失敗: ${subErr?.message ?? '不明なエラー'}`)
+      setSubmitting(false)
+      return
+    }
     const subId = (subData as any).id
 
     // Delete old songs

@@ -56,9 +56,19 @@ export default function AdminPostsPage() {
   const load = async () => {
     const { data } = await supabase
       .from('board_posts')
-      .select('id, concert_id, concert:concerts(venue_name, date), user_id, profiles(username), content, category, is_spoiler, created_at, likes_count')
+      .select('id, concert_id, concert:concerts(venue_name, date), user_id, content, category, is_spoiler, created_at, likes_count')
       .order('created_at', { ascending: false })
-    setPosts((data ?? []) as unknown as Post[])
+
+    const rows = (data ?? []) as any[]
+    if (rows.length > 0) {
+      const userIds = [...new Set(rows.map((r: any) => r.user_id))]
+      const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
+      const profileMap: Record<string, string | null> = {}
+      for (const p of profilesData ?? []) profileMap[p.id] = p.username
+      setPosts(rows.map((r: any) => ({ ...r, profiles: { username: profileMap[r.user_id] ?? null } })) as unknown as Post[])
+    } else {
+      setPosts([])
+    }
     setLoading(false)
   }
 
@@ -95,10 +105,20 @@ export default function AdminPostsPage() {
     setLoadingComments(postId)
     const { data } = await supabase
       .from('post_comments')
-      .select('id, post_id, user_id, profiles(username), content, created_at')
+      .select('id, post_id, user_id, content, created_at')
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
-    setComments(prev => ({ ...prev, [postId]: (data ?? []) as unknown as Comment[] }))
+
+    const rows = (data ?? []) as any[]
+    if (rows.length > 0) {
+      const userIds = [...new Set(rows.map((r: any) => r.user_id))]
+      const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
+      const profileMap: Record<string, string | null> = {}
+      for (const p of profilesData ?? []) profileMap[p.id] = p.username
+      setComments(prev => ({ ...prev, [postId]: rows.map((r: any) => ({ ...r, profiles: { username: profileMap[r.user_id] ?? null } })) as unknown as Comment[] }))
+    } else {
+      setComments(prev => ({ ...prev, [postId]: [] }))
+    }
     setLoadingComments(null)
   }
 
