@@ -8,6 +8,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.is_admin) redirect('/')
+
   const NAV = [
     { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
     { href: '/admin/artists', label: 'アーティスト', icon: Mic2 },
