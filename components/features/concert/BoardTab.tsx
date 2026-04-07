@@ -62,6 +62,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const channelRef = useRef<any>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
+  const [myUsername, setMyUsername] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState('all')
   const [posts, setPosts] = useState<Post[]>([])
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
@@ -98,6 +99,10 @@ export default function BoardTab({ concertId }: { concertId: string }) {
         const { data: blocks } = await supabase
           .from('user_blocks').select('blocked_id').eq('blocker_id', user.id)
         if (blocks) setBlockedIds(new Set(blocks.map((b: any) => b.blocked_id)))
+
+        const { data: prof } = await supabase
+          .from('profiles').select('username').eq('id', user.id).single()
+        setMyUsername(prof?.username ?? null)
       }
 
       await loadPosts(concertId, user?.id ?? null)
@@ -109,11 +114,14 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       .channel(`board-${concertId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'board_posts', filter: `concert_id=eq.${concertId}` },
         async (payload: any) => {
-          const { data } = await supabase
-            .from('board_posts')
-            .select('*, profiles(username)')
-            .eq('id', payload.new.id).single()
-          if (data) setPosts(prev => [{ ...(data as any), myLike: false, comment_count: 0 }, ...prev])
+          const p = payload.new
+          const { data: prof } = await supabase
+            .from('profiles').select('username').eq('id', p.user_id).single()
+          setPosts(prev => [{
+            ...p,
+            profiles: { username: prof?.username ?? null },
+            myLike: false, comment_count: 0,
+          } as Post, ...prev])
         }
       ).subscribe()
 
@@ -123,20 +131,30 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const loadPosts = async (cid: string, uid: string | null) => {
     const { data } = await supabase
       .from('board_posts')
-      .select('*, profiles(username)')
+      .select('*')
       .eq('concert_id', cid)
       .order('created_at', { ascending: false })
       .limit(100)
-    if (!data) return
+    if (!data || data.length === 0) { setPosts([]); return }
 
-    let enriched: Post[] = data as Post[]
+    // Fetch profiles separately
+    const userIds = [...new Set(data.map((p: any) => p.user_id as string))]
+    const { data: profilesData } = await supabase
+      .from('profiles').select('id, username').in('id', userIds)
+    const profileMap: Record<string, string | null> = {}
+    for (const p of profilesData ?? []) profileMap[p.id] = p.username
 
-    if (uid && data.length > 0) {
+    let enriched: Post[] = data.map((p: any) => ({
+      ...p,
+      profiles: { username: profileMap[p.user_id] ?? null },
+    }))
+
+    if (uid) {
       const { data: likes } = await supabase
         .from('post_likes').select('post_id').eq('user_id', uid)
         .in('post_id', data.map((p: any) => p.id))
       const likedSet = new Set(likes?.map((l: any) => l.post_id) ?? [])
-      enriched = data.map((p: any) => ({ ...p, myLike: likedSet.has(p.id) }))
+      enriched = enriched.map(p => ({ ...p, myLike: likedSet.has(p.id) }))
     }
 
     if (data.length > 0) {
@@ -169,9 +187,17 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const loadComments = async (postId: string) => {
     if (comments[postId]) return
     const { data } = await supabase
-      .from('post_comments').select('*, profiles(username)')
+      .from('post_comments').select('*')
       .eq('post_id', postId).order('created_at', { ascending: true })
-    if (data) setComments(prev => ({ ...prev, [postId]: data as Comment[] }))
+    if (!data) return
+    const userIds = [...new Set(data.map((c: any) => c.user_id as string))]
+    const { data: profs } = await supabase.from('profiles').select('id, username').in('id', userIds)
+    const pm: Record<string, string | null> = {}
+    for (const p of profs ?? []) pm[p.id] = p.username
+    setComments(prev => ({
+      ...prev,
+      [postId]: data.map((c: any) => ({ ...c, profiles: { username: pm[c.user_id] ?? null } })) as Comment[]
+    }))
   }
 
   const toggleComments = async (postId: string) => {
@@ -186,9 +212,9 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     setSubmittingComment(true)
     const { data } = await supabase.from('post_comments')
       .insert({ post_id: postId, user_id: userId, content: commentInput.trim() })
-      .select('*, profiles(username)').single()
+      .select('*').single()
     if (data) {
-      setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), data as Comment] }))
+      setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: myUsername } } as Comment] }))
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p))
       setCommentInput('')
     }
@@ -247,14 +273,18 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       concert_id: concertId, user_id: userId,
       content: postContent.trim(), category: postCategory,
       is_spoiler: postIsSpoiler, media_url: mediaUrl, media_type: mediaType,
-    }).select('*, profiles(username)').single()
+    }).select('*').single()
 
     if (error) {
       setPostError(`投稿失敗: ${error.message}`)
       setSubmitting(false)
       return
     }
-    if (data) setPosts(prev => [{ ...(data as Post), myLike: false, comment_count: 0 }, ...prev])
+    if (data) setPosts(prev => [{
+      ...(data as Post),
+      profiles: { username: myUsername },
+      myLike: false, comment_count: 0,
+    }, ...prev])
     clearModal()
     setSubmitting(false)
   }
