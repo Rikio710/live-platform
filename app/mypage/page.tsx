@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
+import UsernameEditor from '@/components/features/mypage/UsernameEditor'
 import LogoutButton from '@/components/LogoutButton'
 import { Ticket, Calendar, Trophy, Mic2, Heart } from 'lucide-react'
 
@@ -61,12 +62,17 @@ export default async function MyPage() {
 
   const follows = (followsData ?? []).filter((f: any) => f.artists) as any[]
 
+  const { data: profileData } = await supabase
+    .from('profiles').select('username').eq('id', user.id).single()
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-black text-white">マイページ</h1>
         <LogoutButton />
       </div>
+
+      <UsernameEditor initialUsername={profileData?.username ?? null} />
 
       {/* 統計カード */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
