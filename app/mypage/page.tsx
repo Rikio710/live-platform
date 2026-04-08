@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
+import LogoutButton from '@/components/LogoutButton'
 import { Ticket, Calendar, Trophy, Mic2, Heart } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -62,7 +63,10 @@ export default async function MyPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      <h1 className="text-2xl font-black text-white">マイページ</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-black text-white">マイページ</h1>
+        <LogoutButton />
+      </div>
 
       {/* 統計カード */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
