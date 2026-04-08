@@ -63,15 +63,6 @@ export default function LoginForm() {
             </svg>
             Googleでログイン
           </button>
-          <button
-            onClick={() => handleOAuth('apple')}
-            className="w-full flex items-center justify-center gap-3 glass border border-white/10 rounded-2xl py-3 text-sm font-bold text-white hover:border-white/20 transition-colors"
-          >
-            <svg width="18" height="18" viewBox="0 0 814 1000" fill="white">
-              <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76.5 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 790.7 0 663 0 541.8c0-207.8 135.4-317.5 268.5-317.5 36.5 0 102.1 3.8 150.1 42.5 54.4 44.1 95.7 44.1 95.7 44.1v-87.7c0-55.6 34.5-120.7 117.5-120.7 79 0 148.2 48.6 180.7 123.1l-24.4 95.1z"/>
-            </svg>
-            Appleでログイン
-          </button>
         </div>
 
         <div className="flex items-center gap-3">
