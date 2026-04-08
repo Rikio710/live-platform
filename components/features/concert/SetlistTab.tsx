@@ -632,34 +632,54 @@ function SubmissionCard({
 
       {/* Song list (when expanded and not editing) */}
       {expanded && !isEditing && (
-        <div className="space-y-3 pt-1">
-          {mainSongs.length > 0 && (
-            <div className="space-y-1">
-              {mainSongs.length > 0 && encoreSongs.length > 0 && (
-                <p className="text-xs font-bold text-[#8888aa] uppercase tracking-wider mb-2">本編</p>
-              )}
-              {mainSongs.map((s, i) => (
-                <SongDisplayRow key={s.id} song={s} index={i + 1} />
-              ))}
-            </div>
-          )}
-          {encoreSongs.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-[#8888aa] uppercase tracking-wider">アンコール</p>
-              {encoreSongs.map((s, i) => (
-                <SongDisplayRow key={s.id} song={s} index={i + 1} />
-              ))}
-            </div>
-          )}
-          {submission.songs.length === 0 && (
+        <div className="pt-1">
+          {submission.songs.length === 0 ? (
             <p className="text-xs text-[#8888aa] text-center py-2">曲が登録されていません</p>
+          ) : (
+            <div className="space-y-4">
+              {mainSongs.length > 0 && (
+                <div>
+                  {encoreSongs.length > 0 && (
+                    <p className="text-[10px] font-bold text-[#8888aa] uppercase tracking-widest mb-2">本編</p>
+                  )}
+                  <div className="divide-y divide-white/5">
+                    {mainSongs.map((s, i) => (
+                      <SongDisplayRow key={s.id} song={s} index={i + 1} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {encoreSongs.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Encore</p>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+                  <div className="divide-y divide-white/5">
+                    {encoreSongs.map((s, i) => (
+                      <SongDisplayRow key={s.id} song={s} index={i + 1} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {/* Collapsed summary */}
+      {/* Collapsed preview */}
       {!expanded && !isEditing && submission.songs.length > 0 && (
-        <p className="text-xs text-[#8888aa]">{submission.songs.length}曲 — タップして展開</p>
+        <button onClick={() => setExpanded(true)} className="w-full text-left space-y-0.5">
+          {submission.songs.filter(s => s.song_type === 'song').slice(0, 3).map((s, i) => (
+            <p key={s.id} className="text-xs text-[#8888aa] truncate">
+              <span className="text-[#555577] mr-2">{i + 1}</span>{s.song_name}
+            </p>
+          ))}
+          {submission.songs.length > 3 && (
+            <p className="text-xs text-violet-400/70">… 全{submission.songs.length}曲を見る</p>
+          )}
+        </button>
       )}
     </div>
   )
@@ -669,24 +689,26 @@ function SubmissionCard({
 function SongDisplayRow({ song, index }: { song: Song; index: number }) {
   if (song.song_type === 'mc') {
     return (
-      <div className="flex items-center gap-3 px-2 py-1.5 border-b border-white/5">
-        <span className="italic text-[#8888aa] text-xs w-full">「MC」</span>
+      <div className="flex items-center gap-3 px-1 py-2">
+        <span className="text-[#555577] text-xs w-5 text-right shrink-0">—</span>
+        <span className="text-xs text-[#8888aa] italic">MC</span>
       </div>
     )
   }
 
   if (song.song_type === 'other') {
     return (
-      <div className="flex items-center gap-3 px-2 py-1.5">
-        <span className="italic text-[#8888aa] text-xs">[その他: {song.song_name}]</span>
+      <div className="flex items-center gap-3 px-1 py-2">
+        <span className="text-[#555577] text-xs w-5 text-right shrink-0">—</span>
+        <span className="text-xs text-[#8888aa] italic">{song.song_name}</span>
       </div>
     )
   }
 
   return (
-    <div className="glass rounded-xl px-4 py-2.5 flex items-center gap-3">
-      <span className="text-[#8888aa] text-sm w-6 text-center shrink-0">{index}</span>
-      <p className="flex-1 text-white text-sm font-medium">{song.song_name}</p>
+    <div className="flex items-center gap-3 px-1 py-2.5">
+      <span className="text-[#555577] text-xs w-5 text-right shrink-0 font-mono">{index}</span>
+      <p className="flex-1 text-white text-sm">{song.song_name}</p>
     </div>
   )
 }
