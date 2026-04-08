@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja" className="h-full">
       <body className="min-h-screen bg-[#0a0a0f] text-[#f0f0f5] flex flex-col">
         <Header />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 pb-16 sm:pb-0">{children}</main>
         <footer className="border-t border-white/5 mt-16">
           <div className="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-[#8888aa] space-y-3">
             <div className="flex justify-center gap-4">
