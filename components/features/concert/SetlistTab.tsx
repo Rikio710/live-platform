@@ -66,6 +66,8 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
 
   // New submission form
   const [showForm, setShowForm] = useState(false)
+  const [inputMode, setInputMode] = useState<'text' | 'row'>('text')
+  const [pasteText, setPasteText] = useState('')
   const [rows, setRows] = useState<BulkRow[]>(() => Array.from({ length: 5 }, emptyBulkRow))
   const [submitting, setSubmitting] = useState(false)
 
@@ -129,9 +131,9 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
   // ---- Submit new submission ----
   const handleSubmit = async () => {
     if (!userId) { router.push('/login'); return }
-    const toInsert = rows
-      .map(r => ({ ...r, name: r.name.trim() || (r.type === 'mc' ? 'MC' : r.type === 'other' ? 'その他' : '') }))
-      .filter(r => r.name !== '')
+    const toInsert = inputMode === 'text'
+      ? pasteText.split('\n').map(l => l.trim()).filter(l => l !== '').map(l => ({ type: 'song' as const, name: l, encore: false }))
+      : rows.map(r => ({ ...r, name: r.name.trim() || (r.type === 'mc' ? 'MC' : r.type === 'other' ? 'その他' : '') })).filter(r => r.name !== '')
     if (toInsert.length === 0) return
     setSubmitting(true)
 
@@ -170,6 +172,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
     }
 
     setRows(Array.from({ length: 5 }, emptyBulkRow))
+    setPasteText('')
     setShowForm(false)
     setSubmitting(false)
     await loadSubmissions(userId)
@@ -372,64 +375,99 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
           {/* New submission form */}
           {showForm && !hasMySubmission && (
             <div className="glass rounded-2xl p-5 space-y-4">
-              <h3 className="font-bold text-white text-sm">セトリを一括入力</h3>
-              <div className="space-y-2">
-                {rows.map((row, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateRow(i, { type: nextType(row.type) })}
-                      className={`shrink-0 text-xs font-bold px-3 py-2 rounded-lg border transition-colors min-w-[52px] ${
-                        row.type === 'song'
-                          ? 'bg-violet-600/30 border-violet-500/50 text-violet-300'
-                          : row.type === 'mc'
-                          ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
-                          : 'bg-white/5 border-white/10 text-[#8888aa]'
-                      }`}
-                    >
-                      {TYPE_LABELS[row.type]}
-                    </button>
-                    <input
-                      type="text"
-                      value={row.name}
-                      onChange={e => updateRow(i, { name: e.target.value })}
-                      placeholder={placeholderForType(row.type)}
-                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
-                    />
-                    <label className="flex items-center gap-1 text-xs text-[#8888aa] shrink-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={row.encore}
-                        onChange={e => updateRow(i, { encore: e.target.checked })}
-                        className="accent-violet-500"
-                      />
-                      EN
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => removeRow(i)}
-                      className="shrink-0 text-[#8888aa] hover:text-red-400 transition-colors p-1"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-white text-sm">セトリを投稿</h3>
+                {/* Mode toggle */}
+                <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('text')}
+                    className={`px-3 py-1.5 transition-colors ${inputMode === 'text' ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}
+                  >
+                    テキスト
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('row')}
+                    className={`px-3 py-1.5 transition-colors border-l border-white/10 ${inputMode === 'row' ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}
+                  >
+                    詳細入力
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={addRow}
-                className="text-sm text-[#8888aa] hover:text-white border border-white/10 hover:border-white/20 px-4 py-2 rounded-xl transition-colors w-full"
-              >
-                ＋ 行を追加
-              </button>
 
-              <div className="bg-white/3 border border-white/8 rounded-xl px-4 py-3 text-xs text-[#8888aa] space-y-1">
-                <p className="font-bold text-[#aaaacc]">【使い方】</p>
-                <p>• 曲名を順番に入力してください</p>
-                <p>• MC・SE等は種別ボタンで切り替え</p>
-                <p>• アンコールは✓チェックを入れる</p>
-                <p>• 空白行は無視されます</p>
-              </div>
+              {/* テキスト貼り付けモード */}
+              {inputMode === 'text' && (
+                <div className="space-y-3">
+                  <textarea
+                    value={pasteText}
+                    onChange={e => setPasteText(e.target.value)}
+                    placeholder={'曲名を1行ずつ入力\n例:\n白日\n飛行艇\nFlash!!!'}
+                    rows={10}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none font-mono"
+                  />
+                  <p className="text-xs text-[#8888aa]">1行に1曲ずつ入力。種別・アンコールは投稿後に編集できます。</p>
+                </div>
+              )}
+
+              {/* 詳細入力モード */}
+              {inputMode === 'row' && (
+                <div className="space-y-2">
+                  {rows.map((row, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      {/* 種別ボタン (3択) */}
+                      <div className="flex rounded-lg overflow-hidden border border-white/10 shrink-0 text-[11px] font-bold">
+                        {(['song', 'mc', 'other'] as const).map(t => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => updateRow(i, { type: t })}
+                            className={`px-2 py-1.5 transition-colors ${
+                              row.type === t
+                                ? t === 'song' ? 'bg-violet-600 text-white'
+                                  : t === 'mc' ? 'bg-blue-600 text-white'
+                                  : 'bg-white/20 text-white'
+                                : 'text-[#8888aa] hover:text-white'
+                            } ${t !== 'song' ? 'border-l border-white/10' : ''}`}
+                          >
+                            {TYPE_LABELS[t]}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={e => updateRow(i, { name: e.target.value })}
+                        placeholder={placeholderForType(row.type)}
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                      />
+                      <label className="flex items-center gap-1 text-xs text-[#8888aa] shrink-0 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={row.encore}
+                          onChange={e => updateRow(i, { encore: e.target.checked })}
+                          className="accent-violet-500"
+                        />
+                        EN
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeRow(i)}
+                        className="shrink-0 text-[#8888aa] hover:text-red-400 transition-colors p-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addRow}
+                    className="text-sm text-[#8888aa] hover:text-white border border-white/10 hover:border-white/20 px-4 py-2 rounded-xl transition-colors w-full"
+                  >
+                    ＋ 行を追加
+                  </button>
+                </div>
+              )}
 
               <button
                 onClick={handleSubmit}
