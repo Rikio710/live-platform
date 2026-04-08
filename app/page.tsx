@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
-import { LayoutList, Zap, Ticket, Calendar, MapPin } from 'lucide-react'
+import { Calendar, MapPin } from 'lucide-react'
 import ArtistsSection from '@/components/ArtistsSection'
 
 export const revalidate = 1800
@@ -55,25 +55,6 @@ export default async function TopPage() {
               近日公演を見る
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* 機能説明 */}
-      <section className="max-w-5xl mx-auto px-4 pb-10">
-        <div className="grid sm:grid-cols-3 gap-4">
-          {[
-            { icon: LayoutList, title: '公演ページに全情報集約', desc: '掲示板・物販・セトリが1ページに。ライブ前から当日まで使える。' },
-            { icon: Zap, title: 'リアルタイム掲示板', desc: 'グッズ在庫・入場列の状況をファン同士でリアルタイム共有。' },
-            { icon: Ticket, title: '参戦履歴コレクション', desc: '行ったライブをカード形式で蓄積。年別・アーティスト別に振り返り。' },
-          ].map(f => (
-            <div key={f.title} className="glass rounded-2xl p-5 space-y-3">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center">
-                <f.icon size={16} className="text-violet-400" />
-              </div>
-              <p className="font-bold text-sm text-white">{f.title}</p>
-              <p className="text-xs text-[#8888aa] leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
         </div>
       </section>
 
