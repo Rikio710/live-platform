@@ -161,15 +161,7 @@ export default function AdminConcertsPage() {
             <div>
               <label className="text-xs text-[#8888aa] mb-1 block">ツアー（任意）</label>
               <select value={form.tour_id}
-                onChange={e => {
-                  const tourId = e.target.value
-                  const tour = tours.find(t => t.id === tourId)
-                  setForm(f => ({
-                    ...f,
-                    tour_id: tourId,
-                    image_url: f.image_url || tour?.image_url || '',
-                  }))
-                }}
+                onChange={e => setForm(f => ({ ...f, tour_id: e.target.value }))}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
                 disabled={!form.artist_id}>
                 <option value="">選択なし（単独公演）</option>
@@ -213,7 +205,28 @@ export default function AdminConcertsPage() {
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
               </div>
             </div>
-            <Field label="画像URL" value={form.image_url} onChange={v => setForm(f => ({ ...f, image_url: v }))} placeholder="https://..." />
+            <div>
+              <label className="text-xs text-[#8888aa] mb-1 block">画像URL（空欄でツアー画像を使用）</label>
+              <input type="text" value={form.image_url}
+                onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
+                placeholder="空欄 = ツアー画像をデフォルト使用"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+              />
+              {/* プレビュー */}
+              {(() => {
+                const tourImage = tours.find(t => t.id === form.tour_id)?.image_url
+                const previewUrl = form.image_url || tourImage
+                if (!previewUrl) return null
+                return (
+                  <div className="mt-2 space-y-1">
+                    <img src={previewUrl} alt="" className="w-full h-24 object-cover rounded-xl opacity-80" onError={e => (e.currentTarget.style.display = 'none')} />
+                    {!form.image_url && tourImage && (
+                      <p className="text-xs text-[#8888aa]">ツアー画像を使用中（デフォルト）</p>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
             {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
             <div className="flex gap-3 pt-2">
               <button onClick={() => setModal(null)} className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">キャンセル</button>

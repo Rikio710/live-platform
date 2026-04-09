@@ -38,7 +38,7 @@ export default async function ConcertPage({
   const [{ data: concert }, { count: attendCount }] = await Promise.all([
     supabase
       .from('concerts')
-      .select('*, artists(id, name, image_url), tours(id, name)')
+      .select('*, artists(id, name, image_url), tours(id, name, image_url)')
       .eq('id', id)
       .single(),
     supabase
@@ -78,8 +78,8 @@ export default async function ConcertPage({
       {/* アートワーク + 公演情報 */}
       <div className="glass rounded-2xl overflow-hidden">
         <div className="relative h-48 sm:h-64 bg-gradient-to-br from-violet-900/60 to-pink-900/40">
-          {c.image_url && (
-            <img src={c.image_url} alt="" className="w-full h-full object-cover opacity-40" />
+          {(c.image_url || c.tours?.image_url) && (
+            <img src={c.image_url || c.tours.image_url} alt="" className="w-full h-full object-cover opacity-40" />
           )}
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1">
