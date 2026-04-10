@@ -3,11 +3,18 @@ import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 import { Calendar, MapPin } from 'lucide-react'
 import ArtistsSection from '@/components/ArtistsSection'
+import type { Tables } from '@/types/supabase'
+
+type UpcomingConcert = Pick<Tables<'concerts'>, 'id' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
+  artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
+  tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
+}
 
 export const revalidate = 1800
 
 export const metadata: Metadata = {
-  title: 'LiveVault | ライブ参戦体験のOS',
+  title: 'LiveVault | ライブ・コンサートのセトリ記録・参戦管理',
+  description: 'ライブ・コンサートのセットリスト記録、参戦履歴管理、リアルタイム掲示板。アーティストのライブ体験をみんなで共有するプラットフォーム。',
 }
 
 export default async function TopPage() {
@@ -67,12 +74,12 @@ export default async function TopPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(upcomingConcerts ?? []).map((c: any) => (
+            {(upcomingConcerts ?? [] as UpcomingConcert[]).map((c) => (
               <Link key={c.id} href={`/concerts/${c.id}`}
                 className="glass rounded-2xl overflow-hidden hover:border-violet-500/40 transition-all group">
                 <div className="h-36 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
                   {(c.image_url || c.tours?.image_url) && (
-                    <img src={c.image_url || c.tours.image_url} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity" />
+                    <img src={c.image_url ?? c.tours?.image_url ?? undefined} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity" />
                   )}
                   <div className="absolute inset-0 flex items-end p-3">
                     <div>

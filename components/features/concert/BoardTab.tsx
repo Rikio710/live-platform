@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Heart, MessageCircle, MoreHorizontal, Image, X, EyeOff, Eye, Trash2 } from 'lucide-react'
+import type { RealtimePostgresInsertPayload } from '@supabase/realtime-js'
+import type { Tables } from '@/types/supabase'
 
 const CATEGORIES = [
   { value: 'all', label: '全て' },
@@ -59,7 +61,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const supabase = createClient()
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
-  const channelRef = useRef<any>(null)
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
   const [myUsername, setMyUsername] = useState<string | null>(null)
@@ -67,6 +69,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const [posts, setPosts] = useState<Post[]>([])
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   // Comments
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null)
@@ -92,28 +95,33 @@ export default function BoardTab({ concertId }: { concertId: string }) {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id ?? null)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUserId(user?.id ?? null)
 
-      if (user) {
-        const { data: blocks } = await supabase
-          .from('user_blocks').select('blocked_id').eq('blocker_id', user.id)
-        if (blocks) setBlockedIds(new Set(blocks.map((b: any) => b.blocked_id)))
+        if (user) {
+          const { data: blocks } = await supabase
+            .from('user_blocks').select('blocked_id').eq('blocker_id', user.id)
+          if (blocks) setBlockedIds(new Set(blocks.map((b) => b.blocked_id)))
 
-        const { data: prof } = await supabase
-          .from('profiles').select('username').eq('id', user.id).single()
-        setMyUsername(prof?.username ?? null)
+          const { data: prof } = await supabase
+            .from('profiles').select('username').eq('id', user.id).single()
+          setMyUsername(prof?.username ?? null)
+        }
+
+        await loadPosts(concertId, user?.id ?? null)
+      } catch {
+        setLoadError(true)
+      } finally {
+        setLoading(false)
       }
-
-      await loadPosts(concertId, user?.id ?? null)
-      setLoading(false)
     }
     init()
 
     channelRef.current = supabase
       .channel(`board-${concertId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'board_posts', filter: `concert_id=eq.${concertId}` },
-        async (payload: any) => {
+        async (payload: RealtimePostgresInsertPayload<Tables<'board_posts'>>) => {
           const p = payload.new
           const { data: prof } = await supabase
             .from('profiles').select('username').eq('id', p.user_id).single()
@@ -138,22 +146,26 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     if (!data || data.length === 0) { setPosts([]); return }
 
     // Fetch profiles separately
-    const userIds = [...new Set(data.map((p: any) => p.user_id as string))]
+    const userIds = [...new Set(data.map((p) => p.user_id))]
     const { data: profilesData } = await supabase
       .from('profiles').select('id, username').in('id', userIds)
     const profileMap: Record<string, string | null> = {}
     for (const p of profilesData ?? []) profileMap[p.id] = p.username
 
-    let enriched: Post[] = data.map((p: any) => ({
+    let enriched: Post[] = data.map((p) => ({
       ...p,
+      is_spoiler: p.is_spoiler ?? false,
+      likes_count: p.likes_count ?? 0,
+      media_type: p.media_type as 'image' | 'video' | null,
+      created_at: p.created_at ?? new Date().toISOString(),
       profiles: { username: profileMap[p.user_id] ?? null },
     }))
 
     if (uid) {
       const { data: likes } = await supabase
         .from('post_likes').select('post_id').eq('user_id', uid)
-        .in('post_id', data.map((p: any) => p.id))
-      const likedSet = new Set(likes?.map((l: any) => l.post_id) ?? [])
+        .in('post_id', data.map((p) => p.id))
+      const likedSet = new Set(likes?.map((l) => l.post_id) ?? [])
       enriched = enriched.map(p => ({ ...p, myLike: likedSet.has(p.id) }))
     }
 
@@ -161,7 +173,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       try {
         const { data: cc } = await supabase
           .from('post_comments').select('post_id')
-          .in('post_id', data.map((p: any) => p.id))
+          .in('post_id', data.map((p) => p.id))
         const countMap: Record<string, number> = {}
         for (const c of cc ?? []) countMap[c.post_id] = (countMap[c.post_id] ?? 0) + 1
         enriched = enriched.map(p => ({ ...p, comment_count: countMap[p.id] ?? 0 }))
@@ -190,13 +202,13 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       .from('post_comments').select('*')
       .eq('post_id', postId).order('created_at', { ascending: true })
     if (!data) return
-    const userIds = [...new Set(data.map((c: any) => c.user_id as string))]
+    const userIds = [...new Set(data.map((c) => c.user_id))]
     const { data: profs } = await supabase.from('profiles').select('id, username').in('id', userIds)
     const pm: Record<string, string | null> = {}
     for (const p of profs ?? []) pm[p.id] = p.username
     setComments(prev => ({
       ...prev,
-      [postId]: data.map((c: any) => ({ ...c, profiles: { username: pm[c.user_id] ?? null } })) as Comment[]
+      [postId]: data.map((c) => ({ ...c, profiles: { username: pm[c.user_id] ?? null } })) as Comment[]
     }))
   }
 
@@ -295,7 +307,11 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       return
     }
     if (data) setPosts(prev => [{
-      ...(data as Post),
+      ...data,
+      is_spoiler: data.is_spoiler ?? false,
+      likes_count: data.likes_count ?? 0,
+      media_type: data.media_type as 'image' | 'video' | null,
+      created_at: data.created_at ?? new Date().toISOString(),
       profiles: { username: myUsername },
       myLike: false, comment_count: 0,
     }, ...prev])
@@ -332,6 +348,10 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       {/* Post list */}
       {loading ? (
         <div className="text-center text-[#8888aa] text-sm py-8">読み込み中...</div>
+      ) : loadError ? (
+        <div className="glass rounded-2xl p-8 text-center space-y-3">
+          <p className="text-red-400 text-sm">データの読み込みに失敗しました</p>
+        </div>
       ) : filteredPosts.length === 0 ? (
         <div className="text-center text-[#8888aa] text-sm py-8">投稿がありません</div>
       ) : (

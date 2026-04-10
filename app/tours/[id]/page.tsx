@@ -3,6 +3,13 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 import { Calendar } from 'lucide-react'
+import type { Tables } from '@/types/supabase'
+
+type TourWithArtist = Tables<'tours'> & {
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+}
+
+type TourConcert = Pick<Tables<'concerts'>, 'id' | 'venue_name' | 'venue_address' | 'date' | 'start_time' | 'image_url'>
 
 export const revalidate = 3600
 
@@ -10,14 +17,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const supabase = await createClient()
   const { data } = await supabase.from('tours').select('name, artists(name)').eq('id', id).single()
-  return { title: data ? `${(data as any).artists?.name} - ${data.name}` : 'ツアー' }
+  if (!data) return { title: 'ツアー' }
+  const metaTour = data as { name: string; artists: Pick<Tables<'artists'>, 'name'> | null }
+  const artistName = metaTour.artists?.name ?? ''
+  return {
+    title: `${artistName} ${data.name} セトリ・ライブレポ`,
+    description: `${artistName}「${data.name}」の公演一覧・セットリスト・参戦記録。各会場のセトリや参戦者のリアルな情報を確認できます。`,
+  }
 }
 
 export default async function TourPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: tour }, { data: concerts }] = await Promise.all([
+  const [{ data: tourRaw }, { data: concerts }] = await Promise.all([
     supabase.from('tours').select('*, artists(id, name, image_url)').eq('id', id).single(),
     supabase
       .from('concerts')
@@ -26,8 +39,9 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
       .order('date', { ascending: true }),
   ])
 
-  if (!tour) notFound()
+  if (!tourRaw) notFound()
 
+  const tour = tourRaw as TourWithArtist
   const today = new Date().toISOString().split('T')[0]
 
   return (
@@ -36,10 +50,10 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
       <nav className="text-xs text-[#8888aa] flex items-center gap-1">
         <Link href="/" className="hover:text-white transition-colors">ホーム</Link>
         <span>/</span>
-        {(tour as any).artists && (
+        {tour.artists && (
           <>
-            <Link href={`/artists/${(tour as any).artists.id}`} className="hover:text-white transition-colors">
-              {(tour as any).artists.name}
+            <Link href={`/artists/${tour.artists.id}`} className="hover:text-white transition-colors">
+              {tour.artists.name}
             </Link>
             <span>/</span>
           </>
@@ -49,13 +63,13 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
 
       {/* ヘッダー */}
       <div className="space-y-3">
-        {(tour as any).artists && (
-          <Link href={`/artists/${(tour as any).artists.id}`}
+        {tour.artists && (
+          <Link href={`/artists/${tour.artists.id}`}
             className="inline-flex items-center gap-2 text-sm text-violet-300 hover:text-violet-200 transition-colors">
-            {(tour as any).artists.image_url && (
-              <img src={(tour as any).artists.image_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+            {tour.artists.image_url && (
+              <img src={tour.artists.image_url} alt="" className="w-5 h-5 rounded-full object-cover" />
             )}
-            {(tour as any).artists.name}
+            {tour.artists.name}
           </Link>
         )}
         <h1 className="text-2xl font-black text-white">{tour.name}</h1>
@@ -80,7 +94,7 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
           <p className="text-sm text-[#8888aa]">公演情報がありません</p>
         ) : (
           <div className="space-y-3">
-            {(concerts ?? []).map((c: any) => {
+            {(concerts ?? [] as TourConcert[]).map((c) => {
               const isPast = c.date < today
               return (
                 <Link key={c.id} href={`/concerts/${c.id}`}

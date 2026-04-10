@@ -5,11 +5,11 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: {
-    default: 'LiveVault | ライブ参戦体験のOS',
+    default: 'LiveVault | ライブ参戦・セトリ記録サービス',
     template: '%s | LiveVault',
   },
-  description: 'ライブ前の情報収集・当日のリアルタイム共有・参戦履歴の蓄積。アーティストのライブ体験を一元管理するプラットフォーム。',
-  keywords: ['ライブ', 'コンサート', 'セトリ', '参戦', '物販', '掲示板'],
+  description: 'ライブのセトリ記録・参戦履歴管理・リアルタイム掲示板。アーティストのコンサート情報を共有・保存できる参戦体験プラットフォーム。',
+  keywords: ['セトリ', 'ライブ', 'コンサート', '参戦', '参戦記録', 'セットリスト', '公演', 'ライブレポ'],
   openGraph: {
     type: 'website',
     locale: 'ja_JP',

@@ -5,10 +5,15 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Mic2, Search } from 'lucide-react'
 import FollowButton from '@/components/features/artist/FollowButton'
+import { Skeleton } from '@/components/ui/Skeleton'
+import type { Tables } from '@/types/supabase'
+
+type Artist = Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'description'>
 
 export default function ArtistsPage() {
   const supabase = createClient()
-  const [artists, setArtists] = useState<any[]>([])
+  const [artists, setArtists] = useState<Artist[]>([])
+  const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
 
   useEffect(() => {
@@ -16,7 +21,7 @@ export default function ArtistsPage() {
       .from('artists')
       .select('id, name, image_url, description')
       .order('name')
-      .then(({ data }) => setArtists(data ?? []))
+      .then(({ data }) => { setArtists(data ?? []); setLoading(false) })
   }, [])
 
   const filtered = query
@@ -27,7 +32,10 @@ export default function ArtistsPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-black text-white">アーティスト</h1>
-        <p className="text-sm text-[#8888aa] mt-1">{filtered.length}組</p>
+        {loading
+          ? <Skeleton className="h-4 w-12 mt-1" />
+          : <p className="text-sm text-[#8888aa] mt-1">{filtered.length}組</p>
+        }
       </div>
 
       {/* Search */}
@@ -43,7 +51,18 @@ export default function ArtistsPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {filtered.map((a: any) => (
+        {loading ? (
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="glass rounded-2xl overflow-hidden">
+              <Skeleton className="h-32 rounded-none" />
+              <div className="px-3 pt-3 pb-3 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-7 w-full rounded-full mt-1" />
+              </div>
+            </div>
+          ))
+        ) : filtered.map((a) => (
           <div key={a.id} className="glass rounded-2xl overflow-hidden hover:border-violet-500/30 transition-all group">
             <Link href={`/artists/${a.id}`} className="block">
               <div className="h-32 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
@@ -68,6 +87,7 @@ export default function ArtistsPage() {
           </div>
         ))}
       </div>
+
     </div>
   )
 }

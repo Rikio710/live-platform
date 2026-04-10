@@ -17,13 +17,22 @@ export default function AdminToursPage() {
   const [form, setForm] = useState<Form>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
 
   const load = async () => {
-    const [tr, ar] = await Promise.all([
-      fetch('/api/admin/tours').then(r => r.json()),
-      fetch('/api/admin/artists').then(r => r.json()),
-    ])
-    setTours(tr); setArtists(ar); setLoading(false)
+    try {
+      const [trRes, arRes] = await Promise.all([
+        fetch('/api/admin/tours'),
+        fetch('/api/admin/artists'),
+      ])
+      if (!trRes.ok || !arRes.ok) throw new Error('fetch failed')
+      const [tr, ar] = await Promise.all([trRes.json(), arRes.json()])
+      setTours(tr); setArtists(ar)
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 
@@ -43,26 +52,37 @@ export default function AdminToursPage() {
     if (!form.artist_id) { setError('アーティストを選択してください'); return }
     if (!form.name.trim()) { setError('ツアー名は必須です'); return }
     setSaving(true); setError(null)
-    const isEdit = modal === 'edit' && editing
-    const res = await fetch(isEdit ? `/api/admin/tours/${editing.id}` : '/api/admin/tours', {
-      method: isEdit ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error); setSaving(false); return }
-    if (isEdit) {
-      setTours(prev => prev.map(t => t.id === editing.id ? data : t))
-    } else {
-      setTours(prev => [data, ...prev])
+    try {
+      const isEdit = modal === 'edit' && editing
+      const res = await fetch(isEdit ? `/api/admin/tours/${editing.id}` : '/api/admin/tours', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? '保存に失敗しました'); return }
+      if (isEdit) {
+        setTours(prev => prev.map(t => t.id === editing.id ? data : t))
+      } else {
+        setTours(prev => [data, ...prev])
+      }
+      setModal(null)
+    } catch {
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setSaving(false)
     }
-    setModal(null); setSaving(false)
   }
 
   const handleDelete = async (t: Tour) => {
     if (!confirm(`「${t.name}」を削除しますか？関連する公演も全て削除されます。`)) return
-    const res = await fetch(`/api/admin/tours/${t.id}`, { method: 'DELETE' })
-    if (res.ok) setTours(prev => prev.filter(x => x.id !== t.id))
+    try {
+      const res = await fetch(`/api/admin/tours/${t.id}`, { method: 'DELETE' })
+      if (res.ok) setTours(prev => prev.filter(x => x.id !== t.id))
+      else alert('削除に失敗しました')
+    } catch {
+      alert('ネットワークエラーが発生しました')
+    }
   }
 
   return (
@@ -80,6 +100,11 @@ export default function AdminToursPage() {
 
       {loading ? (
         <p className="text-[#8888aa] text-sm">読み込み中...</p>
+      ) : loadError ? (
+        <div className="glass rounded-2xl p-8 text-center space-y-3">
+          <p className="text-red-400 text-sm">データの読み込みに失敗しました</p>
+          <button onClick={load} className="text-xs border border-white/10 text-[#8888aa] hover:text-white px-4 py-2 rounded-full transition-colors">再試行</button>
+        </div>
       ) : tours.length === 0 ? (
         <div className="glass rounded-2xl p-10 text-center text-[#8888aa] text-sm">ツアーがまだ登録されていません</div>
       ) : (

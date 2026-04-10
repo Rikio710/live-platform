@@ -5,6 +5,18 @@ import type { Metadata } from 'next'
 import ConcertTabs from '@/components/features/concert/ConcertTabs'
 import AttendButton from '@/components/features/concert/AttendButton'
 import { Calendar, MapPin } from 'lucide-react'
+import { siteUrl } from '@/lib/site'
+import type { Tables } from '@/types/supabase'
+
+type ConcertWithRelations = Tables<'concerts'> & {
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+  tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
+}
+
+type MetadataConcert = Pick<Tables<'concerts'>, 'venue_name' | 'date'> & {
+  artists: Pick<Tables<'artists'>, 'name'> | null
+  tours: Pick<Tables<'tours'>, 'name'> | null
+}
 
 export const revalidate = 60
 
@@ -17,10 +29,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .eq('id', id)
     .single()
   if (!data) return { title: '公演' }
-  const d = data as any
+  const d = data as MetadataConcert
+  const dateStr = new Date(data.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
   return {
-    title: `${d.artists?.name} ${d.tours?.name} - ${d.venue_name}`,
-    description: `${d.artists?.name}の公演。${new Date(data.date).toLocaleDateString('ja-JP')} ${d.venue_name}`,
+    title: `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} セトリ`,
+    description: `${d.artists?.name}「${d.tours?.name ?? 'ライブ'}」${dateStr} ${d.venue_name}のセットリスト・参戦記録・掲示板。ライブのセトリや感想を共有しよう。`,
   }
 }
 
@@ -49,13 +62,35 @@ export default async function ConcertPage({
 
   if (!concert) notFound()
 
-  const c = concert as any
+  const c = concert as ConcertWithRelations
   const dateStr = new Date(c.date).toLocaleDateString('ja-JP', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   })
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'MusicEvent',
+    name: `${c.artists?.name ?? ''} ${c.tours?.name ?? c.venue_name}`,
+    startDate: c.start_time ? `${c.date}T${c.start_time}+09:00` : c.date,
+    location: {
+      '@type': 'MusicVenue',
+      name: c.venue_name,
+      address: c.venue_address ?? undefined,
+    },
+    performer: c.artists ? {
+      '@type': 'MusicGroup',
+      name: c.artists.name,
+    } : undefined,
+    image: c.image_url || c.tours?.image_url || undefined,
+    url: `${siteUrl}/concerts/${id}`,
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* パンくず */}
       <nav className="text-xs text-[#8888aa] flex items-center gap-1 flex-wrap">
         <Link href="/" className="hover:text-white transition-colors">ホーム</Link>
@@ -79,7 +114,7 @@ export default async function ConcertPage({
       <div className="glass rounded-2xl overflow-hidden">
         <div className="relative h-48 sm:h-64 bg-gradient-to-br from-violet-900/60 to-pink-900/40">
           {(c.image_url || c.tours?.image_url) && (
-            <img src={c.image_url || c.tours.image_url} alt="" className="w-full h-full object-cover opacity-40" />
+            <img src={c.image_url ?? c.tours?.image_url ?? undefined} alt="" className="w-full h-full object-cover opacity-40" />
           )}
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1">

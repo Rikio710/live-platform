@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Utensils, Hotel, ShoppingBag, MapPin, ExternalLink, Trash2 } from 'lucide-react'
+import type { Tables } from '@/types/supabase'
 
 type Category = 'restaurant' | 'hotel' | 'convenience' | 'other'
 
@@ -15,7 +16,7 @@ type Spot = {
   description: string | null
   address: string | null
   url: string | null
-  created_at: string
+  created_at: string | null
   profiles: { username: string | null } | null
 }
 
@@ -47,6 +48,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
   const router = useRouter()
   const [spots, setSpots] = useState<Spot[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<Category | 'all'>('all')
@@ -62,32 +64,40 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      const uid = user?.id ?? null
-      setUserId(uid)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const uid = user?.id ?? null
+        setUserId(uid)
 
-      if (uid) {
-        const { data: profile } = await supabase.from('profiles').select('username').eq('id', uid).single()
-        setMyUsername(profile?.username ?? null)
+        if (uid) {
+          const { data: profile } = await supabase.from('profiles').select('username').eq('id', uid).single()
+          setMyUsername(profile?.username ?? null)
+        }
+
+        const { data, error } = await supabase
+          .from('nearby_spots')
+          .select('id, category, name, description, address, url, created_at, user_id')
+          .eq('concert_id', concertId)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        type NearbySpotRow = Pick<Tables<'nearby_spots'>, 'id' | 'category' | 'name' | 'description' | 'address' | 'url' | 'created_at' | 'user_id'>
+        const rows: NearbySpotRow[] = data ?? []
+        if (rows.length > 0) {
+          const userIds = [...new Set(rows.map((r) => r.user_id))]
+          const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
+          const profileMap: Record<string, string | null> = {}
+          for (const p of profilesData ?? []) profileMap[p.id] = p.username
+          setSpots(rows.map((r) => ({ ...r, category: r.category as Category, profiles: { username: profileMap[r.user_id] ?? null } })))
+        } else {
+          setSpots([])
+        }
+      } catch {
+        setLoadError(true)
+      } finally {
+        setLoading(false)
       }
-
-      const { data } = await supabase
-        .from('nearby_spots')
-        .select('id, category, name, description, address, url, created_at, user_id')
-        .eq('concert_id', concertId)
-        .order('created_at', { ascending: false })
-
-      const rows = (data as any[]) ?? []
-      if (rows.length > 0) {
-        const userIds = [...new Set(rows.map((r: any) => r.user_id))]
-        const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
-        const profileMap: Record<string, string | null> = {}
-        for (const p of profilesData ?? []) profileMap[p.id] = p.username
-        setSpots(rows.map((r: any) => ({ ...r, profiles: { username: profileMap[r.user_id] ?? null } })))
-      } else {
-        setSpots([])
-      }
-      setLoading(false)
     }
     init()
   }, [concertId])
@@ -116,7 +126,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
       setSubmitting(false)
       return
     }
-    if (data) setSpots(prev => [{ ...(data as any), profiles: { username: myUsername } }, ...prev])
+    if (data) setSpots(prev => [{ ...data, category: data.category as Category, profiles: { username: myUsername } }, ...prev])
     setFormName('')
     setFormDesc('')
     setFormAddress('')
@@ -245,6 +255,10 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
       {/* List */}
       {loading ? (
         <div className="text-center text-[#8888aa] text-sm py-6">読み込み中...</div>
+      ) : loadError ? (
+        <div className="glass rounded-2xl p-8 text-center space-y-3">
+          <p className="text-red-400 text-sm">データの読み込みに失敗しました</p>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="glass rounded-2xl p-8 text-center space-y-2">
           <p className="text-[#8888aa] text-sm">周辺スポットがまだ投稿されていません</p>
@@ -286,7 +300,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
                     )}
                     <p className="text-xs text-[#8888aa] mt-1">
                       {spot.profiles?.username ?? '匿名'} ・{' '}
-                      {new Date(spot.created_at).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                      {spot.created_at && new Date(spot.created_at).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                   {spot.user_id === userId && (

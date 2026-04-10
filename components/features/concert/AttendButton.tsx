@@ -32,16 +32,23 @@ export default function AttendButton({ concertId }: { concertId: string }) {
   const toggle = async () => {
     if (!userId) { router.push('/login'); return }
     setLoading(true)
-    if (attended) {
-      await supabase.from('attendances').delete()
-        .eq('concert_id', concertId).eq('user_id', userId)
-      setAttended(false)
-    } else {
-      await supabase.from('attendances').insert({ concert_id: concertId, user_id: userId })
-      setAttended(true)
+    try {
+      if (attended) {
+        const { error } = await supabase.from('attendances').delete()
+          .eq('concert_id', concertId).eq('user_id', userId)
+        if (error) throw error
+        setAttended(false)
+      } else {
+        const { error } = await supabase.from('attendances').insert({ concert_id: concertId, user_id: userId })
+        if (error) throw error
+        setAttended(true)
+      }
+      router.refresh()
+    } catch {
+      alert('操作に失敗しました。再試行してください。')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-    router.refresh()
   }
 
   return (

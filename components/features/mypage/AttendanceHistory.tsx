@@ -6,7 +6,7 @@ import { Ticket, Mic2, MapPin } from 'lucide-react'
 
 type Attendance = {
   id: string
-  created_at: string
+  created_at: string | null
   concerts: {
     id: string
     venue_name: string

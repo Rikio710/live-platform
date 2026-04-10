@@ -27,15 +27,24 @@ export default function AdminConcertsPage() {
   const [form, setForm] = useState<Form>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState(false)
   const [filterArtist, setFilterArtist] = useState('')
 
   const load = async () => {
-    const [cc, ar, tr] = await Promise.all([
-      fetch('/api/admin/concerts').then(r => r.json()),
-      fetch('/api/admin/artists').then(r => r.json()),
-      fetch('/api/admin/tours').then(r => r.json()),
-    ])
-    setConcerts(cc); setArtists(ar); setTours(tr); setLoading(false)
+    try {
+      const [ccRes, arRes, trRes] = await Promise.all([
+        fetch('/api/admin/concerts'),
+        fetch('/api/admin/artists'),
+        fetch('/api/admin/tours'),
+      ])
+      if (!ccRes.ok || !arRes.ok || !trRes.ok) throw new Error('fetch failed')
+      const [cc, ar, tr] = await Promise.all([ccRes.json(), arRes.json(), trRes.json()])
+      setConcerts(cc); setArtists(ar); setTours(tr)
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 
@@ -60,26 +69,37 @@ export default function AdminConcertsPage() {
     if (!form.venue_name.trim()) { setError('会場名は必須です'); return }
     if (!form.date) { setError('日付は必須です'); return }
     setSaving(true); setError(null)
-    const isEdit = modal === 'edit' && editing
-    const res = await fetch(isEdit ? `/api/admin/concerts/${editing.id}` : '/api/admin/concerts', {
-      method: isEdit ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error); setSaving(false); return }
-    if (isEdit) {
-      setConcerts(prev => prev.map(c => c.id === editing.id ? data : c))
-    } else {
-      setConcerts(prev => [data, ...prev])
+    try {
+      const isEdit = modal === 'edit' && editing
+      const res = await fetch(isEdit ? `/api/admin/concerts/${editing.id}` : '/api/admin/concerts', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? '保存に失敗しました'); return }
+      if (isEdit) {
+        setConcerts(prev => prev.map(c => c.id === editing.id ? data : c))
+      } else {
+        setConcerts(prev => [data, ...prev])
+      }
+      setModal(null)
+    } catch {
+      setError('ネットワークエラーが発生しました')
+    } finally {
+      setSaving(false)
     }
-    setModal(null); setSaving(false)
   }
 
   const handleDelete = async (c: Concert) => {
     if (!confirm(`「${c.venue_name} ${new Date(c.date).toLocaleDateString('ja-JP')}」を削除しますか？`)) return
-    const res = await fetch(`/api/admin/concerts/${c.id}`, { method: 'DELETE' })
-    if (res.ok) setConcerts(prev => prev.filter(x => x.id !== c.id))
+    try {
+      const res = await fetch(`/api/admin/concerts/${c.id}`, { method: 'DELETE' })
+      if (res.ok) setConcerts(prev => prev.filter(x => x.id !== c.id))
+      else alert('削除に失敗しました')
+    } catch {
+      alert('ネットワークエラーが発生しました')
+    }
   }
 
   const displayed = filterArtist ? concerts.filter(c => c.artists?.id === filterArtist) : concerts
@@ -106,6 +126,11 @@ export default function AdminConcertsPage() {
 
       {loading ? (
         <p className="text-[#8888aa] text-sm">読み込み中...</p>
+      ) : loadError ? (
+        <div className="glass rounded-2xl p-8 text-center space-y-3">
+          <p className="text-red-400 text-sm">データの読み込みに失敗しました</p>
+          <button onClick={load} className="text-xs border border-white/10 text-[#8888aa] hover:text-white px-4 py-2 rounded-full transition-colors">再試行</button>
+        </div>
       ) : displayed.length === 0 ? (
         <div className="glass rounded-2xl p-10 text-center text-[#8888aa] text-sm">公演がまだ登録されていません</div>
       ) : (

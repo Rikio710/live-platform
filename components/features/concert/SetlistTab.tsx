@@ -58,6 +58,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
 
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
 
   const [submissions, setSubmissions] = useState<Submission[]>([])
@@ -78,10 +79,15 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id ?? null)
-      await loadSubmissions(user?.id ?? null)
-      setLoading(false)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUserId(user?.id ?? null)
+        await loadSubmissions(user?.id ?? null)
+      } catch {
+        setLoadError(true)
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, [concertId])
@@ -96,13 +102,13 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
     if (!subs) { setSubmissions([]); return }
 
     // Fetch profiles separately (no direct FK between setlist_submissions and profiles)
-    const userIds = [...new Set((subs as any[]).map(s => s.user_id))]
+    const userIds = [...new Set(subs.map(s => s.user_id))]
     const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
     const profileMap: Record<string, string | null> = {}
     for (const p of profilesData ?? []) profileMap[p.id] = p.username
 
     const withSongs: Submission[] = await Promise.all(
-      (subs as any[]).map(async (sub) => {
+      subs.map(async (sub) => {
         const { data: songs } = await supabase
           .from('setlist_songs')
           .select('id, song_name, song_type, order_num, is_encore')
@@ -118,7 +124,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
         .from('setlist_submission_votes')
         .select('submission_id')
         .eq('user_id', uid)
-      setVotedSubmissionIds(new Set((votes ?? []).map((v: any) => v.submission_id)))
+      setVotedSubmissionIds(new Set((votes ?? []).map((v) => v.submission_id)))
     }
   }
 
@@ -149,7 +155,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
       setSubmitting(false)
       return
     }
-    const subId = (subData as any).id
+    const subId = subData.id
 
     // Delete old songs
     await supabase.from('setlist_songs').delete().eq('submission_id', subId)
@@ -287,6 +293,12 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
         <>
           {loading ? (
             <div className="text-center text-[#8888aa] text-sm py-6">読み込み中...</div>
+          ) : loadError ? (
+            <div className="glass rounded-2xl p-8 text-center space-y-3">
+              <p className="text-red-400 text-sm">データの読み込みに失敗しました</p>
+              <button onClick={() => { setLoadError(false); setLoading(true); loadSubmissions(userId).finally(() => setLoading(false)) }}
+                className="text-xs border border-white/10 text-[#8888aa] hover:text-white px-4 py-2 rounded-full transition-colors">再試行</button>
+            </div>
           ) : submissions.length === 0 ? (
             /* Empty state */
             <div className="glass rounded-2xl p-8 text-center space-y-3">

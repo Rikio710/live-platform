@@ -6,6 +6,18 @@ import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
 import UsernameEditor from '@/components/features/mypage/UsernameEditor'
 import LogoutButton from '@/components/LogoutButton'
 import { Ticket, Calendar, Trophy, Mic2, Heart } from 'lucide-react'
+import type { Tables } from '@/types/supabase'
+
+type AttendanceWithConcert = Pick<Tables<'attendances'>, 'id' | 'created_at'> & {
+  concerts: (Pick<Tables<'concerts'>, 'id' | 'venue_name' | 'date' | 'image_url'> & {
+    artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+    tours: Pick<Tables<'tours'>, 'id' | 'name'> | null
+  }) | null
+}
+
+type FollowWithArtist = Pick<Tables<'artist_follows'>, 'artist_id'> & {
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +44,8 @@ export default async function MyPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const list = (attendances ?? []).filter((a: any) => a.concerts) as any[]
+  const rawAttendances = (attendances ?? []) as AttendanceWithConcert[]
+  const list = rawAttendances.filter((a) => a.concerts) as (AttendanceWithConcert & { concerts: NonNullable<AttendanceWithConcert['concerts']> })[]
 
   // 統計
   const totalCount = list.length
@@ -43,7 +56,7 @@ export default async function MyPage() {
     const artistId = a.concerts.artists?.id
     const artistName = a.concerts.artists?.name ?? '不明'
     if (artistId) {
-      if (!artistMap[artistId]) artistMap[artistId] = { name: artistName, count: 0, image_url: a.concerts.artists?.image_url }
+      if (!artistMap[artistId]) artistMap[artistId] = { name: artistName, count: 0, image_url: a.concerts.artists?.image_url ?? null }
       artistMap[artistId].count++
     }
     const year = new Date(a.concerts.date).getFullYear().toString()
@@ -60,7 +73,8 @@ export default async function MyPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  const follows = (followsData ?? []).filter((f: any) => f.artists) as any[]
+  const rawFollows = (followsData ?? []) as FollowWithArtist[]
+  const follows = rawFollows.filter((f) => f.artists) as (FollowWithArtist & { artists: NonNullable<FollowWithArtist['artists']> })[]
 
   const { data: profileData } = await supabase
     .from('profiles').select('username').eq('id', user.id).single()
@@ -109,7 +123,7 @@ export default async function MyPage() {
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {follows.map((f: any) => (
+            {follows.map((f) => (
               <Link key={f.artist_id} href={`/artists/${f.artists.id}`}
                 className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-pink-500/30 transition-colors text-sm font-medium">
                 {f.artists.image_url ? (

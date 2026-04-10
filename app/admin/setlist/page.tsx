@@ -144,6 +144,8 @@ export default function AdminSetlistPage() {
 
   const handleAddSong = async (submissionId: string) => {
     if (!addForm.song_name.trim()) return
+    const submission = submissions.find(s => s.id === submissionId)
+    if (!submission) return
     setSaving(true)
     const existing = songs[submissionId] ?? []
     const maxOrder = existing.length > 0 ? Math.max(...existing.map(s => s.order_num)) : 0
@@ -151,6 +153,8 @@ export default function AdminSetlistPage() {
       .from('setlist_songs')
       .insert({
         submission_id: submissionId,
+        concert_id: submission.concert_id,
+        user_id: submission.user_id,
         song_name: addForm.song_name.trim(),
         song_type: addForm.song_type,
         is_encore: addForm.is_encore,
