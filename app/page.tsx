@@ -62,12 +62,11 @@ export default async function TopPage() {
               近日公演を見る
             </Link>
           </div>
-          <div className="flex justify-center pt-1">
+          <div className="flex justify-center pt-2">
             <Link href="/request"
-              className="flex items-center gap-2 text-[#8888aa] hover:text-violet-300 text-xs transition-colors group">
-              <PlusCircle size={13} className="group-hover:text-violet-400 transition-colors" />
+              className="flex items-center gap-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 hover:border-violet-500/50 text-violet-300 hover:text-violet-200 font-bold px-5 py-2.5 rounded-full transition-all text-sm">
+              <PlusCircle size={15} />
               アーティスト・ライブ情報を追加リクエスト
-              <span className="opacity-60">›</span>
             </Link>
           </div>
         </div>
