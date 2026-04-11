@@ -613,6 +613,36 @@ export type Database = {
         }
         Relationships: []
       }
+      requests: {
+        Row: {
+          admin_note: string | null
+          created_at: string | null
+          id: string
+          payload: Json
+          status: string
+          submitted_by: string | null
+          type: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string | null
+          id?: string
+          payload: Json
+          status?: string
+          submitted_by?: string | null
+          type: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string | null
+          id?: string
+          payload?: Json
+          status?: string
+          submitted_by?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
       setlist_songs: {
         Row: {
           concert_id: string
