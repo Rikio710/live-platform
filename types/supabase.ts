@@ -734,23 +734,29 @@ export type Database = {
       }
       setlist_submissions: {
         Row: {
+          apple_music_url: string | null
           concert_id: string
           created_at: string
           id: string
+          spotify_url: string | null
           user_id: string
           votes_count: number
         }
         Insert: {
+          apple_music_url?: string | null
           concert_id: string
           created_at?: string
           id?: string
+          spotify_url?: string | null
           user_id: string
           votes_count?: number
         }
         Update: {
+          apple_music_url?: string | null
           concert_id?: string
           created_at?: string
           id?: string
+          spotify_url?: string | null
           user_id?: string
           votes_count?: number
         }

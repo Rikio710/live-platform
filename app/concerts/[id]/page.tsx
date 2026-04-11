@@ -161,13 +161,7 @@ export default async function ConcertPage({
       </div>
 
       {/* タブコンテンツ */}
-      <ConcertTabs
-        concertId={id}
-        activeTab={tab}
-        tourId={c.tours?.id ?? null}
-        spotifyUrl={c.spotify_url ?? null}
-        appleMusicUrl={c.apple_music_url ?? null}
-      />
+      <ConcertTabs concertId={id} activeTab={tab} tourId={c.tours?.id ?? null} />
     </div>
   )
 }

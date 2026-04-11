@@ -18,6 +18,8 @@ type Submission = {
   user_id: string
   votes_count: number
   created_at: string
+  spotify_url: string | null
+  apple_music_url: string | null
   profiles: { username: string | null } | null
   songs: Song[]
 }
@@ -52,7 +54,7 @@ function placeholderForType(t: 'song' | 'mc' | 'other') {
   return '例: 夜に駆ける'
 }
 
-export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { concertId: string; spotifyUrl: string | null; appleMusicUrl: string | null }) {
+export default function SetlistTab({ concertId }: { concertId: string }) {
   const supabase = createClient()
   const router = useRouter()
 
@@ -70,6 +72,8 @@ export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { c
   const [inputMode, setInputMode] = useState<'text' | 'row'>('text')
   const [pasteText, setPasteText] = useState('')
   const [rows, setRows] = useState<BulkRow[]>(() => Array.from({ length: 5 }, emptyBulkRow))
+  const [formSpotify, setFormSpotify] = useState('')
+  const [formAppleMusic, setFormAppleMusic] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   // Edit mode
@@ -95,7 +99,7 @@ export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { c
   const loadSubmissions = async (uid: string | null) => {
     const { data: subs } = await supabase
       .from('setlist_submissions')
-      .select('id, user_id, votes_count, created_at')
+      .select('id, user_id, votes_count, created_at, spotify_url, apple_music_url')
       .eq('concert_id', concertId)
       .order('votes_count', { ascending: false })
 
@@ -146,7 +150,12 @@ export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { c
     // Upsert submission row
     const { data: subData, error: subErr } = await supabase
       .from('setlist_submissions')
-      .upsert({ concert_id: concertId, user_id: userId }, { onConflict: 'concert_id,user_id' })
+      .upsert({
+        concert_id: concertId,
+        user_id: userId,
+        spotify_url: formSpotify.trim() || null,
+        apple_music_url: formAppleMusic.trim() || null,
+      }, { onConflict: 'concert_id,user_id' })
       .select('id')
       .single()
 
@@ -179,6 +188,8 @@ export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { c
 
     setRows(Array.from({ length: 5 }, emptyBulkRow))
     setPasteText('')
+    setFormSpotify('')
+    setFormAppleMusic('')
     setShowForm(false)
     setSubmitting(false)
     await loadSubmissions(userId)
@@ -291,26 +302,6 @@ export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { c
 
       {revealed && (
         <>
-          {/* プレイリストリンク */}
-          {(spotifyUrl || appleMusicUrl) && (
-            <div className="flex flex-wrap gap-2">
-              {spotifyUrl && (
-                <a href={spotifyUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 hover:border-[#1DB954]/50 text-[#1DB954] font-bold text-sm px-4 py-2.5 rounded-full transition-all">
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-                  Spotifyで聴く
-                </a>
-              )}
-              {appleMusicUrl && (
-                <a href={appleMusicUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-[#fc3c44]/10 hover:bg-[#fc3c44]/20 border border-[#fc3c44]/30 hover:border-[#fc3c44]/50 text-[#fc3c44] font-bold text-sm px-4 py-2.5 rounded-full transition-all">
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 7.5v6.75a2.25 2.25 0 11-1.5-2.121V9l-4.5 1.5v5.25a2.25 2.25 0 11-1.5-2.121V8.25L16.5 6v1.5z"/></svg>
-                  Apple Musicで聴く
-                </a>
-              )}
-            </div>
-          )}
-
           {loading ? (
             <div className="text-center text-[#8888aa] text-sm py-6">読み込み中...</div>
           ) : loadError ? (
@@ -500,6 +491,22 @@ export default function SetlistTab({ concertId, spotifyUrl, appleMusicUrl }: { c
                   </button>
                 </div>
               )}
+
+              <div className="border-t border-white/10 pt-3 space-y-2">
+                <p className="text-xs text-[#8888aa]">プレイリストのリンクがあれば貼ってね（任意）</p>
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#1DB954] shrink-0" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+                  <input type="url" value={formSpotify} onChange={e => setFormSpotify(e.target.value)}
+                    placeholder="Spotify プレイリストURL"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-[#1DB954]/50" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#fc3c44] shrink-0" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 7.5v6.75a2.25 2.25 0 11-1.5-2.121V9l-4.5 1.5v5.25a2.25 2.25 0 11-1.5-2.121V8.25L16.5 6v1.5z"/></svg>
+                  <input type="url" value={formAppleMusic} onChange={e => setFormAppleMusic(e.target.value)}
+                    placeholder="Apple Music プレイリストURL"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-[#fc3c44]/50" />
+                </div>
+              </div>
 
               <button
                 onClick={handleSubmit}
@@ -734,6 +741,26 @@ function SubmissionCard({
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* プレイリストボタン */}
+      {expanded && !isEditing && (submission.spotify_url || submission.apple_music_url) && (
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-white/5">
+          {submission.spotify_url && (
+            <a href={submission.spotify_url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 hover:border-[#1DB954]/50 text-[#1DB954] font-bold text-xs px-3 py-2 rounded-full transition-all">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current shrink-0" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+              Spotifyで聴く
+            </a>
+          )}
+          {submission.apple_music_url && (
+            <a href={submission.apple_music_url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 bg-[#fc3c44]/10 hover:bg-[#fc3c44]/20 border border-[#fc3c44]/30 hover:border-[#fc3c44]/50 text-[#fc3c44] font-bold text-xs px-3 py-2 rounded-full transition-all">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current shrink-0" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 7.5v6.75a2.25 2.25 0 11-1.5-2.121V9l-4.5 1.5v5.25a2.25 2.25 0 11-1.5-2.121V8.25L16.5 6v1.5z"/></svg>
+              Apple Musicで聴く
+            </a>
           )}
         </div>
       )}
