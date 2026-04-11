@@ -18,10 +18,14 @@ export default function ConcertTabs({
   concertId,
   activeTab,
   tourId,
+  spotifyUrl,
+  appleMusicUrl,
 }: {
   concertId: string
   activeTab: string
   tourId: string | null
+  spotifyUrl: string | null
+  appleMusicUrl: string | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -53,7 +57,7 @@ export default function ConcertTabs({
       {/* コンテンツ */}
       {activeTab === 'board' && <BoardTab concertId={concertId} />}
       {activeTab === 'merch' && <MerchTab concertId={concertId} tourId={tourId} />}
-      {activeTab === 'setlist' && <SetlistTab concertId={concertId} />}
+      {activeTab === 'setlist' && <SetlistTab concertId={concertId} spotifyUrl={spotifyUrl} appleMusicUrl={appleMusicUrl} />}
       {activeTab === 'nearby' && <NearbyTab concertId={concertId} />}
     </div>
   )

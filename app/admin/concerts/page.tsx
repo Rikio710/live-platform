@@ -9,13 +9,15 @@ type Tour = { id: string; name: string; artist_id: string; image_url: string | n
 type Concert = {
   id: string; venue_name: string; venue_address: string | null
   date: string; start_time: string | null; image_url: string | null
+  spotify_url: string | null; apple_music_url: string | null
   artists: Artist | null; tours: { id: string; name: string } | null
 }
 type Form = {
   artist_id: string; tour_id: string; venue_name: string
   venue_address: string; date: string; start_time: string; image_url: string
+  spotify_url: string; apple_music_url: string
 }
-const EMPTY: Form = { artist_id: '', tour_id: '', venue_name: '', venue_address: '', date: '', start_time: '18:00', image_url: '' }
+const EMPTY: Form = { artist_id: '', tour_id: '', venue_name: '', venue_address: '', date: '', start_time: '18:00', image_url: '', spotify_url: '', apple_music_url: '' }
 
 export default function AdminConcertsPage() {
   const [concerts, setConcerts] = useState<Concert[]>([])
@@ -60,6 +62,8 @@ export default function AdminConcertsPage() {
       date: c.date,
       start_time: c.start_time ? c.start_time.slice(0, 5) : '',
       image_url: c.image_url ?? '',
+      spotify_url: c.spotify_url ?? '',
+      apple_music_url: c.apple_music_url ?? '',
     })
     setEditing(c); setError(null); setModal('edit')
   }
@@ -251,6 +255,11 @@ export default function AdminConcertsPage() {
                   </div>
                 )
               })()}
+            </div>
+            <div className="border-t border-white/10 pt-4 space-y-3">
+              <p className="text-xs text-[#8888aa] font-bold">プレイリストリンク（任意）</p>
+              <Field label="Spotify" value={form.spotify_url} onChange={v => setForm(f => ({ ...f, spotify_url: v }))} placeholder="https://open.spotify.com/playlist/..." />
+              <Field label="Apple Music" value={form.apple_music_url} onChange={v => setForm(f => ({ ...f, apple_music_url: v }))} placeholder="https://music.apple.com/jp/playlist/..." />
             </div>
             {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
             <div className="flex gap-3 pt-2">

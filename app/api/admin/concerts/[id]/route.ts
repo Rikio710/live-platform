@@ -22,6 +22,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       date: body.date,
       start_time: body.start_time || null,
       image_url: body.image_url || null,
+      spotify_url: body.spotify_url || null,
+      apple_music_url: body.apple_music_url || null,
     }).eq('id', id).select('*, artists(id, name), tours(id, name)').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)

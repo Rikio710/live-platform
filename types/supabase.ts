@@ -157,33 +157,39 @@ export type Database = {
       }
       concerts: {
         Row: {
+          apple_music_url: string | null
           artist_id: string
           created_at: string | null
           date: string
           id: string
           image_url: string | null
+          spotify_url: string | null
           start_time: string | null
           tour_id: string | null
           venue_address: string | null
           venue_name: string
         }
         Insert: {
+          apple_music_url?: string | null
           artist_id: string
           created_at?: string | null
           date: string
           id?: string
           image_url?: string | null
+          spotify_url?: string | null
           start_time?: string | null
           tour_id?: string | null
           venue_address?: string | null
           venue_name: string
         }
         Update: {
+          apple_music_url?: string | null
           artist_id?: string
           created_at?: string | null
           date?: string
           id?: string
           image_url?: string | null
+          spotify_url?: string | null
           start_time?: string | null
           tour_id?: string | null
           venue_address?: string | null
