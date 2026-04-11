@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { LayoutDashboard, Mic2, Route, Ticket, MessageSquare, ShoppingBag, ListMusic, Mail, MapPin } from 'lucide-react'
+import { LayoutDashboard, Mic2, Route, Ticket, MessageSquare, ShoppingBag, ListMusic, Mail, MapPin, PlusCircle } from 'lucide-react'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/setlist', label: 'セトリ', icon: ListMusic },
     { href: '/admin/nearby', label: '周辺情報', icon: MapPin },
     { href: '/admin/contact', label: 'お問い合わせ', icon: Mail },
+    { href: '/admin/requests', label: 'リクエスト', icon: PlusCircle },
   ]
 
   return (

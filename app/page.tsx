@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
-import { Calendar, MapPin } from 'lucide-react'
+import { Calendar, MapPin, PlusCircle } from 'lucide-react'
 import ArtistsSection from '@/components/ArtistsSection'
 import type { Tables } from '@/types/supabase'
 
@@ -103,6 +103,23 @@ export default async function TopPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* リクエストバナー */}
+      <section className="max-w-5xl mx-auto px-4 pb-4">
+        <Link href="/request"
+          className="flex items-center justify-between glass rounded-2xl px-5 py-4 hover:border-violet-500/40 transition-colors group">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center shrink-0">
+              <PlusCircle size={18} className="text-violet-400" />
+            </div>
+            <div>
+              <p className="font-bold text-white text-sm">アーティスト・ライブ情報を追加リクエスト</p>
+              <p className="text-xs text-[#8888aa] mt-0.5">掲載されていない情報はリクエストで追加できます</p>
+            </div>
+          </div>
+          <span className="text-[#8888aa] group-hover:text-violet-300 transition-colors">›</span>
+        </Link>
       </section>
 
       {/* アーティスト */}

@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
 import UsernameEditor from '@/components/features/mypage/UsernameEditor'
 import LogoutButton from '@/components/LogoutButton'
-import { Ticket, Calendar, Trophy, Mic2, Heart } from 'lucide-react'
+import { Ticket, Calendar, Trophy, Mic2, Heart, PlusCircle } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
 
 type AttendanceWithConcert = Pick<Tables<'attendances'>, 'id' | 'created_at'> & {
@@ -146,6 +146,21 @@ export default async function MyPage() {
         artistMap={artistMap}
         yearMap={yearMap}
       />
+
+      {/* リクエストバナー */}
+      <Link href="/request"
+        className="flex items-center justify-between glass rounded-2xl px-5 py-4 hover:border-violet-500/40 transition-colors group">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center shrink-0">
+            <PlusCircle size={18} className="text-violet-400" />
+          </div>
+          <div>
+            <p className="font-bold text-white text-sm">アーティスト・ライブ情報を追加リクエスト</p>
+            <p className="text-xs text-[#8888aa] mt-0.5">掲載されていない情報はリクエストで追加できます</p>
+          </div>
+        </div>
+        <span className="text-[#8888aa] group-hover:text-violet-300 transition-colors">›</span>
+      </Link>
     </div>
   )
 }
