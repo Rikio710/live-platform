@@ -21,6 +21,8 @@ type Submission = {
   profiles: Profile | null
   votes_count: number
   created_at: string
+  spotify_url: string | null
+  apple_music_url: string | null
   concerts: Concert | null
 }
 
@@ -44,11 +46,13 @@ export default function AdminSetlistPage() {
   const [addingToSubmission, setAddingToSubmission] = useState<string | null>(null)
   const [addForm, setAddForm] = useState<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean }>({ song_name: '', song_type: 'song', is_encore: false })
   const [saving, setSaving] = useState(false)
+  const [editingUrlsId, setEditingUrlsId] = useState<string | null>(null)
+  const [urlForm, setUrlForm] = useState({ spotify: '', apple: '' })
 
   const load = async () => {
     const { data } = await supabase
       .from('setlist_submissions')
-      .select('id, concert_id, user_id, votes_count, created_at, concerts(venue_name, date)')
+      .select('id, concert_id, user_id, votes_count, created_at, spotify_url, apple_music_url, concerts(venue_name, date)')
       .order('created_at', { ascending: false })
 
     const rows = (data ?? []) as any[]
@@ -168,6 +172,25 @@ export default function AdminSetlistPage() {
       setAddForm({ song_name: '', song_type: 'song', is_encore: false })
       setAddingToSubmission(null)
     }
+  }
+
+  const startEditUrls = (sub: Submission) => {
+    setEditingUrlsId(sub.id)
+    setUrlForm({ spotify: sub.spotify_url ?? '', apple: sub.apple_music_url ?? '' })
+  }
+
+  const handleSaveUrls = async (subId: string) => {
+    setSaving(true)
+    await supabase.from('setlist_submissions').update({
+      spotify_url: urlForm.spotify.trim() || null,
+      apple_music_url: urlForm.apple.trim() || null,
+    }).eq('id', subId)
+    setSubmissions(prev => prev.map(s => s.id === subId
+      ? { ...s, spotify_url: urlForm.spotify.trim() || null, apple_music_url: urlForm.apple.trim() || null }
+      : s
+    ))
+    setEditingUrlsId(null)
+    setSaving(false)
   }
 
   const formatDate = (ts: string) => new Date(ts).toLocaleDateString('ja-JP')
@@ -308,6 +331,51 @@ export default function AdminSetlistPage() {
                         </div>
                       ))
                     )}
+
+                    {/* プレイリストURL */}
+                    <div className="border-t border-white/5 pt-3 mt-2">
+                      {editingUrlsId === sub.id ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[#1DB954] w-20 shrink-0">Spotify</span>
+                            <input type="url" value={urlForm.spotify} onChange={e => setUrlForm(f => ({ ...f, spotify: e.target.value }))}
+                              placeholder="https://open.spotify.com/playlist/..."
+                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-[#1DB954]/50" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[#fc3c44] w-20 shrink-0">Apple Music</span>
+                            <input type="url" value={urlForm.apple} onChange={e => setUrlForm(f => ({ ...f, apple: e.target.value }))}
+                              placeholder="https://music.apple.com/jp/playlist/..."
+                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-[#fc3c44]/50" />
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleSaveUrls(sub.id)} disabled={saving}
+                              className="text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold px-4 py-1.5 rounded-full transition-colors">
+                              保存
+                            </button>
+                            <button onClick={() => setEditingUrlsId(null)}
+                              className="text-xs border border-white/10 text-[#8888aa] hover:text-white px-4 py-1.5 rounded-full transition-colors">
+                              キャンセル
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {sub.spotify_url
+                            ? <a href={sub.spotify_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1DB954] hover:underline truncate max-w-[180px]">Spotify ✓</a>
+                            : <span className="text-xs text-[#8888aa]">Spotifyなし</span>
+                          }
+                          {sub.apple_music_url
+                            ? <a href={sub.apple_music_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#fc3c44] hover:underline truncate max-w-[180px]">Apple Music ✓</a>
+                            : <span className="text-xs text-[#8888aa]">Apple Musicなし</span>
+                          }
+                          <button onClick={() => startEditUrls(sub)}
+                            className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1 rounded-full transition-colors">
+                            リンクを編集
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Add song */}
                     {addingToSubmission === sub.id ? (

@@ -79,6 +79,8 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
   // Edit mode
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null)
   const [editRows, setEditRows] = useState<EditRow[]>([])
+  const [editSpotify, setEditSpotify] = useState('')
+  const [editAppleMusic, setEditAppleMusic] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
@@ -224,9 +226,11 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
       name: s.song_name,
       encore: s.is_encore,
     })))
+    setEditSpotify(sub.spotify_url ?? '')
+    setEditAppleMusic(sub.apple_music_url ?? '')
   }
 
-  const cancelEdit = () => { setEditingSubmissionId(null); setEditRows([]) }
+  const cancelEdit = () => { setEditingSubmissionId(null); setEditRows([]); setEditSpotify(''); setEditAppleMusic('') }
 
   const updateEditRow = (i: number, patch: Partial<EditRow>) =>
     setEditRows(prev => prev.map((r, idx) => idx === i ? { ...r, ...patch } : r))
@@ -251,6 +255,12 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
       .filter(r => r.name !== '')
     setSavingEdit(true)
 
+    // Update submission URLs
+    await supabase.from('setlist_submissions').update({
+      spotify_url: editSpotify.trim() || null,
+      apple_music_url: editAppleMusic.trim() || null,
+    }).eq('id', editingSubmissionId)
+
     // Delete old songs
     await supabase.from('setlist_songs').delete().eq('submission_id', editingSubmissionId)
 
@@ -269,6 +279,8 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
     setSavingEdit(false)
     setEditingSubmissionId(null)
     setEditRows([])
+    setEditSpotify('')
+    setEditAppleMusic('')
     await loadSubmissions(userId)
   }
 
@@ -334,6 +346,10 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
                   isOwn={topSubmission.user_id === userId}
                   isEditing={editingSubmissionId === topSubmission.id}
                   editRows={editRows}
+                  editSpotify={editSpotify}
+                  editAppleMusic={editAppleMusic}
+                  onEditSpotify={setEditSpotify}
+                  onEditAppleMusic={setEditAppleMusic}
                   savingEdit={savingEdit}
                   onVote={handleVote}
                   onStartEdit={startEdit}
@@ -366,6 +382,10 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
                       isOwn={sub.user_id === userId}
                       isEditing={editingSubmissionId === sub.id}
                       editRows={editRows}
+                      editSpotify={editSpotify}
+                      editAppleMusic={editAppleMusic}
+                      onEditSpotify={setEditSpotify}
+                      onEditAppleMusic={setEditAppleMusic}
                       savingEdit={savingEdit}
                       onVote={handleVote}
                       onStartEdit={startEdit}
@@ -531,6 +551,10 @@ function SubmissionCard({
   isOwn,
   isEditing,
   editRows,
+  editSpotify,
+  editAppleMusic,
+  onEditSpotify,
+  onEditAppleMusic,
   savingEdit,
   onVote,
   onStartEdit,
@@ -548,6 +572,10 @@ function SubmissionCard({
   isOwn: boolean
   isEditing: boolean
   editRows: EditRow[]
+  editSpotify: string
+  editAppleMusic: string
+  onEditSpotify: (v: string) => void
+  onEditAppleMusic: (v: string) => void
   savingEdit: boolean
   onVote: (id: string) => void
   onStartEdit: (sub: Submission) => void
@@ -689,6 +717,21 @@ function SubmissionCard({
           >
             ＋ 行を追加
           </button>
+          <div className="border-t border-white/10 pt-3 space-y-2">
+            <p className="text-xs text-[#8888aa]">プレイリストリンク（任意）</p>
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#1DB954] shrink-0" aria-hidden="true"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+              <input type="url" value={editSpotify} onChange={e => onEditSpotify(e.target.value)}
+                placeholder="Spotify プレイリストURL"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-[#1DB954]/50" />
+            </div>
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#fc3c44] shrink-0" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.5 7.5v6.75a2.25 2.25 0 11-1.5-2.121V9l-4.5 1.5v5.25a2.25 2.25 0 11-1.5-2.121V8.25L16.5 6v1.5z"/></svg>
+              <input type="url" value={editAppleMusic} onChange={e => onEditAppleMusic(e.target.value)}
+                placeholder="Apple Music プレイリストURL"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-[#fc3c44]/50" />
+            </div>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={onSaveEdit}
