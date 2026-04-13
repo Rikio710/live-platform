@@ -13,9 +13,9 @@ type ConcertWithRelations = Tables<'concerts'> & {
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
 
-type MetadataConcert = Pick<Tables<'concerts'>, 'venue_name' | 'date'> & {
+type MetadataConcert = Pick<Tables<'concerts'>, 'venue_name' | 'date' | 'image_url'> & {
   artists: Pick<Tables<'artists'>, 'name'> | null
-  tours: Pick<Tables<'tours'>, 'name'> | null
+  tours: Pick<Tables<'tours'>, 'name' | 'image_url'> | null
 }
 
 export const revalidate = 60
@@ -25,15 +25,30 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const supabase = await createClient()
   const { data } = await supabase
     .from('concerts')
-    .select('venue_name, date, artists(name), tours(name)')
+    .select('venue_name, date, image_url, artists(name), tours(name, image_url)')
     .eq('id', id)
     .single()
   if (!data) return { title: '公演' }
   const d = data as MetadataConcert
-  const dateStr = new Date(data.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+  const dateStr = new Date(d.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+  const title = `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} セトリ`
+  const description = `${d.artists?.name}「${d.tours?.name ?? 'ライブ'}」${dateStr} ${d.venue_name}のセットリスト・参戦記録・掲示板。ライブのセトリや感想を共有しよう。`
+  const image = d.image_url ?? d.tours?.image_url ?? null
   return {
-    title: `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} セトリ`,
-    description: `${d.artists?.name}「${d.tours?.name ?? 'ライブ'}」${dateStr} ${d.venue_name}のセットリスト・参戦記録・掲示板。ライブのセトリや感想を共有しよう。`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: `${siteUrl}/concerts/${id}`,
+      ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}),
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
   }
 }
 

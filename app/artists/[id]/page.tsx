@@ -14,11 +14,26 @@ export const revalidate = 3600
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
-  const { data } = await supabase.from('artists').select('name, description').eq('id', id).single()
+  const { data } = await supabase.from('artists').select('name, description, image_url').eq('id', id).single()
   if (!data) return { title: 'アーティスト' }
+  const title = `${data.name} ライブ・セトリ情報`
+  const description = `${data.name}のライブ・コンサート情報、セットリスト記録、参戦レポートをチェック。${data.description ? data.description.slice(0, 60) : ''}`
+  const image = data.image_url ?? null
   return {
-    title: `${data.name} ライブ・セトリ情報`,
-    description: `${data.name}のライブ・コンサート情報、セットリスト記録、参戦レポートをチェック。${data.description ? data.description.slice(0, 60) : ''}`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: `${siteUrl}/artists/${id}`,
+      ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: data.name }] } : {}),
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
   }
 }
 

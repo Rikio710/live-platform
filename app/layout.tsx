@@ -14,6 +14,14 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'ja_JP',
     siteName: 'LiveVault',
+    title: 'LiveVault | ライブ参戦・セトリ記録サービス',
+    description: 'ライブのセトリ記録・参戦履歴管理・リアルタイム掲示板。アーティストのコンサート情報を共有・保存できる参戦体験プラットフォーム。',
+    url: 'https://live-platform-flax.vercel.app',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'LiveVault | ライブ参戦・セトリ記録サービス',
+    description: 'ライブのセトリ記録・参戦履歴管理・リアルタイム掲示板。',
   },
 }
 

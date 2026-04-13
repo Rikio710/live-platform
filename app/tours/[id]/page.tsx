@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 import { Calendar } from 'lucide-react'
+import { siteUrl } from '@/lib/site'
 import type { Tables } from '@/types/supabase'
 
 type TourWithArtist = Tables<'tours'> & {
@@ -16,13 +17,28 @@ export const revalidate = 3600
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
-  const { data } = await supabase.from('tours').select('name, artists(name)').eq('id', id).single()
+  const { data } = await supabase.from('tours').select('name, image_url, artists(name)').eq('id', id).single()
   if (!data) return { title: 'ツアー' }
-  const metaTour = data as { name: string; artists: Pick<Tables<'artists'>, 'name'> | null }
+  const metaTour = data as { name: string; image_url: string | null; artists: Pick<Tables<'artists'>, 'name'> | null }
   const artistName = metaTour.artists?.name ?? ''
+  const title = `${artistName} ${data.name} セトリ・ライブレポ`
+  const description = `${artistName}「${data.name}」の公演一覧・セットリスト・参戦記録。各会場のセトリや参戦者のリアルな情報を確認できます。`
+  const image = metaTour.image_url ?? null
   return {
-    title: `${artistName} ${data.name} セトリ・ライブレポ`,
-    description: `${artistName}「${data.name}」の公演一覧・セットリスト・参戦記録。各会場のセトリや参戦者のリアルな情報を確認できます。`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: `${siteUrl}/tours/${id}`,
+      ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}),
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
+    },
   }
 }
 
