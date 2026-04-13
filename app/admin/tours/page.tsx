@@ -5,8 +5,8 @@ import AdminModal from '@/components/admin/AdminModal'
 
 type Artist = { id: string; name: string }
 type Tour = { id: string; name: string; start_date: string | null; end_date: string | null; image_url: string | null; artists: Artist | null }
-type Form = { artist_id: string; name: string; start_date: string; end_date: string; image_url: string }
-const EMPTY: Form = { artist_id: '', name: '', start_date: '', end_date: '', image_url: '' }
+type Form = { artist_id: string; name: string; image_url: string }
+const EMPTY: Form = { artist_id: '', name: '', image_url: '' }
 
 export default function AdminToursPage() {
   const [tours, setTours] = useState<Tour[]>([])
@@ -41,8 +41,6 @@ export default function AdminToursPage() {
     setForm({
       artist_id: t.artists?.id ?? '',
       name: t.name,
-      start_date: t.start_date ?? '',
-      end_date: t.end_date ?? '',
       image_url: t.image_url ?? '',
     })
     setEditing(t); setError(null); setModal('edit')
@@ -147,18 +145,6 @@ export default function AdminToursPage() {
               </select>
             </div>
             <Field label="ツアー名 *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} placeholder="例: Live Tour 2026" />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-[#8888aa] mb-1 block">開始日</label>
-                <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
-              </div>
-              <div>
-                <label className="text-xs text-[#8888aa] mb-1 block">終了日</label>
-                <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
-              </div>
-            </div>
             <Field label="画像URL" value={form.image_url} onChange={v => setForm(f => ({ ...f, image_url: v }))} placeholder="https://..." />
             {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
             <div className="flex gap-3 pt-2">

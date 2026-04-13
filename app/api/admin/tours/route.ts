@@ -31,8 +31,6 @@ export async function POST(req: NextRequest) {
     const { data, error } = await admin.from('tours').insert({
       artist_id: body.artist_id,
       name: body.name,
-      start_date: body.start_date || null,
-      end_date: body.end_date || null,
       image_url: body.image_url || null,
     }).select('*, artists(id, name)').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

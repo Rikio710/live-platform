@@ -17,8 +17,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data, error } = await admin.from('tours').update({
       artist_id: body.artist_id,
       name: body.name,
-      start_date: body.start_date || null,
-      end_date: body.end_date || null,
       image_url: body.image_url || null,
     }).eq('id', id).select('*, artists(id, name)').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
