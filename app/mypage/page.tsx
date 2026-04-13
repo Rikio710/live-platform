@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
 import UsernameEditor from '@/components/features/mypage/UsernameEditor'
+import AvatarEditor from '@/components/features/mypage/AvatarEditor'
 import LogoutButton from '@/components/LogoutButton'
 import { Ticket, Calendar, Trophy, Mic2, Heart, PlusCircle } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
@@ -77,7 +78,7 @@ export default async function MyPage() {
   const follows = rawFollows.filter((f) => f.artists) as (FollowWithArtist & { artists: NonNullable<FollowWithArtist['artists']> })[]
 
   const { data: profileData } = await supabase
-    .from('profiles').select('username').eq('id', user.id).single()
+    .from('profiles').select('username, avatar_url').eq('id', user.id).single()
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
@@ -86,7 +87,10 @@ export default async function MyPage() {
         <LogoutButton />
       </div>
 
-      <UsernameEditor initialUsername={profileData?.username ?? null} />
+      <div className="flex items-center gap-4">
+        <AvatarEditor userId={user.id} initialAvatarUrl={profileData?.avatar_url ?? null} />
+        <UsernameEditor initialUsername={profileData?.username ?? null} />
+      </div>
 
       {/* 統計カード */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

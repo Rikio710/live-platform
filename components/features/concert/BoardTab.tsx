@@ -33,7 +33,7 @@ type Post = {
   media_type: 'image' | 'video' | null
   likes_count: number
   created_at: string
-  profiles: { username: string | null } | null
+  profiles: { username: string | null; avatar_url: string | null } | null
   myLike?: boolean
   comment_count?: number
 }
@@ -44,7 +44,7 @@ type Comment = {
   user_id: string
   content: string
   created_at: string
-  profiles: { username: string | null } | null
+  profiles: { username: string | null; avatar_url: string | null } | null
 }
 
 function timeAgo(dateStr: string) {
@@ -65,6 +65,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
 
   const [userId, setUserId] = useState<string | null>(null)
   const [myUsername, setMyUsername] = useState<string | null>(null)
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState('all')
   const [posts, setPosts] = useState<Post[]>([])
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
@@ -105,8 +106,9 @@ export default function BoardTab({ concertId }: { concertId: string }) {
           if (blocks) setBlockedIds(new Set(blocks.map((b) => b.blocked_id)))
 
           const { data: prof } = await supabase
-            .from('profiles').select('username').eq('id', user.id).single()
+            .from('profiles').select('username, avatar_url').eq('id', user.id).single()
           setMyUsername(prof?.username ?? null)
+          setMyAvatarUrl(prof?.avatar_url ?? null)
         }
 
         await loadPosts(concertId, user?.id ?? null)
@@ -124,10 +126,10 @@ export default function BoardTab({ concertId }: { concertId: string }) {
         async (payload: RealtimePostgresInsertPayload<Tables<'board_posts'>>) => {
           const p = payload.new
           const { data: prof } = await supabase
-            .from('profiles').select('username').eq('id', p.user_id).single()
+            .from('profiles').select('username, avatar_url').eq('id', p.user_id).single()
           setPosts(prev => [{
             ...p,
-            profiles: { username: prof?.username ?? null },
+            profiles: { username: prof?.username ?? null, avatar_url: prof?.avatar_url ?? null },
             myLike: false, comment_count: 0,
           } as Post, ...prev])
         }
@@ -148,9 +150,9 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     // Fetch profiles separately
     const userIds = [...new Set(data.map((p) => p.user_id))]
     const { data: profilesData } = await supabase
-      .from('profiles').select('id, username').in('id', userIds)
-    const profileMap: Record<string, string | null> = {}
-    for (const p of profilesData ?? []) profileMap[p.id] = p.username
+      .from('profiles').select('id, username, avatar_url').in('id', userIds)
+    const profileMap: Record<string, { username: string | null; avatar_url: string | null }> = {}
+    for (const p of profilesData ?? []) profileMap[p.id] = { username: p.username, avatar_url: p.avatar_url }
 
     let enriched: Post[] = data.map((p) => ({
       ...p,
@@ -158,7 +160,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       likes_count: p.likes_count ?? 0,
       media_type: p.media_type as 'image' | 'video' | null,
       created_at: p.created_at ?? new Date().toISOString(),
-      profiles: { username: profileMap[p.user_id] ?? null },
+      profiles: { username: profileMap[p.user_id]?.username ?? null, avatar_url: profileMap[p.user_id]?.avatar_url ?? null },
     }))
 
     if (uid) {
@@ -203,12 +205,12 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       .eq('post_id', postId).order('created_at', { ascending: true })
     if (!data) return
     const userIds = [...new Set(data.map((c) => c.user_id))]
-    const { data: profs } = await supabase.from('profiles').select('id, username').in('id', userIds)
-    const pm: Record<string, string | null> = {}
-    for (const p of profs ?? []) pm[p.id] = p.username
+    const { data: profs } = await supabase.from('profiles').select('id, username, avatar_url').in('id', userIds)
+    const pm: Record<string, { username: string | null; avatar_url: string | null }> = {}
+    for (const p of profs ?? []) pm[p.id] = { username: p.username, avatar_url: p.avatar_url }
     setComments(prev => ({
       ...prev,
-      [postId]: data.map((c) => ({ ...c, profiles: { username: pm[c.user_id] ?? null } })) as Comment[]
+      [postId]: data.map((c) => ({ ...c, profiles: { username: pm[c.user_id]?.username ?? null, avatar_url: pm[c.user_id]?.avatar_url ?? null } })) as Comment[]
     }))
   }
 
@@ -226,7 +228,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       .insert({ post_id: postId, user_id: userId, content: commentInput.trim() })
       .select('*').single()
     if (data) {
-      setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: myUsername } } as Comment] }))
+      setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: myUsername, avatar_url: myAvatarUrl } } as Comment] }))
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p))
       setCommentInput('')
     }
@@ -312,7 +314,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       likes_count: data.likes_count ?? 0,
       media_type: data.media_type as 'image' | 'video' | null,
       created_at: data.created_at ?? new Date().toISOString(),
-      profiles: { username: myUsername },
+      profiles: { username: myUsername, avatar_url: myAvatarUrl },
       myLike: false, comment_count: 0,
     }, ...prev])
     clearModal()
@@ -364,9 +366,13 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
-                      {(post.profiles?.username ?? '?')[0].toUpperCase()}
-                    </div>
+                    {post.profiles?.avatar_url ? (
+                      <img src={post.profiles.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
+                        {(post.profiles?.username ?? '?')[0].toUpperCase()}
+                      </div>
+                    )}
                     <span className="text-sm font-bold text-white truncate">{post.profiles?.username ?? '匿名'}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${catStyle}`}>
                       {CATEGORIES.find(c => c.value === post.category)?.label ?? post.category}
@@ -441,9 +447,13 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                     )}
                     {(comments[post.id] ?? []).map(c => (
                       <div key={c.id} className="flex items-start gap-2">
-                        <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-xs text-violet-300 shrink-0 font-bold">
-                          {(c.profiles?.username ?? '?')[0].toUpperCase()}
-                        </div>
+                        {c.profiles?.avatar_url ? (
+                          <img src={c.profiles.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-xs text-violet-300 shrink-0 font-bold">
+                            {(c.profiles?.username ?? '?')[0].toUpperCase()}
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-bold text-white">{c.profiles?.username ?? '匿名'}</span>

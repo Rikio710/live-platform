@@ -592,6 +592,30 @@ export type Database = {
           },
         ]
       }
+      preset_avatars: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_default: boolean
+          sort_order: number
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean
+          sort_order?: number
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean
+          sort_order?: number
+          url?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
