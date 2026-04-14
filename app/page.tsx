@@ -39,18 +39,13 @@ export default async function TopPage() {
       <section className="relative overflow-hidden py-20 px-4">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-900/30 via-transparent to-pink-900/20 pointer-events-none" />
         <div className="relative max-w-3xl mx-auto text-center space-y-6">
-          <div className="inline-block bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-bold px-3 py-1 rounded-full">
-            ライブ参戦体験のOS
-          </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">
-            すべての
-            <span className="gradient-text">ライブ体験</span>を
-            <br className="hidden sm:block" />
-            ひとつの場所に
+            ライブを、もっと
+            <span className="gradient-text">深く</span>。
           </h1>
           <p className="text-[#8888aa] text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-            ライブ前の情報収集、当日のリアルタイム共有、<br className="hidden sm:block" />
-            参戦履歴の蓄積まで一元管理。
+            すべてのライブ体験を、ひとつの場所に。<br className="hidden sm:block" />
+            セトリ、掲示板、参戦記録が一つのアプリに。
           </p>
           <div className="flex justify-center gap-3 flex-wrap">
             <Link href="/mypage"
