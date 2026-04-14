@@ -44,7 +44,7 @@ export default async function TopPage() {
             <span className="gradient-text">深く</span>。
           </h1>
           <p className="text-[#8888aa] text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-            すべてのライブ体験を、ひとつの場所に。<br className="hidden sm:block" />
+            すべてのライブ体験を、ひとつの場所に。<br />
             セトリ、掲示板、参戦記録が一つのアプリに。
           </p>
           <div className="flex justify-center gap-3 flex-wrap">
