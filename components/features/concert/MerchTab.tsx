@@ -184,9 +184,6 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
         return { ...prev, [key]: stat }
       })
     }
-    setReportingItemId(null)
-    setReportingColor('')
-    setReportingSize('')
   }
 
   const getComboStatus = (itemId: string, color: string, size: string): 'available' | 'sold_out' | null => {
