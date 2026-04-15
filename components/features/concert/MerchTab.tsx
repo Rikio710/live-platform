@@ -197,15 +197,18 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
 
   const getColorStatus = (itemId: string, color: string, sizes: string[]): 'available' | 'sold_out' | 'partial' | null => {
     const checkSizes = sizes.length > 0 ? sizes : ['']
-    let hasAvailable = false, hasSoldOut = false
+    let hasAvailable = false, hasSoldOut = false, hasAnyVote = false
     for (const size of checkSizes) {
       const st = getComboStatus(itemId, color, size)
+      if (st !== null) hasAnyVote = true
       if (st === 'available') hasAvailable = true
       if (st === 'sold_out') hasSoldOut = true
     }
-    if (!hasAvailable && !hasSoldOut) return null
-    if (hasSoldOut && hasAvailable) return 'partial'
-    return hasSoldOut ? 'sold_out' : 'available'
+    if (!hasAnyVote) return null
+    // 一部でも完売 かつ 未投票サイズまたは在庫ありサイズがある → 一部完売
+    if (hasSoldOut && (hasAvailable || checkSizes.some(s => getComboStatus(itemId, color, s) === null))) return 'partial'
+    if (hasSoldOut) return 'sold_out'
+    return 'available'
   }
 
   // サイズチップ用：そのサイズで完売しているカラー名リストを返す
