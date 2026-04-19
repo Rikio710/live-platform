@@ -4,6 +4,9 @@ import Header from '@/components/Header'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
+  verification: {
+    google: '-QtOy-pHHDZ0vVAnzSfRrAS6BoX55q59eR1rZAzyedU',
+  },
   title: {
     default: 'LiveVault | ライブ参戦・セトリ記録サービス',
     template: '%s | LiveVault',
@@ -16,7 +19,7 @@ export const metadata: Metadata = {
     siteName: 'LiveVault',
     title: 'LiveVault | ライブ参戦・セトリ記録サービス',
     description: 'ライブのセトリ記録・参戦履歴管理・リアルタイム掲示板。アーティストのコンサート情報を共有・保存できる参戦体験プラットフォーム。',
-    url: 'https://live-platform-flax.vercel.app',
+    url: 'https://livevault.jp',
   },
   twitter: {
     card: 'summary',
