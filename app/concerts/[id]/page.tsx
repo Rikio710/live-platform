@@ -63,7 +63,7 @@ export default async function ConcertPage({
   const { tab = 'board' } = await searchParams
   const supabase = await createClient()
 
-  const [{ data: concert }, { count: attendCount }] = await Promise.all([
+  const [{ data: concert }, { count: attendCount }, { data: topSetlist }] = await Promise.all([
     supabase
       .from('concerts')
       .select('*, artists(id, name, image_url), tours(id, name, image_url)')
@@ -73,6 +73,13 @@ export default async function ConcertPage({
       .from('attendances')
       .select('*', { count: 'exact', head: true })
       .eq('concert_id', id),
+    supabase
+      .from('setlist_submissions')
+      .select('id, votes_count, setlist_songs(song_name, song_type, order_num, is_encore)')
+      .eq('concert_id', id)
+      .order('votes_count', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   if (!concert) notFound()
@@ -81,6 +88,9 @@ export default async function ConcertPage({
   const dateStr = new Date(c.date).toLocaleDateString('ja-JP', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   })
+
+  const songs = (topSetlist?.setlist_songs ?? []) as Array<{ song_name: string; song_type: string; order_num: number; is_encore: boolean }>
+  const sortedSongs = [...songs].sort((a, b) => a.order_num - b.order_num)
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -98,6 +108,11 @@ export default async function ConcertPage({
     } : undefined,
     image: c.image_url || c.tours?.image_url || undefined,
     url: `${siteUrl}/concerts/${id}`,
+    ...(sortedSongs.length > 0 ? {
+      workPerformed: sortedSongs
+        .filter(s => s.song_type === 'song')
+        .map(s => ({ '@type': 'MusicComposition', name: s.song_name })),
+    } : {}),
   }
 
   return (
