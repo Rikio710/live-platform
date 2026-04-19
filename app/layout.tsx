@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import Header from '@/components/Header'
 import Link from 'next/link'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata: Metadata = {
   verification: {
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <p>© 2026 LiveVault — ライブ参戦体験のOS</p>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   )
