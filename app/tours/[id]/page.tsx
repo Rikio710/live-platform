@@ -60,8 +60,31 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
   const tour = tourRaw as TourWithArtist
   const today = new Date().toISOString().split('T')[0]
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'MusicEvent',
+    name: tour.name,
+    performer: tour.artists ? { '@type': 'MusicGroup', name: tour.artists.name } : undefined,
+    image: tour.image_url ?? undefined,
+    url: `${siteUrl}/tours/${id}`,
+    ...(tour.start_date ? { startDate: tour.start_date } : {}),
+    ...(tour.end_date ? { endDate: tour.end_date } : {}),
+    subEvent: (concerts ?? []).map(c => ({
+      '@type': 'MusicEvent',
+      name: `${tour.artists?.name ?? ''} ${tour.name} ${c.venue_name}`,
+      startDate: c.start_time ? `${c.date}T${c.start_time}+09:00` : c.date,
+      location: {
+        '@type': 'MusicVenue',
+        name: c.venue_name,
+        address: c.venue_address ?? undefined,
+      },
+      url: `${siteUrl}/concerts/${c.id}`,
+    })),
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* パンくず */}
       <nav className="text-xs text-[#8888aa] flex items-center gap-1">
         <Link href="/" className="hover:text-white transition-colors">ホーム</Link>
