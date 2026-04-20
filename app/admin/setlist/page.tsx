@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { adminUpdateSong, adminDeleteSong, adminDeleteSubmission } from '../actions'
-import { ChevronDown, ChevronUp, Plus, Trash2, Check, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Check, X, PlusCircle } from 'lucide-react'
 
-type Concert = { id: string; venue_name: string; date: string }
+type Concert = { id: string; venue_name: string; date: string; artists: { name: string } | null; tours: { name: string } | null }
 type Profile = { username: string | null }
 type Song = {
   id: string
@@ -23,7 +23,7 @@ type Submission = {
   created_at: string
   spotify_url: string | null
   apple_music_url: string | null
-  concerts: Concert | null
+  concerts: { id: string; venue_name: string; date: string } | null
 }
 
 const SONG_TYPE_LABELS: Record<string, string> = { song: '曲', mc: 'MC', other: 'その他' }
@@ -33,9 +33,28 @@ const SONG_TYPE_COLORS: Record<string, string> = {
   other: 'bg-white/5 border-white/10 text-[#8888aa]',
 }
 
+// 一括テキストをパースして曲リストに変換
+// 「アンコール」という行以降はis_encore=true
+// 「MC」を含む行はsong_type='mc'
+function parseBulkText(text: string): Array<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean }> {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '')
+  const result: Array<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean }> = []
+  let isEncore = false
+  for (const line of lines) {
+    if (/^(アンコール|encore|en$)/i.test(line)) {
+      isEncore = true
+      continue
+    }
+    const type: 'song' | 'mc' | 'other' = /^mc$/i.test(line) ? 'mc' : 'song'
+    result.push({ song_name: line, song_type: type, is_encore: isEncore })
+  }
+  return result
+}
+
 export default function AdminSetlistPage() {
   const supabase = createClient()
   const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [allConcerts, setAllConcerts] = useState<Concert[]>([])
   const [loading, setLoading] = useState(true)
   const [filterConcert, setFilterConcert] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -48,6 +67,21 @@ export default function AdminSetlistPage() {
   const [saving, setSaving] = useState(false)
   const [editingUrlsId, setEditingUrlsId] = useState<string | null>(null)
   const [urlForm, setUrlForm] = useState({ spotify: '', apple: '' })
+
+  // 新規セトリ作成
+  const [showCreate, setShowCreate] = useState(false)
+  const [createConcertId, setCreateConcertId] = useState('')
+  const [bulkText, setBulkText] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  const loadConcerts = async () => {
+    const { data } = await supabase
+      .from('concerts')
+      .select('id, venue_name, date, artists(name), tours(name)')
+      .order('date', { ascending: false })
+      .limit(200)
+    setAllConcerts((data ?? []) as unknown as Concert[])
+  }
 
   const load = async () => {
     const { data } = await supabase
@@ -68,9 +102,45 @@ export default function AdminSetlistPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadConcerts() }, [])
 
-  const concerts: Concert[] = Array.from(
+  const handleCreate = async () => {
+    if (!createConcertId || !bulkText.trim()) return
+    setCreating(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setCreating(false); return }
+
+    const { data: sub, error } = await supabase
+      .from('setlist_submissions')
+      .insert({ concert_id: createConcertId, user_id: user.id, votes_count: 0 })
+      .select('id')
+      .single()
+
+    if (error || !sub) { alert('作成に失敗しました'); setCreating(false); return }
+
+    const parsed = parseBulkText(bulkText)
+    const songRows = parsed.map((s, i) => ({
+      submission_id: sub.id,
+      concert_id: createConcertId,
+      user_id: user.id,
+      song_name: s.song_name,
+      song_type: s.song_type,
+      is_encore: s.is_encore,
+      order_num: i + 1,
+    }))
+
+    if (songRows.length > 0) {
+      await supabase.from('setlist_songs').insert(songRows)
+    }
+
+    setBulkText('')
+    setCreateConcertId('')
+    setShowCreate(false)
+    setCreating(false)
+    await load()
+  }
+
+  const concerts = Array.from(
     new Map(
       submissions
         .filter(s => s.concerts)
@@ -203,17 +273,84 @@ export default function AdminSetlistPage() {
           <h1 className="text-2xl font-black text-white">セトリ管理</h1>
           <p className="text-sm text-[#8888aa] mt-0.5">{filtered.length}件</p>
         </div>
-        <select
-          value={filterConcert}
-          onChange={e => setFilterConcert(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none"
-        >
-          <option value="">全公演</option>
-          {concerts.map(c => (
-            <option key={c.id} value={c.id}>{c.venue_name} ({formatDate(c.date)})</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={filterConcert}
+            onChange={e => setFilterConcert(e.target.value)}
+            className="bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none"
+          >
+            <option value="">全公演</option>
+            {concerts.map(c => (
+              <option key={c.id} value={c.id}>{c.venue_name} ({formatDate(c.date)})</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setShowCreate(v => !v)}
+            className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
+          >
+            <PlusCircle size={15} />
+            セトリを新規作成
+          </button>
+        </div>
       </div>
+
+      {/* 新規セトリ作成パネル */}
+      {showCreate && (
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-bold text-white">新規セトリ一括入力</h2>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-[#8888aa]">公演</label>
+            <select
+              value={createConcertId}
+              onChange={e => setCreateConcertId(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+            >
+              <option value="">公演を選択...</option>
+              {allConcerts.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.artists?.name} / {c.tours?.name ?? '-'} / {c.venue_name} ({formatDate(c.date)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-[#8888aa]">
+              曲リスト（1行1曲 ／ 「アンコール」でアンコール区切り ／ 「MC」でMC）
+            </label>
+            <textarea
+              value={bulkText}
+              onChange={e => setBulkText(e.target.value)}
+              rows={12}
+              placeholder={`例:\n夜に駆ける\n猫\nハルジオン\nMC\nセプテンバーさん\nアンコール\npositiv`}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none font-mono"
+            />
+            {bulkText.trim() && (
+              <p className="text-xs text-[#8888aa]">
+                {parseBulkText(bulkText).length}曲を認識
+                （アンコール: {parseBulkText(bulkText).filter(s => s.is_encore).length}曲）
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleCreate}
+              disabled={creating || !createConcertId || !bulkText.trim()}
+              className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+            >
+              {creating ? '作成中...' : '作成する'}
+            </button>
+            <button
+              onClick={() => { setShowCreate(false); setBulkText(''); setCreateConcertId('') }}
+              className="border border-white/10 text-[#8888aa] hover:text-white text-sm px-6 py-2.5 rounded-full transition-colors"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-[#8888aa] text-sm">読み込み中...</p>
