@@ -763,9 +763,13 @@ function SubmissionCard({
                     <p className="text-[10px] font-bold text-[#8888aa] uppercase tracking-widest mb-2">本編</p>
                   )}
                   <div className="divide-y divide-white/5">
-                    {mainSongs.map((s, i) => (
-                      <SongDisplayRow key={s.id} song={s} index={i + 1} />
-                    ))}
+                    {(() => {
+                      let counter = 0
+                      return mainSongs.map((s) => {
+                        if (s.song_type === 'song') counter++
+                        return <SongDisplayRow key={s.id} song={s} index={counter} />
+                      })
+                    })()}
                   </div>
                 </div>
               )}
@@ -777,9 +781,13 @@ function SubmissionCard({
                     <div className="flex-1 h-px bg-white/10" />
                   </div>
                   <div className="divide-y divide-white/5">
-                    {encoreSongs.map((s, i) => (
-                      <SongDisplayRow key={s.id} song={s} index={i + 1} />
-                    ))}
+                    {(() => {
+                      let counter = mainSongs.filter(s => s.song_type === 'song').length
+                      return encoreSongs.map((s) => {
+                        if (s.song_type === 'song') counter++
+                        return <SongDisplayRow key={s.id} song={s} index={counter} />
+                      })
+                    })()}
                   </div>
                 </div>
               )}
