@@ -114,9 +114,14 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
+      {/* SEOテキスト */}
+      <p className="text-xs text-[#8888aa] leading-relaxed">
+        {artist.name}のライブ・コンサートのセットリスト（セトリ）・参戦記録・掲示板。ツアーごとに公演情報・セトリ速報を確認できます。
+      </p>
+
       {/* ツアー一覧 */}
       <section className="space-y-4">
-        <h2 className="text-lg font-bold text-white">ツアー</h2>
+        <h2 className="text-lg font-bold text-white">ツアー・ライブ情報</h2>
         {(tours ?? []).length === 0 ? (
           <p className="text-sm text-[#8888aa]">ツアー情報がありません</p>
         ) : (

@@ -122,6 +122,11 @@ export default async function TourPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
 
+      {/* SEOテキスト */}
+      <p className="text-xs text-[#8888aa] leading-relaxed">
+        {tour.artists?.name}「{tour.name}」の全公演セットリスト（セトリ）・参戦記録。各会場のセトリ速報・ライブレポ・掲示板を公演ごとに確認できます。
+      </p>
+
       {/* 公演一覧 */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
