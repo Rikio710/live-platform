@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const metaTour = data as { name: string; image_url: string | null; artists: Pick<Tables<'artists'>, 'name'> | null }
   const artistName = metaTour.artists?.name ?? ''
   const title = `${artistName} ${data.name} セトリ・ライブレポ`
-  const description = `${artistName}「${data.name}」の公演一覧・セットリスト・参戦記録。各会場のセトリや参戦者のリアルな情報を確認できます。`
+  const description = `${artistName}「${data.name}」の全公演セットリスト・参戦記録一覧。各会場のセトリ速報・ライブレポ・掲示板を確認できます。`
   const image = metaTour.image_url ?? null
   return {
     title,

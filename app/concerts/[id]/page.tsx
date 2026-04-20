@@ -31,7 +31,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!data) return { title: '公演' }
   const d = data as MetadataConcert
   const dateStr = new Date(d.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
-  const title = `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} セトリ`
+  const dateShort = new Date(d.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+  const title = `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} ${dateShort} セトリ`
   const description = `${d.artists?.name}「${d.tours?.name ?? 'ライブ'}」${dateStr} ${d.venue_name}のセットリスト・参戦記録・掲示板。ライブのセトリや感想を共有しよう。`
   const image = d.image_url ?? d.tours?.image_url ?? null
   return {

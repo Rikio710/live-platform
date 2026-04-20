@@ -16,8 +16,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const supabase = await createClient()
   const { data } = await supabase.from('artists').select('name, description, image_url').eq('id', id).single()
   if (!data) return { title: 'アーティスト' }
-  const title = `${data.name} ライブ・セトリ情報`
-  const description = `${data.name}のライブ・コンサート情報、セットリスト記録、参戦レポートをチェック。${data.description ? data.description.slice(0, 60) : ''}`
+  const title = `${data.name} セトリ・ライブ情報 2026`
+  const description = `${data.name}のセットリスト・ライブ・コンサート情報を公演ごとに記録。参戦レポート・掲示板・参戦履歴管理も。${data.description ? data.description.slice(0, 40) : ''}`
   const image = data.image_url ?? null
   return {
     title,
