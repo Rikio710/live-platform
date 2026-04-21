@@ -1,16 +1,18 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { MessageSquare, ShoppingBag, Music, MapPin } from 'lucide-react'
+import { MessageSquare, ShoppingBag, Music, MapPin, Star } from 'lucide-react'
 import BoardTab from './BoardTab'
 import MerchTab from './MerchTab'
 import SetlistTab from './SetlistTab'
 import NearbyTab from './NearbyTab'
+import ReviewTab from './ReviewTab'
 
 const TABS = [
   { key: 'board', label: '掲示板', icon: MessageSquare },
-  { key: 'merch', label: '物販', icon: ShoppingBag },
   { key: 'setlist', label: 'セトリ', icon: Music },
+  { key: 'review', label: 'レビュー', icon: Star },
+  { key: 'merch', label: '物販', icon: ShoppingBag },
   { key: 'nearby', label: '周辺', icon: MapPin },
 ]
 
@@ -52,8 +54,9 @@ export default function ConcertTabs({
 
       {/* コンテンツ */}
       {activeTab === 'board' && <BoardTab concertId={concertId} />}
-      {activeTab === 'merch' && <MerchTab concertId={concertId} tourId={tourId} />}
       {activeTab === 'setlist' && <SetlistTab concertId={concertId} />}
+      {activeTab === 'review' && <ReviewTab concertId={concertId} />}
+      {activeTab === 'merch' && <MerchTab concertId={concertId} tourId={tourId} />}
       {activeTab === 'nearby' && <NearbyTab concertId={concertId} />}
     </div>
   )

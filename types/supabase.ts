@@ -79,6 +79,33 @@ export type Database = {
         }
         Relationships: []
       }
+      concert_reviews: {
+        Row: {
+          id: string
+          concert_id: string
+          user_id: string
+          rating: number
+          comment: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          concert_id: string
+          user_id: string
+          rating: number
+          comment?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          concert_id?: string
+          user_id?: string
+          rating?: number
+          comment?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       attendances: {
         Row: {
           concert_id: string
