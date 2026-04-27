@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { adminUpdateSong, adminDeleteSong, adminDeleteSubmission } from '../actions'
-import { ChevronDown, ChevronUp, Plus, Trash2, Check, X, PlusCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Check, X, PlusCircle, Download } from 'lucide-react'
+import type { LiveFansSong } from '@/app/api/admin/livefans-import/route'
 
 type Concert = { id: string; venue_name: string; date: string; artists: { name: string } | null; tours: { name: string } | null }
 type Profile = { username: string | null }
@@ -23,7 +24,7 @@ type Submission = {
   created_at: string
   spotify_url: string | null
   apple_music_url: string | null
-  concerts: { id: string; venue_name: string; date: string } | null
+  concerts: { id: string; venue_name: string; date: string; artists: { name: string } | null } | null
 }
 
 const SONG_TYPE_LABELS: Record<string, string> = { song: '曲', mc: 'MC', other: 'その他' }
@@ -74,6 +75,18 @@ export default function AdminSetlistPage() {
   const [bulkText, setBulkText] = useState('')
   const [creating, setCreating] = useState(false)
 
+  // LiveFansインポート
+  const [showLiveFans, setShowLiveFans] = useState(false)
+  const [liveFansUrl, setLiveFansUrl] = useState('')
+  const [liveFansSongs, setLiveFansSongs] = useState<LiveFansSong[] | null>(null)
+  const [liveFansTitle, setLiveFansTitle] = useState('')
+  const [liveFansConcertId, setLiveFansConcertId] = useState('')
+  const [liveFansArtistFilter, setLiveFansArtistFilter] = useState('')
+  const [liveFansTourFilter, setLiveFansTourFilter] = useState('')
+  const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+
   const loadConcerts = async () => {
     const { data } = await supabase
       .from('concerts')
@@ -86,7 +99,7 @@ export default function AdminSetlistPage() {
   const load = async () => {
     const { data } = await supabase
       .from('setlist_submissions')
-      .select('id, concert_id, user_id, votes_count, created_at, spotify_url, apple_music_url, concerts(venue_name, date)')
+      .select('id, concert_id, user_id, votes_count, created_at, spotify_url, apple_music_url, concerts(venue_name, date, artists(name))')
       .order('created_at', { ascending: false })
 
     const rows = (data ?? []) as any[]
@@ -263,6 +276,59 @@ export default function AdminSetlistPage() {
     setSaving(false)
   }
 
+  const handleFetchLiveFans = async () => {
+    if (!liveFansUrl.trim()) return
+    setFetching(true)
+    setFetchError(null)
+    setLiveFansSongs(null)
+    try {
+      const res = await fetch('/api/admin/livefans-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: liveFansUrl.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setFetchError(data.error ?? '取得失敗'); return }
+      setLiveFansSongs(data.songs)
+      setLiveFansTitle(data.eventTitle ?? '')
+    } catch { setFetchError('通信エラーが発生しました') }
+    finally { setFetching(false) }
+  }
+
+  const handleImportLiveFans = async () => {
+    if (!liveFansConcertId || !liveFansSongs || liveFansSongs.length === 0) return
+    setImporting(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setImporting(false); return }
+
+    const { data: sub, error } = await supabase
+      .from('setlist_submissions')
+      .insert({ concert_id: liveFansConcertId, user_id: user.id, votes_count: 0 })
+      .select('id').single()
+
+    if (error || !sub) { alert('セトリ作成に失敗しました'); setImporting(false); return }
+
+    const rows = liveFansSongs.map(s => ({
+      submission_id: sub.id,
+      concert_id: liveFansConcertId,
+      user_id: user.id,
+      song_name: s.song_name,
+      song_type: s.song_type,
+      is_encore: s.is_encore,
+      order_num: s.order_num,
+    }))
+    await supabase.from('setlist_songs').insert(rows)
+
+    setShowLiveFans(false)
+    setLiveFansUrl('')
+    setLiveFansSongs(null)
+    setLiveFansConcertId('')
+    setLiveFansArtistFilter('')
+    setLiveFansTourFilter('')
+    setImporting(false)
+    await load()
+  }
+
   const formatDate = (ts: string) => new Date(ts).toLocaleDateString('ja-JP')
   const formatTime = (ts: string) => new Date(ts).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -285,7 +351,14 @@ export default function AdminSetlistPage() {
             ))}
           </select>
           <button
-            onClick={() => setShowCreate(v => !v)}
+            onClick={() => { setShowLiveFans(v => !v); setShowCreate(false) }}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
+          >
+            <Download size={15} />
+            LiveFansから取込
+          </button>
+          <button
+            onClick={() => { setShowCreate(v => !v); setShowLiveFans(false) }}
             className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <PlusCircle size={15} />
@@ -293,6 +366,125 @@ export default function AdminSetlistPage() {
           </button>
         </div>
       </div>
+
+      {/* LiveFansインポートパネル */}
+      {showLiveFans && (
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-bold text-white">LiveFansからセトリを取込</h2>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={liveFansUrl}
+              onChange={e => { setLiveFansUrl(e.target.value); setLiveFansSongs(null); setFetchError(null) }}
+              placeholder="https://www.livefans.jp/events/1920263"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-green-500/50"
+            />
+            <button
+              onClick={handleFetchLiveFans}
+              disabled={fetching || !liveFansUrl.trim()}
+              className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors shrink-0"
+            >
+              {fetching ? '取得中...' : '取得'}
+            </button>
+          </div>
+
+          {fetchError && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{fetchError}</p>}
+
+          {liveFansSongs && (
+            <div className="space-y-4">
+              {liveFansTitle && <p className="text-xs text-[#8888aa]">取得元: {liveFansTitle}</p>}
+              <p className="text-xs text-green-400">{liveFansSongs.length}曲を取得（アンコール: {liveFansSongs.filter(s => s.is_encore).length}曲）</p>
+
+              {/* プレビュー */}
+              <div className="bg-white/3 rounded-xl p-3 max-h-64 overflow-y-auto space-y-1">
+                {liveFansSongs.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="text-[#8888aa] w-5 text-right shrink-0">{s.order_num}</span>
+                    {s.is_encore && <span className="text-violet-400 shrink-0">EN</span>}
+                    {s.song_type === 'other' && <span className="text-[#8888aa] shrink-0">///</span>}
+                    {s.song_type === 'mc' && <span className="text-blue-400 shrink-0">MC</span>}
+                    <span className="text-white">{s.song_name}</span>
+                    {s.memo && <span className="text-[#8888aa]">— {s.memo}</span>}
+                  </div>
+                ))}
+              </div>
+
+              {/* 公演選択（3段階） */}
+              <div className="space-y-2">
+                <label className="text-xs text-[#8888aa]">登録する公演を選択</label>
+                {/* Step 1: アーティスト */}
+                <select
+                  value={liveFansArtistFilter}
+                  onChange={e => { setLiveFansArtistFilter(e.target.value); setLiveFansTourFilter(''); setLiveFansConcertId('') }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500/50"
+                >
+                  <option value="">① アーティストを選択...</option>
+                  {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort().map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                {/* Step 2: ツアー */}
+                {liveFansArtistFilter && (() => {
+                  const tours = [...new Map(
+                    allConcerts
+                      .filter(c => c.artists?.name === liveFansArtistFilter && c.tours)
+                      .map(c => [c.tours!.name, c.tours!.name])
+                  ).values()].sort()
+                  return tours.length > 0 ? (
+                    <select
+                      value={liveFansTourFilter}
+                      onChange={e => { setLiveFansTourFilter(e.target.value); setLiveFansConcertId('') }}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500/50"
+                    >
+                      <option value="">② ツアーを選択...</option>
+                      {tours.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  ) : null
+                })()}
+                {/* Step 3: 公演 */}
+                {liveFansArtistFilter && (() => {
+                  const filtered = allConcerts.filter(c =>
+                    c.artists?.name === liveFansArtistFilter &&
+                    (!liveFansTourFilter || c.tours?.name === liveFansTourFilter)
+                  )
+                  return filtered.length > 0 ? (
+                    <select
+                      value={liveFansConcertId}
+                      onChange={e => setLiveFansConcertId(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500/50"
+                    >
+                      <option value="">③ 公演を選択...</option>
+                      {filtered.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.venue_name}（{formatDate(c.date)}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null
+                })()}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleImportLiveFans}
+                  disabled={importing || !liveFansConcertId}
+                  className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  {importing ? 'インポート中...' : 'DBに登録する'}
+                </button>
+                <button
+                  onClick={() => { setShowLiveFans(false); setLiveFansUrl(''); setLiveFansSongs(null); setLiveFansConcertId(''); setLiveFansArtistFilter(''); setLiveFansTourFilter('') }}
+                  className="border border-white/10 text-[#8888aa] hover:text-white text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 新規セトリ作成パネル */}
       {showCreate && (
@@ -367,7 +559,7 @@ export default function AdminSetlistPage() {
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-white">
-                      {sub.concerts ? `${sub.concerts.venue_name} (${formatDate(sub.concerts.date)})` : '公演不明'}
+                      {sub.concerts ? `${sub.concerts.artists?.name ?? ''} ${sub.concerts.venue_name} (${formatDate(sub.concerts.date)})` : '公演不明'}
                     </p>
                     <p className="text-xs text-[#8888aa] mt-0.5">
                       @{sub.profiles?.username ?? '匿名'} · {formatTime(sub.created_at)} · 投票 {sub.votes_count}
