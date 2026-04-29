@@ -83,15 +83,11 @@ export default async function ConcertsPage({
           </Link>
         </div>
 
-        <form method="get" action="/concerts" className="flex gap-2">
+        <form method="get" action="/concerts" className="flex gap-2 flex-wrap">
           <input type="hidden" name="tab" value={tab} />
           <select
             name="artist"
             defaultValue={artist}
-            onChange={e => {
-              const form = e.currentTarget.form
-              if (form) form.submit()
-            }}
             className="bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-sm text-white focus:outline-none"
           >
             <option value="">全アーティスト</option>
@@ -99,12 +95,15 @@ export default async function ConcertsPage({
               <option key={a.id} value={a.name}>{a.name}</option>
             ))}
           </select>
+          <button type="submit" className="text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-4 py-1.5 text-white transition-colors">
+            絞り込み
+          </button>
           {artist && (
             <Link
               href={`/concerts?tab=${tab}`}
               className="text-xs text-[#8888aa] hover:text-white border border-white/10 rounded-full px-3 py-1.5 transition-colors"
             >
-              ✕ 絞り込み解除
+              ✕ 解除
             </Link>
           )}
         </form>
