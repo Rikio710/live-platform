@@ -21,11 +21,13 @@ export const metadata: Metadata = {
     title: 'LiveVault | ライブ参戦・セトリ記録サービス',
     description: 'ライブのセトリ記録・参戦履歴管理・リアルタイム掲示板。アーティストのコンサート情報を共有・保存できる参戦体験プラットフォーム。',
     url: 'https://livevault.jp',
+    images: [{ url: 'https://livevault.jp/opengraph-image', width: 1200, height: 630 }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'LiveVault | ライブ参戦・セトリ記録サービス',
     description: 'ライブのセトリ記録・参戦履歴管理・リアルタイム掲示板。',
+    images: ['https://livevault.jp/opengraph-image'],
   },
 }
 

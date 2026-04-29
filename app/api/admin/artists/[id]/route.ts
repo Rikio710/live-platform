@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-async function requireAuth() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
-}
+import { requireAdmin } from '@/lib/supabase/guards'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth()
+    await requireAdmin()
     const { id } = await params
     const body = await req.json()
     const admin = createAdminClient()
@@ -32,7 +26,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth()
+    await requireAdmin()
     const { id } = await params
     const admin = createAdminClient()
     const { error } = await admin.from('artists').delete().eq('id', id)

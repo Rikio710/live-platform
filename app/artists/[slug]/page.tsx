@@ -5,16 +5,22 @@ import type { Metadata } from 'next'
 import { Mic2, Route, Globe } from 'lucide-react'
 import FollowButton from '@/components/features/artist/FollowButton'
 import { siteUrl } from '@/lib/site'
+import { safeJsonLd } from '@/lib/json-ld'
+import { redirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 
-type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date' | 'image_url'>
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date' | 'image_url' | 'slug'>
 
 export const revalidate = 3600
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params
+  const slug = decodeURIComponent(rawSlug)
   const supabase = await createClient()
-  const { data } = await supabase.from('artists').select('name, description, image_url').eq('id', id).single()
+  const query = supabase.from('artists').select('name, description, image_url')
+  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : query.eq('slug', slug)).single()
   if (!data) return { title: 'アーティスト' }
   const title = `${data.name} セトリ・ライブ情報 2026`
   const description = `${data.name}のセットリスト・ライブ・コンサート情報を公演ごとに記録。参戦レポート・掲示板・参戦履歴管理も。${data.description ? data.description.slice(0, 40) : ''}`
@@ -25,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     openGraph: {
       title,
       description,
-      url: `${siteUrl}/artists/${id}`,
+      url: `${siteUrl}/artists/${slug}`,
       ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: data.name }] } : {}),
     },
     twitter: {
@@ -37,16 +43,35 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
 }
 
-export default async function ArtistPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+export default async function ArtistPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = await params
+  const slug = decodeURIComponent(rawSlug)
   const supabase = await createClient()
 
-  const [{ data: artist }, { data: tours }] = await Promise.all([
-    supabase.from('artists').select('*').eq('id', id).single(),
-    supabase.from('tours').select('id, name, start_date, end_date, image_url').eq('artist_id', id).order('start_date', { ascending: false }),
-  ])
+  if (UUID_RE.test(slug)) {
+    const { data: r } = await supabase.from('artists').select('slug').eq('id', slug).single()
+    if (r?.slug) redirect(`/artists/${r.slug}`)
+  }
 
+  const isUuid = UUID_RE.test(slug)
+  const { data: artist } = await (isUuid
+    ? supabase.from('artists').select('*').eq('id', slug)
+    : supabase.from('artists').select('*').eq('slug', slug)
+  ).single()
   if (!artist) notFound()
+
+  const { data: tours } = await supabase
+    .from('tours').select('id, name, start_date, end_date, image_url, slug')
+    .eq('artist_id', artist.id).order('start_date', { ascending: false })
+
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'ホーム', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: artist.name },
+    ],
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -54,15 +79,13 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
     name: artist.name,
     description: artist.description ?? undefined,
     image: artist.image_url ?? undefined,
-    url: `${siteUrl}/artists/${id}`,
+    url: `${siteUrl}/artists/${artist.slug ?? slug}`,
   }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       {/* ヘッダー */}
       <div className="flex items-center gap-4">
         {artist.image_url ? (
@@ -109,7 +132,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
             </div>
           )}
           <div className="mt-3">
-            <FollowButton artistId={id} />
+            <FollowButton artistId={artist.id} />
           </div>
         </div>
       </div>
@@ -127,10 +150,10 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
         ) : (
           <div className="space-y-3">
             {(tours ?? [] as ArtistTour[]).map((t) => (
-              <Link key={t.id} href={`/tours/${t.id}`}
+              <Link key={t.id} href={`/tours/${t.slug ?? t.id}`}
                 className="glass rounded-2xl p-5 flex items-center gap-4 hover:border-violet-500/40 transition-colors group">
                 {t.image_url ? (
-                  <img src={t.image_url} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                  <img src={t.image_url} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                 ) : (
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-violet-800/60 to-pink-800/60 shrink-0 flex items-center justify-center">
                     <Route size={22} className="text-white/60" />

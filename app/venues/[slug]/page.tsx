@@ -4,9 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 import { Calendar, MapPin } from 'lucide-react'
 import { siteUrl } from '@/lib/site'
+import { safeJsonLd } from '@/lib/json-ld'
 import type { Tables } from '@/types/supabase'
 
-type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'date' | 'start_time' | 'venue_name' | 'venue_address' | 'image_url'> & {
+type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'slug' | 'date' | 'start_time' | 'venue_name' | 'venue_address' | 'image_url'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
@@ -16,8 +17,8 @@ export const revalidate = 3600
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const venueName = decodeURIComponent(slug)
-  const title = `${venueName} セトリ・ライブ公演情報`
-  const description = `${venueName}で開催されたライブ・コンサートのセットリスト・参戦記録一覧。公演ごとのセトリ速報を確認できます。`
+  const title = `${venueName} セトリ・ライブ公演一覧 | 参戦記録`
+  const description = `${venueName}で開催されたライブ・コンサートのセットリスト（セトリ）・参戦記録一覧。公演ごとのセトリ速報・ライブレポを確認できます。`
   return {
     title,
     description,
@@ -25,6 +26,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       title,
       description,
       url: `${siteUrl}/venues/${slug}`,
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
     },
   }
 }
@@ -36,7 +42,7 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
 
   const { data: concerts } = await supabase
     .from('concerts')
-    .select('id, date, start_time, venue_name, venue_address, image_url, artists(id, name), tours(id, name, image_url)')
+    .select('id, slug, date, start_time, venue_name, venue_address, image_url, artists(id, name), tours(id, name, image_url)')
     .eq('venue_name', venueName)
     .order('date', { ascending: false })
 
@@ -47,6 +53,16 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
   const upcoming = rows.filter(c => c.date >= today)
   const past = rows.filter(c => c.date < today)
   const venueAddress = rows[0]?.venue_address ?? null
+
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'ホーム', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: '会場一覧', item: `${siteUrl}/venues` },
+      { '@type': 'ListItem', position: 3, name: venueName },
+    ],
+  }
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -59,13 +75,14 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
       name: `${c.artists?.name ?? ''} ${c.tours?.name ?? c.venue_name}`,
       startDate: c.start_time ? `${c.date}T${c.start_time}+09:00` : c.date,
       performer: c.artists ? { '@type': 'MusicGroup', name: c.artists.name } : undefined,
-      url: `${siteUrl}/concerts/${c.id}`,
+      url: `${siteUrl}/concerts/${(c as any).slug ?? c.id}`,
     })),
   }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
 
       {/* パンくず */}
       <nav className="text-xs text-[#8888aa] flex items-center gap-1">
@@ -113,7 +130,7 @@ function ConcertList({ concerts, today }: { concerts: ConcertRow[]; today: strin
       {concerts.map(c => {
         const isPast = c.date < today
         return (
-          <Link key={c.id} href={`/concerts/${c.id}`}
+          <Link key={c.id} href={`/concerts/${c.slug ?? c.id}`}
             className={`glass rounded-2xl p-4 flex items-center gap-4 hover:border-violet-500/40 transition-colors group ${isPast ? 'opacity-60' : ''}`}>
             <div className="shrink-0 text-center w-12">
               <p className="text-xs text-[#8888aa]">

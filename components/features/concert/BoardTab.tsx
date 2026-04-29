@@ -141,7 +141,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const loadPosts = async (cid: string, uid: string | null) => {
     const { data } = await supabase
       .from('board_posts')
-      .select('*')
+      .select('id, concert_id, user_id, content, category, media_url, media_type, is_spoiler, likes_count, created_at')
       .eq('concert_id', cid)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -201,7 +201,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const loadComments = async (postId: string) => {
     if (comments[postId]) return
     const { data } = await supabase
-      .from('post_comments').select('*')
+      .from('post_comments').select('id, post_id, user_id, content, created_at')
       .eq('post_id', postId).order('created_at', { ascending: true })
     if (!data) return
     const userIds = [...new Set(data.map((c) => c.user_id))]
@@ -331,7 +331,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     <div className="space-y-4 pb-24" onClick={() => openMenuPostId && setOpenMenuPostId(null)}>
       {/* Lightbox */}
       {lightboxUrl && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+        <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
           <img src={lightboxUrl} alt="" className="max-w-full max-h-full rounded-xl object-contain" onClick={e => e.stopPropagation()} />
           <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl">✕</button>
         </div>
@@ -489,13 +489,13 @@ export default function BoardTab({ concertId }: { concertId: string }) {
 
       {/* Floating post button */}
       <button onClick={() => userId ? setShowModal(true) : router.push('/login')}
-        className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-500/30 flex items-center justify-center transition-all hover:scale-105">
+        className="fixed bottom-20 sm:bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-500/30 flex items-center justify-center transition-all hover:scale-105">
         <Plus size={24} className="text-white" />
       </button>
 
       {/* Post modal */}
       {showModal && (
-        <div className="fixed inset-0 z-40 bg-black/70 flex items-end sm:items-center justify-center" onClick={clearModal}>
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center" onClick={clearModal}>
           <div className="w-full sm:max-w-lg bg-[#0f0f1a] border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">

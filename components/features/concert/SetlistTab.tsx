@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { ThumbsUp, Trash2, ChevronDown, ChevronUp, Pencil, X } from 'lucide-react'
+import { ThumbsUp, Trash2, ChevronDown, ChevronUp, Pencil, X, Share2 } from 'lucide-react'
+import ShareModal from './ShareModal'
 
 type Song = {
   id: string
@@ -54,7 +55,7 @@ function placeholderForType(t: 'song' | 'mc' | 'other') {
   return '例: 夜に駆ける'
 }
 
-export default function SetlistTab({ concertId }: { concertId: string }) {
+export default function SetlistTab({ concertId, concertTitle }: { concertId: string; concertTitle?: string }) {
   const supabase = createClient()
   const router = useRouter()
 
@@ -66,6 +67,7 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [votedSubmissionIds, setVotedSubmissionIds] = useState<Set<string>>(new Set())
   const [showOthers, setShowOthers] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   // New submission form
   const [showForm, setShowForm] = useState(false)
@@ -337,6 +339,27 @@ export default function SetlistTab({ concertId }: { concertId: string }) {
           ) : (
             /* Submissions list */
             <div className="space-y-4">
+              {/* Share button for top submission */}
+              {topSubmission && topSubmission.songs.length > 0 && (
+                <>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShareOpen(true)}
+                      className="flex items-center gap-1.5 text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors"
+                    >
+                      <Share2 size={12} />
+                      セトリをシェア
+                    </button>
+                  </div>
+                  <ShareModal
+                    isOpen={shareOpen}
+                    onClose={() => setShareOpen(false)}
+                    url={typeof window !== 'undefined' ? window.location.href.split('?')[0] + '?tab=setlist' : ''}
+                    title={concertTitle ?? ''}
+                    songs={topSubmission.songs}
+                  />
+                </>
+              )}
               {/* Top submission (expanded) */}
               {topSubmission && (
                 <SubmissionCard

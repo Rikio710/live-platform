@@ -21,7 +21,7 @@ export default function ArtistsSection({ artists }: { artists: any[] }) {
       </div>
       <div className="flex flex-wrap gap-2">
         {displayed.map((a: any) => (
-          <Link key={a.id} href={`/artists/${a.id}`}
+          <Link key={a.id} href={`/artists/${a.slug ?? a.id}`}
             className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-violet-500/40 transition-colors text-sm font-medium">
             {a.image_url ? (
               <img src={a.image_url} alt="" className="w-6 h-6 rounded-full object-cover" />

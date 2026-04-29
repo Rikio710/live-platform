@@ -6,16 +6,16 @@ import { createClient } from '@/lib/supabase/client'
 import { Calendar, MapPin } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
 
-type UpcomingConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
+type RecentConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
 
 const PAGE_SIZE = 6
 
-export default function UpcomingConcerts({ initialConcerts }: { initialConcerts: UpcomingConcert[] }) {
+export default function RecentConcerts({ initialConcerts }: { initialConcerts: RecentConcert[] }) {
   const supabase = createClient()
-  const [concerts, setConcerts] = useState<UpcomingConcert[]>(initialConcerts)
+  const [concerts, setConcerts] = useState<RecentConcert[]>(initialConcerts)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(initialConcerts.length === PAGE_SIZE)
 
@@ -25,11 +25,11 @@ export default function UpcomingConcerts({ initialConcerts }: { initialConcerts:
     const { data } = await supabase
       .from('concerts')
       .select('id, slug, venue_name, date, start_time, image_url, artists(id, name), tours(id, name, image_url)')
-      .gte('date', today)
-      .order('date', { ascending: true })
+      .lt('date', today)
+      .order('date', { ascending: false })
       .range(concerts.length, concerts.length + PAGE_SIZE - 1)
 
-    const rows = (data ?? []) as unknown as UpcomingConcert[]
+    const rows = (data ?? []) as unknown as RecentConcert[]
     setConcerts(prev => [...prev, ...rows])
     setHasMore(rows.length === PAGE_SIZE)
     setLoading(false)
@@ -38,7 +38,7 @@ export default function UpcomingConcerts({ initialConcerts }: { initialConcerts:
   if (concerts.length === 0) {
     return (
       <div className="glass rounded-2xl p-10 text-center text-[#8888aa] text-sm">
-        現在登録されている公演はありません
+        過去の公演が見つかりません
       </div>
     )
   }

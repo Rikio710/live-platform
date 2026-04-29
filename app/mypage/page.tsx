@@ -10,20 +10,21 @@ import { Ticket, Calendar, Trophy, Mic2, Heart, PlusCircle } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
 
 type AttendanceWithConcert = Pick<Tables<'attendances'>, 'id' | 'created_at'> & {
-  concerts: (Pick<Tables<'concerts'>, 'id' | 'venue_name' | 'date' | 'image_url'> & {
+  concerts: (Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'image_url'> & {
     artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
     tours: Pick<Tables<'tours'>, 'id' | 'name'> | null
   }) | null
 }
 
 type FollowWithArtist = Pick<Tables<'artist_follows'>, 'artist_id'> & {
-  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+  artists: Pick<Tables<'artists'>, 'id' | 'slug' | 'name' | 'image_url'> | null
 }
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'マイページ',
+  robots: { index: false },
 }
 
 export default async function MyPage() {
@@ -37,7 +38,7 @@ export default async function MyPage() {
     .select(`
       id, created_at,
       concerts(
-        id, venue_name, date, image_url,
+        id, slug, venue_name, date, image_url,
         artists(id, name, image_url),
         tours(id, name)
       )
@@ -70,7 +71,7 @@ export default async function MyPage() {
 
   const { data: followsData } = await supabase
     .from('artist_follows')
-    .select('artist_id, artists(id, name, image_url)')
+    .select('artist_id, artists(id, slug, name, image_url)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -128,7 +129,7 @@ export default async function MyPage() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {follows.map((f) => (
-              <Link key={f.artist_id} href={`/artists/${f.artists.id}`}
+              <Link key={f.artist_id} href={`/artists/${f.artists.slug ?? f.artists.id}`}
                 className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-pink-500/30 transition-colors text-sm font-medium">
                 {f.artists.image_url ? (
                   <img src={f.artists.image_url} alt="" className="w-6 h-6 rounded-full object-cover" />

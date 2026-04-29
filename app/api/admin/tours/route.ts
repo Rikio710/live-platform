@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-
-async function requireAuth() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
-}
+import { requireAdmin } from '@/lib/supabase/guards'
 
 export async function GET() {
   try {
-    await requireAuth()
+    await requireAdmin()
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('tours')
@@ -25,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth()
+    await requireAdmin()
     const body = await req.json()
     const admin = createAdminClient()
     const { data, error } = await admin.from('tours').insert({

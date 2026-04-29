@@ -4,12 +4,15 @@ import type { Metadata } from 'next'
 import { PlusCircle } from 'lucide-react'
 import ArtistsSection from '@/components/ArtistsSection'
 import UpcomingConcerts from '@/components/UpcomingConcerts'
+import RecentConcerts from '@/components/RecentConcerts'
 import type { Tables } from '@/types/supabase'
 
-type UpcomingConcert = Pick<Tables<'concerts'>, 'id' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
+type ConcertCard = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
+
+type UpcomingConcert = ConcertCard
 
 export const revalidate = 1800
 
@@ -21,16 +24,24 @@ export const metadata: Metadata = {
 export default async function TopPage() {
   const supabase = await createClient()
 
-  const [{ data: upcomingConcerts }, { data: popularArtists }] = await Promise.all([
+  const today = new Date().toISOString().split('T')[0]
+
+  const [{ data: upcomingConcerts }, { data: recentConcerts }, { data: popularArtists }] = await Promise.all([
     supabase
       .from('concerts')
-      .select('id, venue_name, date, start_time, image_url, artists(id, name), tours(id, name, image_url)')
-      .gte('date', new Date().toISOString().split('T')[0])
+      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name), tours(id, name, image_url)')
+      .gte('date', today)
       .order('date', { ascending: true })
       .limit(6),
     supabase
+      .from('concerts')
+      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name), tours(id, name, image_url)')
+      .lt('date', today)
+      .order('date', { ascending: false })
+      .limit(6),
+    supabase
       .from('artists')
-      .select('id, name, image_url')
+      .select('id, slug, name, image_url')
       .limit(50),
   ])
 
@@ -72,6 +83,12 @@ export default async function TopPage() {
       <section id="upcoming" className="max-w-5xl mx-auto px-4 py-8 space-y-4">
         <h2 className="text-lg font-bold text-white">近日開催の公演</h2>
         <UpcomingConcerts initialConcerts={(upcomingConcerts ?? []) as UpcomingConcert[]} />
+      </section>
+
+      {/* 最近終わった公演 */}
+      <section className="max-w-5xl mx-auto px-4 py-8 space-y-4">
+        <h2 className="text-lg font-bold text-white">最近終了した公演</h2>
+        <RecentConcerts initialConcerts={(recentConcerts ?? []) as ConcertCard[]} />
       </section>
 
       {/* アーティスト */}

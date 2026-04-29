@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
 
 const CATEGORIES = [
   { value: 'feedback', label: '意見・要望' },
@@ -9,8 +10,11 @@ const CATEGORIES = [
   { value: 'other', label: 'その他' },
 ]
 
+const MESSAGE_MAX = 2000
+
 export default function ContactPage() {
   const supabase = createClient()
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [email, setEmail] = useState('')
   const [category, setCategory] = useState('feedback')
   const [message, setMessage] = useState('')
@@ -18,16 +22,26 @@ export default function ContactPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setLoggedIn(!!user)
+    })
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!message.trim()) return
+    if (message.length > MESSAGE_MAX) {
+      setError(`メッセージは${MESSAGE_MAX}文字以内で入力してください`)
+      return
+    }
     setSubmitting(true)
     setError(null)
 
     const { error: err } = await supabase
       .from('contact_messages')
       .insert({
-        email: email.trim(),
+        email: email.trim() || null,
         category,
         message: message.trim(),
       })
@@ -40,6 +54,38 @@ export default function ContactPage() {
 
     setSuccess(true)
     setSubmitting(false)
+  }
+
+  if (loggedIn === null) {
+    return <div className="max-w-xl mx-auto px-4 py-16 text-center text-[#8888aa] text-sm">読み込み中...</div>
+  }
+
+  // 未ログインはログインを促す
+  if (!loggedIn) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-violet-500/20 flex items-center justify-center mx-auto text-3xl">
+          ✉
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-black text-white">お問い合わせ</h1>
+          <p className="text-[#8888aa] text-sm leading-relaxed">
+            お問い合わせはログインが必要です。<br />
+            アカウントをお持ちでない場合は新規登録からどうぞ。
+          </p>
+        </div>
+        <div className="flex justify-center gap-3">
+          <Link href="/login"
+            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
+            ログイン
+          </Link>
+          <Link href="/login"
+            className="border border-white/10 hover:border-white/20 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
+            新規登録
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   if (success) {
@@ -96,13 +142,19 @@ export default function ContactPage() {
         </div>
 
         <div>
-          <label className="text-xs text-[#8888aa] mb-1 block">メッセージ *</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-[#8888aa]">メッセージ *</label>
+            <span className={`text-xs ${message.length > MESSAGE_MAX ? 'text-red-400' : 'text-[#8888aa]'}`}>
+              {message.length}/{MESSAGE_MAX}
+            </span>
+          </div>
           <textarea
             value={message}
             onChange={e => setMessage(e.target.value)}
             placeholder="お問い合わせ内容をご記入ください"
             required
             rows={6}
+            maxLength={MESSAGE_MAX}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none"
           />
         </div>
@@ -113,7 +165,7 @@ export default function ContactPage() {
 
         <button
           type="submit"
-          disabled={submitting || !message.trim()}
+          disabled={submitting || !message.trim() || message.length > MESSAGE_MAX}
           className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors text-sm"
         >
           {submitting ? '送信中...' : '送信する'}

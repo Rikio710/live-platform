@@ -8,29 +8,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = await createClient()
   const baseUrl = siteUrl
 
-  const [{ data: concerts }, { data: artists }, { data: tours }] = await Promise.all([
-    supabase.from('concerts').select('id, date').order('date', { ascending: false }),
-    supabase.from('artists').select('id'),
-    supabase.from('tours').select('id'),
+  const [{ data: concerts }, { data: artists }, { data: tours }, { data: venueRows }] = await Promise.all([
+    supabase.from('concerts').select('id, slug, date').order('date', { ascending: false }),
+    supabase.from('artists').select('id, slug'),
+    supabase.from('tours').select('id, slug'),
+    supabase.from('concerts').select('venue_name').order('venue_name'),
   ])
 
+  const venueNames = [...new Set((venueRows ?? []).map(r => r.venue_name))]
+
   const concertUrls: MetadataRoute.Sitemap = (concerts ?? []).map(c => ({
-    url: `${baseUrl}/concerts/${c.id}`,
+    url: `${baseUrl}/concerts/${c.slug ?? c.id}`,
     lastModified: new Date(c.date),
     changeFrequency: 'weekly',
     priority: 0.8,
   }))
 
   const artistUrls: MetadataRoute.Sitemap = (artists ?? []).map(a => ({
-    url: `${baseUrl}/artists/${a.id}`,
+    url: `${baseUrl}/artists/${a.slug ?? a.id}`,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))
 
   const tourUrls: MetadataRoute.Sitemap = (tours ?? []).map(t => ({
-    url: `${baseUrl}/tours/${t.id}`,
+    url: `${baseUrl}/tours/${t.slug ?? t.id}`,
     changeFrequency: 'weekly',
     priority: 0.7,
+  }))
+
+  const venueUrls: MetadataRoute.Sitemap = venueNames.map(name => ({
+    url: `${baseUrl}/venues/${encodeURIComponent(name)}`,
+    changeFrequency: 'weekly' as const,
+    priority: 0.6,
   }))
 
   return [
@@ -46,6 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...artistUrls,
     ...tourUrls,
+    ...venueUrls,
     ...concertUrls,
   ]
 }

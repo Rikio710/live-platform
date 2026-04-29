@@ -117,7 +117,7 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
 
       {/* モーダル */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => { setOpen(false); setImageSrc(null) }}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70" onClick={() => { setOpen(false); setImageSrc(null) }}>
           <div className="bg-[#13131f] border border-white/10 rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-white">アバターを変更</h2>

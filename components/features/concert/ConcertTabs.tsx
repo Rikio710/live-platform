@@ -20,10 +20,12 @@ export default function ConcertTabs({
   concertId,
   activeTab,
   tourId,
+  concertTitle,
 }: {
   concertId: string
   activeTab: string
   tourId: string | null
+  concertTitle?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -40,21 +42,21 @@ export default function ConcertTabs({
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${
+            className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               activeTab === t.key
                 ? 'bg-violet-600 text-white'
                 : 'text-[#8888aa] hover:text-white'
             }`}
           >
-            <t.icon size={14} />
-            {t.label}
+            <t.icon size={15} />
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
 
       {/* コンテンツ */}
       {activeTab === 'board' && <BoardTab concertId={concertId} />}
-      {activeTab === 'setlist' && <SetlistTab concertId={concertId} />}
+      {activeTab === 'setlist' && <SetlistTab concertId={concertId} concertTitle={concertTitle} />}
       {activeTab === 'review' && <ReviewTab concertId={concertId} />}
       {activeTab === 'merch' && <MerchTab concertId={concertId} tourId={tourId} />}
       {activeTab === 'nearby' && <NearbyTab concertId={concertId} />}

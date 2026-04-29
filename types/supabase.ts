@@ -51,6 +51,7 @@ export type Database = {
           image_url: string | null
           instagram_url: string | null
           name: string
+          slug: string | null
           twitter_url: string | null
           website_url: string | null
           youtube_url: string | null
@@ -62,6 +63,7 @@ export type Database = {
           image_url?: string | null
           instagram_url?: string | null
           name: string
+          slug?: string | null
           twitter_url?: string | null
           website_url?: string | null
           youtube_url?: string | null
@@ -73,6 +75,7 @@ export type Database = {
           image_url?: string | null
           instagram_url?: string | null
           name?: string
+          slug?: string | null
           twitter_url?: string | null
           website_url?: string | null
           youtube_url?: string | null
@@ -190,6 +193,7 @@ export type Database = {
           date: string
           id: string
           image_url: string | null
+          slug: string | null
           spotify_url: string | null
           start_time: string | null
           tour_id: string | null
@@ -203,6 +207,7 @@ export type Database = {
           date: string
           id?: string
           image_url?: string | null
+          slug?: string | null
           spotify_url?: string | null
           start_time?: string | null
           tour_id?: string | null
@@ -216,6 +221,7 @@ export type Database = {
           date?: string
           id?: string
           image_url?: string | null
+          slug?: string | null
           spotify_url?: string | null
           start_time?: string | null
           tour_id?: string | null
@@ -855,6 +861,7 @@ export type Database = {
           id: string
           image_url: string | null
           name: string
+          slug: string | null
           start_date: string | null
         }
         Insert: {
@@ -864,6 +871,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           name: string
+          slug?: string | null
           start_date?: string | null
         }
         Update: {
@@ -873,6 +881,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           name?: string
+          slug?: string | null
           start_date?: string | null
         }
         Relationships: [

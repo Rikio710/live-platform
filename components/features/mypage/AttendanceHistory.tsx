@@ -9,6 +9,7 @@ type Attendance = {
   created_at: string | null
   concerts: {
     id: string
+    slug: string | null
     venue_name: string
     date: string
     image_url: string | null
@@ -90,7 +91,7 @@ export default function AttendanceHistory({
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map(a => (
-            <Link key={a.id} href={`/concerts/${a.concerts.id}`}
+            <Link key={a.id} href={`/concerts/${a.concerts.slug ?? a.concerts.id}`}
               className="glass rounded-2xl overflow-hidden hover:border-violet-500/40 transition-all group">
               {/* サムネイル */}
               <div className="h-28 relative bg-gradient-to-br from-violet-900/50 to-pink-900/40">

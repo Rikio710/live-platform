@@ -8,7 +8,7 @@ import FollowButton from '@/components/features/artist/FollowButton'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { Tables } from '@/types/supabase'
 
-type Artist = Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'description'>
+type Artist = Pick<Tables<'artists'>, 'id' | 'slug' | 'name' | 'image_url' | 'description'>
 
 export default function ArtistsPage() {
   const supabase = createClient()
@@ -19,7 +19,7 @@ export default function ArtistsPage() {
   useEffect(() => {
     supabase
       .from('artists')
-      .select('id, name, image_url, description')
+      .select('id, slug, name, image_url, description')
       .order('name')
       .then(({ data }) => { setArtists(data ?? []); setLoading(false) })
   }, [])
@@ -64,7 +64,7 @@ export default function ArtistsPage() {
           ))
         ) : filtered.map((a) => (
           <div key={a.id} className="glass rounded-2xl overflow-hidden hover:border-violet-500/30 transition-all group">
-            <Link href={`/artists/${a.id}`} className="block">
+            <Link href={`/artists/${a.slug ?? a.id}`} className="block">
               <div className="h-32 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
                 {a.image_url ? (
                   <img src={a.image_url} alt={a.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" />

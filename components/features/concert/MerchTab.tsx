@@ -69,9 +69,10 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
       setUserId(user?.id ?? null)
 
       const oneHourAgo = new Date(Date.now() - 3600000).toISOString()
+      // 集計用：wait_label のみ取得（他ユーザーの user_id は不要）
       const { data: wvotes } = await supabase
         .from('merch_wait_votes')
-        .select('wait_label, user_id')
+        .select('wait_label')
         .eq('concert_id', concertId)
         .gte('created_at', oneHourAgo)
 
@@ -81,10 +82,17 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
           counts[v.wait_label] = (counts[v.wait_label] ?? 0) + 1
         }
         setWaitVotes(counts)
-        if (user) {
-          const mine = wvotes.find((v: any) => v.user_id === user.id)
-          setMyWaitVote(mine?.wait_label ?? null)
-        }
+      }
+      // 自分の投票のみ別途取得
+      if (user) {
+        const { data: myVote } = await supabase
+          .from('merch_wait_votes')
+          .select('wait_label')
+          .eq('concert_id', concertId)
+          .eq('user_id', user.id)
+          .gte('created_at', oneHourAgo)
+          .maybeSingle()
+        setMyWaitVote(myVote?.wait_label ?? null)
       }
 
       if (tourId) await loadCatalog(tourId, concertId, user?.id ?? null)
@@ -106,20 +114,31 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
     const itemIds = (catalog as CatalogItem[]).map(i => i.id)
     if (itemIds.length === 0) return
 
+    // 集計用：user_id を含まずカウントのみ取得
     const { data: votes } = await supabase
       .from('merch_combo_votes')
-      .select('catalog_item_id, color_option, size_option, status, user_id')
+      .select('catalog_item_id, color_option, size_option, status')
       .eq('concert_id', cid)
       .in('catalog_item_id', itemIds)
 
-    if (!votes) return
-
     const agg: AllComboVotes = {}
-    for (const v of votes) {
+    for (const v of votes ?? []) {
       const key = ck(v.catalog_item_id, v.color_option, v.size_option)
       if (!agg[key]) agg[key] = { available: 0, sold_out: 0 }
       agg[key][v.status as 'available' | 'sold_out']++
-      if (uid && v.user_id === uid) {
+    }
+
+    // 自分の投票のみ別途取得
+    if (uid) {
+      const { data: myVotes } = await supabase
+        .from('merch_combo_votes')
+        .select('catalog_item_id, color_option, size_option, status')
+        .eq('concert_id', cid)
+        .eq('user_id', uid)
+        .in('catalog_item_id', itemIds)
+      for (const v of myVotes ?? []) {
+        const key = ck(v.catalog_item_id, v.color_option, v.size_option)
+        if (!agg[key]) agg[key] = { available: 0, sold_out: 0 }
         agg[key].myVote = v.status as 'available' | 'sold_out'
       }
     }
@@ -266,7 +285,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
     <div className="space-y-6">
       {/* Lightbox */}
       {lightboxUrl && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+        <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
           <img src={lightboxUrl} alt="" className="max-w-full max-h-full rounded-xl object-contain" onClick={e => e.stopPropagation()} />
           <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl leading-none">✕</button>
         </div>

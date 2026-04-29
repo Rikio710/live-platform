@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { LayoutDashboard, Mic2, Route, Ticket, MessageSquare, ShoppingBag, ListMusic, Mail, MapPin, PlusCircle, UserCircle } from 'lucide-react'
+import { LayoutDashboard, Mic2, Route, Ticket, MessageSquare, ShoppingBag, ListMusic, Mail, MapPin, PlusCircle, UserCircle, Building2 } from 'lucide-react'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -21,6 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/artists', label: 'アーティスト', icon: Mic2 },
     { href: '/admin/tours', label: 'ツアー', icon: Route },
     { href: '/admin/concerts', label: '公演', icon: Ticket },
+    { href: '/admin/venues', label: '会場', icon: Building2 },
     { href: '/admin/posts', label: '掲示板', icon: MessageSquare },
     { href: '/admin/merch', label: 'グッズ', icon: ShoppingBag },
     { href: '/admin/setlist', label: 'セトリ', icon: ListMusic },
