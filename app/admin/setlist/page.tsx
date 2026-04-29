@@ -37,17 +37,44 @@ const SONG_TYPE_COLORS: Record<string, string> = {
 // 一括テキストをパースして曲リストに変換
 // 「アンコール」という行以降はis_encore=true
 // 「MC」を含む行はsong_type='mc'
-function parseBulkText(text: string): Array<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean }> {
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '')
-  const result: Array<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean }> = []
+function parseBulkText(text: string): Array<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }> {
+  // 空行をアンコール区切りとして扱うため、改行を分割してから処理
+  const rawLines = text.split('\n').map(l => l.trim())
+  const result: Array<{ song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }> = []
   let isEncore = false
-  for (const line of lines) {
-    if (/^(アンコール|encore|en$)/i.test(line)) {
+
+  for (const line of rawLines) {
+    // 空行 → アンコール開始（LiveFans形式）
+    if (line === '') {
       isEncore = true
       continue
     }
-    const type: 'song' | 'mc' | 'other' = /^mc$/i.test(line) ? 'mc' : 'song'
-    result.push({ song_name: line, song_type: type, is_encore: isEncore })
+    // アンコール・EN → 明示的なアンコール区切り
+    if (/^(アンコール|encore|^en$)/i.test(line)) {
+      isEncore = true
+      continue
+    }
+    // メドレー区切り<<<>>>はスキップ
+    if (/^<<<|^>>>/.test(line)) continue
+
+    // ;;で曲名とメモを分割（LiveFans形式）
+    const [namePart, ...memoParts] = line.split(';;')
+    const memo = memoParts.join(';;').trim() || null
+
+    // @@でカバーアーティストを分割（LiveFans形式）
+    const atParts = namePart.split('@@')
+    const baseName = atParts[0].trim()
+    const coverArtist = atParts[1]?.trim() ?? null
+    const song_name = coverArtist ? `${baseName} [${coverArtist}]` : baseName
+
+    if (!song_name) continue
+
+    // song_type判定
+    let song_type: 'song' | 'mc' | 'other' = 'song'
+    if (song_name.startsWith('///')) song_type = 'other'
+    else if (/^MC$/i.test(song_name)) song_type = 'mc'
+
+    result.push({ song_name, song_type, is_encore: isEncore, memo })
   }
   return result
 }
@@ -138,6 +165,7 @@ export default function AdminSetlistPage() {
       song_name: s.song_name,
       song_type: s.song_type,
       is_encore: s.is_encore,
+      memo: s.memo,
       order_num: i + 1,
     }))
 
@@ -508,21 +536,23 @@ export default function AdminSetlistPage() {
 
           <div className="space-y-1.5">
             <label className="text-xs text-[#8888aa]">
-              曲リスト（1行1曲 ／ 「アンコール」でアンコール区切り ／ 「MC」でMC）
+              LiveFansの「一括コピペ入力」をそのまま貼り付けOK。空行でアンコール区切り。
             </label>
             <textarea
               value={bulkText}
               onChange={e => setBulkText(e.target.value)}
               rows={12}
-              placeholder={`例:\n夜に駆ける\n猫\nハルジオン\nMC\nセプテンバーさん\nアンコール\npositiv`}
+              placeholder={`例:\n///Overture\nImitation Rain\nWHIP THAT;;挨拶あり\nTHE D-MOTION@@KAT-TUN\n///MC\nシンデレラ・クリスマス@@KinKi Kids\n\nこっから\nこの星のHIKARI`}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none font-mono"
             />
-            {bulkText.trim() && (
-              <p className="text-xs text-[#8888aa]">
-                {parseBulkText(bulkText).length}曲を認識
-                （アンコール: {parseBulkText(bulkText).filter(s => s.is_encore).length}曲）
-              </p>
-            )}
+            {bulkText.trim() && (() => {
+              const parsed = parseBulkText(bulkText)
+              return (
+                <p className="text-xs text-[#8888aa]">
+                  {parsed.length}曲を認識（アンコール: {parsed.filter(s => s.is_encore).length}曲 ／ カバー: {parsed.filter(s => s.song_name.includes('[')).length}曲 ／ その他: {parsed.filter(s => s.song_type === 'other').length}件）
+                </p>
+              )
+            })()}
           </div>
 
           <div className="flex gap-2">
