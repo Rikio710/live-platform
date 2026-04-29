@@ -233,7 +233,7 @@ export default async function ConcertPage({
         const mainSongs = sortedSongs.filter(s => s.song_type === 'song' && !s.is_encore)
         const encoreSongs = sortedSongs.filter(s => s.song_type === 'song' && s.is_encore)
         return (
-          <section className="glass rounded-2xl p-5 space-y-4">
+          <section className="sr-only" aria-hidden="true">
             <h2 className="text-base font-bold text-white">
               セットリスト（{c.artists?.name}{c.tours ? ` ${c.tours.name}` : ''} {new Date(c.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} {c.venue_name}）
             </h2>
