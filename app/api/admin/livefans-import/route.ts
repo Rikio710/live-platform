@@ -28,13 +28,21 @@ function parseSetlistHtml(html: string) {
 
     const is_encore = !tdClass.includes('rnd2')
 
-    const rawName = td.find('div.ttl a').first().text().trim()
+    // リンクあり曲名 → なければ div.ttl のテキスト全体（///Overture, カバー曲等）
+    const ttlEl = td.find('div.ttl')
+    const linkedName = ttlEl.find('a').first().text().trim()
+    // div.ttl のクローンからメモ・cmt を除いたテキスト
+    const ttlClone = ttlEl.clone()
+    ttlClone.find('p.memo, .cmt').remove()
+    const plainName = ttlClone.text().trim()
+    const rawName = linkedName || plainName
     if (!rawName) return
 
     const memo = td.find('div.ttl p.memo').text().trim() || null
 
     let song_type: 'song' | 'mc' | 'other' = 'song'
     if (/^MC$/i.test(rawName)) song_type = 'mc'
+    else if (rawName.startsWith('///')) song_type = 'other'
 
     entries.push({ idx, song_name: rawName, song_type, is_encore, memo })
   })
