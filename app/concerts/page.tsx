@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { Calendar, MapPin } from 'lucide-react'
 import { siteUrl } from '@/lib/site'
 import type { Tables } from '@/types/supabase'
+import ArtistFilter from './ArtistFilter'
 
 type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'slug' | 'date' | 'start_time' | 'venue_name' | 'image_url'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
@@ -83,30 +84,7 @@ export default async function ConcertsPage({
           </Link>
         </div>
 
-        <form method="get" action="/concerts" className="flex gap-2 flex-wrap">
-          <input type="hidden" name="tab" value={tab} />
-          <select
-            name="artist"
-            defaultValue={artist}
-            className="bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-sm text-white focus:outline-none"
-          >
-            <option value="">全アーティスト</option>
-            {(artists ?? []).map(a => (
-              <option key={a.id} value={a.name}>{a.name}</option>
-            ))}
-          </select>
-          <button type="submit" className="text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-4 py-1.5 text-white transition-colors">
-            絞り込み
-          </button>
-          {artist && (
-            <Link
-              href={`/concerts?tab=${tab}`}
-              className="text-xs text-[#8888aa] hover:text-white border border-white/10 rounded-full px-3 py-1.5 transition-colors"
-            >
-              ✕ 解除
-            </Link>
-          )}
-        </form>
+        <ArtistFilter artists={artists ?? []} tab={tab} artist={artist} />
       </div>
 
       {/* 公演リスト */}
