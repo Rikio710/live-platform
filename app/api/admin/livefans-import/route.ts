@@ -23,8 +23,10 @@ function parseSetlistHtml(html: string) {
 
     const idxAttr = td.find('a[id^="idx-"]').attr('id') ?? ''
     const idxMatch = idxAttr.match(/idx-(\d+)/)
-    if (!idxMatch) return
-    const idx = parseInt(idxMatch[1], 10)
+    // idx-N がない場合は pcslN の番号をフォールバックとして使う（大きい値にして末尾扱い）
+    const pcslMatch = tdClass.match(/pcsl(\d+)/)
+    if (!idxMatch && !pcslMatch) return
+    const idx = idxMatch ? parseInt(idxMatch[1], 10) : parseInt(pcslMatch![1], 10) + 10000
 
     const is_encore = !tdClass.includes('rnd2')
 
