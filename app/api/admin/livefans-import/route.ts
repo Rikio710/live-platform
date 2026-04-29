@@ -14,26 +14,34 @@ const UA = 'Mozilla/5.0 (compatible; LiveVault/1.0)'
 
 function parseSetlistHtml(html: string) {
   const $ = cheerio.load(html)
-  const entries: Array<{ idx: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }> = []
 
+  type RawEntry = {
+    pcslN: number
+    idx: number | null
+    song_name: string
+    song_type: 'song' | 'mc' | 'other'
+    is_encore: boolean
+    memo: string | null
+    cmt: string | null
+  }
+
+  // 1st pass: pcslN順に全曲収集
+  const rawEntries: RawEntry[] = []
   $('td.rnd').each((_, el) => {
     const td = $(el)
     const tdClass = td.attr('class') ?? ''
-    if (!/pcsl\d+/.test(tdClass)) return
+    const pcslMatch = tdClass.match(/pcsl(\d+)/)
+    if (!pcslMatch) return
+    const pcslN = parseInt(pcslMatch[1], 10)
 
     const idxAttr = td.find('a[id^="idx-"]').attr('id') ?? ''
     const idxMatch = idxAttr.match(/idx-(\d+)/)
-    // idx-N がない場合は pcslN の番号をフォールバックとして使う（大きい値にして末尾扱い）
-    const pcslMatch = tdClass.match(/pcsl(\d+)/)
-    if (!idxMatch && !pcslMatch) return
-    const idx = idxMatch ? parseInt(idxMatch[1], 10) : parseInt(pcslMatch![1], 10) + 10000
+    const idx = idxMatch ? parseInt(idxMatch[1], 10) : null
 
     const is_encore = !tdClass.includes('rnd2')
 
-    // リンクあり曲名 → なければ div.ttl のテキスト全体（///Overture, カバー曲等）
     const ttlEl = td.find('div.ttl')
     const linkedName = ttlEl.find('a').first().text().trim()
-    // div.ttl のクローンからメモ・cmt を除いたテキスト
     const ttlClone = ttlEl.clone()
     ttlClone.find('p.memo, .cmt').remove()
     const plainName = ttlClone.text().trim()
@@ -41,14 +49,55 @@ function parseSetlistHtml(html: string) {
     if (!rawName) return
 
     const memo = td.find('div.ttl p.memo').text().trim() || null
+    const cmt = td.find('div.cmt').text().trim() || null
 
     let song_type: 'song' | 'mc' | 'other' = 'song'
     if (/^MC$/i.test(rawName)) song_type = 'mc'
     else if (rawName.startsWith('///')) song_type = 'other'
 
-    entries.push({ idx, song_name: rawName, song_type, is_encore, memo })
+    rawEntries.push({ pcslN, idx, song_name: rawName, song_type, is_encore, memo, cmt })
   })
 
+  rawEntries.sort((a, b) => a.pcslN - b.pcslN)
+
+  // pcslN → idx マップ（idx持ちのみ）
+  const pcslToIdx = new Map<number, number>()
+  for (const e of rawEntries) {
+    if (e.idx !== null) pcslToIdx.set(e.pcslN, e.idx)
+  }
+
+  // 2nd pass: ソートキーを決定
+  type SortedEntry = {
+    sort_key: number
+    song_name: string
+    song_type: 'song' | 'mc' | 'other'
+    is_encore: boolean
+    memo: string | null
+  }
+  const entries: SortedEntry[] = []
+
+  for (const e of rawEntries) {
+    let sort_key: number
+    if (e.idx !== null) {
+      sort_key = e.idx
+    } else {
+      // 直前の pcslN で idx を持つ曲を探して補間
+      let prevIdx = -1
+      for (let n = e.pcslN - 1; n >= 1; n--) {
+        if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
+      }
+      sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
+    }
+
+    entries.push({ sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo })
+
+    // cmt（///MC, ///映像など）は曲の直後に挿入
+    if (e.cmt) {
+      entries.push({ sort_key: sort_key + 0.1, song_name: `///${e.cmt}`, song_type: 'other', is_encore: e.is_encore, memo: null })
+    }
+  }
+
+  entries.sort((a, b) => a.sort_key - b.sort_key)
   return entries
 }
 
@@ -90,8 +139,6 @@ export async function POST(req: NextRequest) {
       }
     }
   }
-
-  entries.sort((a, b) => a.idx - b.idx)
 
   const songs: LiveFansSong[] = entries.map((e, i) => ({
     song_name: e.song_name,
