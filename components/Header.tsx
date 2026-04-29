@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Home, Music2, User, MapPin } from 'lucide-react'
+import { Home, Music2, User, CalendarDays } from 'lucide-react'
 
 export default function Header() {
   const pathname = usePathname()
@@ -24,7 +24,7 @@ export default function Header() {
   const NAV = [
     { href: '/', label: 'ホーム', icon: Home, active: pathname === '/' },
     { href: '/artists', label: 'アーティスト', icon: Music2, active: pathname.startsWith('/artists') },
-    { href: '/venues', label: '会場', icon: MapPin, active: pathname.startsWith('/venues') },
+    { href: '/concerts', label: '公演', icon: CalendarDays, active: pathname.startsWith('/concerts') },
     { href: mypageHref, label: 'マイページ', icon: User, active: pathname === '/mypage' },
   ]
 
