@@ -16,7 +16,7 @@ function parseSetlistHtml(html: string) {
   const $ = cheerio.load(html)
   const entries: Array<{ idx: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }> = []
 
-  $('.notyet table tr td').each((_, el) => {
+  $('td.rnd').each((_, el) => {
     const td = $(el)
     const tdClass = td.attr('class') ?? ''
     if (!/pcsl\d+/.test(tdClass)) return
