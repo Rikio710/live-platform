@@ -220,6 +220,11 @@ export default async function ConcertPage({
         </div>
       </div>
 
+      {/* SEO説明文 */}
+      <p className="text-sm text-[#8888aa] leading-relaxed">
+        {c.artists?.name}の{c.venue_name}（{dateStr}）のセットリスト・ライブ参戦記録です。セトリ投稿・感想の共有・掲示板での交流ができます。
+      </p>
+
       {/* タブコンテンツ */}
       <ConcertTabs
         concertId={c.id}
