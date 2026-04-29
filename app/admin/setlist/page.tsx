@@ -99,6 +99,8 @@ export default function AdminSetlistPage() {
   // 新規セトリ作成
   const [showCreate, setShowCreate] = useState(false)
   const [createConcertId, setCreateConcertId] = useState('')
+  const [createArtistFilter, setCreateArtistFilter] = useState('')
+  const [createTourFilter, setCreateTourFilter] = useState('')
   const [bulkText, setBulkText] = useState('')
   const [creating, setCreating] = useState(false)
 
@@ -175,6 +177,8 @@ export default function AdminSetlistPage() {
 
     setBulkText('')
     setCreateConcertId('')
+    setCreateArtistFilter('')
+    setCreateTourFilter('')
     setShowCreate(false)
     setCreating(false)
     await load()
@@ -518,20 +522,53 @@ export default function AdminSetlistPage() {
         <div className="glass rounded-2xl p-6 space-y-4">
           <h2 className="text-sm font-bold text-white">新規セトリ一括入力</h2>
 
-          <div className="space-y-1.5">
-            <label className="text-xs text-[#8888aa]">公演</label>
+          <div className="space-y-2">
+            <label className="text-xs text-[#8888aa]">公演を選択</label>
             <select
-              value={createConcertId}
-              onChange={e => setCreateConcertId(e.target.value)}
+              value={createArtistFilter}
+              onChange={e => { setCreateArtistFilter(e.target.value); setCreateTourFilter(''); setCreateConcertId('') }}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
             >
-              <option value="">公演を選択...</option>
-              {allConcerts.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.artists?.name} / {c.tours?.name ?? '-'} / {c.venue_name} ({formatDate(c.date)})
-                </option>
+              <option value="">① アーティストを選択...</option>
+              {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort().map(name => (
+                <option key={name} value={name}>{name}</option>
               ))}
             </select>
+            {createArtistFilter && (() => {
+              const tours = [...new Map(
+                allConcerts.filter(c => c.artists?.name === createArtistFilter && c.tours).map(c => [c.tours!.name, c.tours!.name])
+              ).values()].sort()
+              return tours.length > 0 ? (
+                <select
+                  value={createTourFilter}
+                  onChange={e => { setCreateTourFilter(e.target.value); setCreateConcertId('') }}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+                >
+                  <option value="">② ツアーを選択...</option>
+                  {tours.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              ) : null
+            })()}
+            {createArtistFilter && (() => {
+              const filtered = allConcerts.filter(c =>
+                c.artists?.name === createArtistFilter &&
+                (!createTourFilter || c.tours?.name === createTourFilter)
+              )
+              return filtered.length > 0 ? (
+                <select
+                  value={createConcertId}
+                  onChange={e => setCreateConcertId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+                >
+                  <option value="">③ 公演を選択...</option>
+                  {filtered.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.venue_name}（{formatDate(c.date)}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : null
+            })()}
           </div>
 
           <div className="space-y-1.5">
@@ -564,7 +601,7 @@ export default function AdminSetlistPage() {
               {creating ? '作成中...' : '作成する'}
             </button>
             <button
-              onClick={() => { setShowCreate(false); setBulkText(''); setCreateConcertId('') }}
+              onClick={() => { setShowCreate(false); setBulkText(''); setCreateConcertId(''); setCreateArtistFilter(''); setCreateTourFilter('') }}
               className="border border-white/10 text-[#8888aa] hover:text-white text-sm px-6 py-2.5 rounded-full transition-colors"
             >
               キャンセル
