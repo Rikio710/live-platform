@@ -74,6 +74,11 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
       '@type': 'MusicEvent',
       name: `${c.artists?.name ?? ''} ${c.tours?.name ?? c.venue_name}`,
       startDate: c.start_time ? `${c.date}T${c.start_time}+09:00` : c.date,
+      location: {
+        '@type': 'MusicVenue',
+        name: venueName,
+        ...(venueAddress ? { address: venueAddress } : {}),
+      },
       performer: c.artists ? { '@type': 'MusicGroup', name: c.artists.name } : undefined,
       url: `${siteUrl}/concerts/${(c as any).slug ?? c.id}`,
     })),

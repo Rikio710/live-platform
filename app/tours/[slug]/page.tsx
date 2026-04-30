@@ -85,6 +85,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
     ],
   }
 
+  const firstConcert = (concerts ?? [])[0]
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'MusicEvent',
@@ -94,6 +95,13 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
     url: `${siteUrl}/tours/${tour.slug ?? slug}`,
     ...(tour.start_date ? { startDate: tour.start_date } : {}),
     ...(tour.end_date ? { endDate: tour.end_date } : {}),
+    ...(firstConcert ? {
+      location: {
+        '@type': 'MusicVenue',
+        name: firstConcert.venue_name,
+        ...(firstConcert.venue_address ? { address: firstConcert.venue_address } : {}),
+      },
+    } : {}),
     subEvent: (concerts ?? []).map(c => ({
       '@type': 'MusicEvent',
       name: `${tour.artists?.name ?? ''} ${tour.name} ${c.venue_name}`,
