@@ -100,11 +100,25 @@ export default async function ConcertsPage({
               href={`/concerts/${c.slug ?? c.id}`}
               className="glass rounded-2xl p-4 flex items-center gap-4 hover:border-violet-500/40 transition-colors group"
             >
-              <div className="shrink-0 text-center w-12">
+              {/* サムネイル */}
+              <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-violet-800/60 to-pink-800/60">
+                {(c.image_url || c.tours?.image_url) ? (
+                  <img
+                    src={c.image_url ?? c.tours?.image_url ?? ''}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Calendar size={20} className="text-white/40" />
+                  </div>
+                )}
+              </div>
+              <div className="shrink-0 text-center w-10">
                 <p className="text-xs text-[#8888aa]">
                   {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}
                 </p>
-                <p className="text-xl font-black text-white">
+                <p className="text-lg font-black text-white">
                   {new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}
                 </p>
                 <p className="text-xs text-[#8888aa]">
