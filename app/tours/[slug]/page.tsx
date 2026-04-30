@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { Calendar } from 'lucide-react'
 import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
-import { redirect } from 'next/navigation'
+import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -55,7 +55,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
 
   if (UUID_RE.test(slug)) {
     const { data: r } = await supabase.from('tours').select('slug').eq('id', slug).single()
-    if (r?.slug) redirect(`/tours/${r.slug}`)
+    if (r?.slug) permanentRedirect(`/tours/${r.slug}`)
   }
 
   const isUuid = UUID_RE.test(slug)

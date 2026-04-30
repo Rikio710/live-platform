@@ -8,7 +8,7 @@ import ConcertShareButton from '@/components/features/concert/ConcertShareButton
 import { Calendar, MapPin } from 'lucide-react'
 import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
-import { redirect } from 'next/navigation'
+import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 
 type ConcertWithRelations = Tables<'concerts'> & {
@@ -76,7 +76,7 @@ export default async function ConcertPage({
   // UUID での旧URLは slug にリダイレクト
   if (UUID_RE.test(slug)) {
     const { data: r } = await supabase.from('concerts').select('slug').eq('id', slug).single()
-    if (r?.slug) redirect(`/concerts/${r.slug}`)
+    if (r?.slug) permanentRedirect(`/concerts/${r.slug}`)
   }
 
   const isUuid = UUID_RE.test(slug)

@@ -17,21 +17,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const venueNames = [...new Set((venueRows ?? []).map(r => r.venue_name))]
 
-  const concertUrls: MetadataRoute.Sitemap = (concerts ?? []).map(c => ({
-    url: `${baseUrl}/concerts/${c.slug ?? c.id}`,
+  const concertUrls: MetadataRoute.Sitemap = (concerts ?? []).filter(c => c.slug).map(c => ({
+    url: `${baseUrl}/concerts/${c.slug}`,
     lastModified: new Date(c.date),
     changeFrequency: 'weekly',
     priority: 0.8,
   }))
 
-  const artistUrls: MetadataRoute.Sitemap = (artists ?? []).map(a => ({
-    url: `${baseUrl}/artists/${a.slug ?? a.id}`,
+  const artistUrls: MetadataRoute.Sitemap = (artists ?? []).filter(a => a.slug).map(a => ({
+    url: `${baseUrl}/artists/${a.slug}`,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))
 
-  const tourUrls: MetadataRoute.Sitemap = (tours ?? []).map(t => ({
-    url: `${baseUrl}/tours/${t.slug ?? t.id}`,
+  const tourUrls: MetadataRoute.Sitemap = (tours ?? []).filter(t => t.slug).map(t => ({
+    url: `${baseUrl}/tours/${t.slug}`,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))

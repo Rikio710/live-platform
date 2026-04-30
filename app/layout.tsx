@@ -3,6 +3,7 @@ import './globals.css'
 import Header from '@/components/Header'
 import Link from 'next/link'
 import { Analytics } from '@vercel/analytics/next'
+import Script from 'next/script'
 
 export const metadata: Metadata = {
   verification: {
@@ -46,6 +47,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </footer>
         <Analytics />
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-CCZ7XJC4MD" strategy="afterInteractive" />
+        <Script id="gtag-init" strategy="afterInteractive">{`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-CCZ7XJC4MD');
+        `}</Script>
       </body>
     </html>
   )

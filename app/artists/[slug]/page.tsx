@@ -6,7 +6,7 @@ import { Mic2, Route, Globe } from 'lucide-react'
 import FollowButton from '@/components/features/artist/FollowButton'
 import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
-import { redirect } from 'next/navigation'
+import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -50,7 +50,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
 
   if (UUID_RE.test(slug)) {
     const { data: r } = await supabase.from('artists').select('slug').eq('id', slug).single()
-    if (r?.slug) redirect(`/artists/${r.slug}`)
+    if (r?.slug) permanentRedirect(`/artists/${r.slug}`)
   }
 
   const isUuid = UUID_RE.test(slug)
