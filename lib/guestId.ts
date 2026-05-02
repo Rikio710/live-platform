@@ -15,6 +15,12 @@ function randomUUID(): string {
   })
 }
 
+// 既存のゲストIDを読むだけ（新規作成しない）
+export function readGuestId(): string | null {
+  if (typeof localStorage === 'undefined') return null
+  return localStorage.getItem(STORAGE_KEY_ID)
+}
+
 export function getGuestIdentity(): { guest_user_id: string; guest_name: string } {
   let guestUserId = localStorage.getItem(STORAGE_KEY_ID)
   let guestName = localStorage.getItem(STORAGE_KEY_NAME)

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Utensils, Hotel, ShoppingBag, MapPin, ExternalLink, Trash2 } from 'lucide-react'
-import { getGuestIdentity } from '@/lib/guestId'
+import { getGuestIdentity, readGuestId } from '@/lib/guestId'
 import type { Tables } from '@/types/supabase'
 
 type Category = 'restaurant' | 'hotel' | 'convenience' | 'other'
@@ -52,6 +52,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [guestUserId, setGuestUserId] = useState<string | null>(null)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<Category | 'all'>('all')
   const [showForm, setShowForm] = useState(false)
@@ -70,6 +71,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
         const { data: { user } } = await supabase.auth.getUser()
         const uid = user?.id ?? null
         setUserId(uid)
+        if (!user) setGuestUserId(readGuestId())
 
         if (uid) {
           const { data: profile } = await supabase.from('profiles').select('username').eq('id', uid).single()
@@ -142,7 +144,13 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
 
   const handleDeleteSpot = async (spotId: string) => {
     if (!confirm('このスポットを削除しますか？')) return
-    await supabase.from('nearby_spots').delete().eq('id', spotId).eq('user_id', userId!)
+    const guestInfo = !userId && guestUserId ? { guest_user_id: guestUserId } : null
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', table: 'nearby_spots', record_id: spotId, ...(guestInfo ?? {}) }),
+    })
+    if (!res.ok) return
     setSpots(prev => prev.filter(s => s.id !== spotId))
   }
 
@@ -307,7 +315,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
                       {spot.created_at && new Date(spot.created_at).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
-                  {spot.user_id === userId && (
+                  {(spot.user_id === userId || (!userId && spot.user_id === guestUserId)) && (
                     <button onClick={() => handleDeleteSpot(spot.id)}
                       className="shrink-0 text-[#8888aa] hover:text-red-400 transition-colors p-1 self-start">
                       <Trash2 size={14} />

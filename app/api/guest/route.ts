@@ -107,6 +107,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ item, isGuest, displayName })
     }
 
+    case 'delete': {
+      const { table, record_id } = data
+      const ALLOWED_TABLES = ['board_posts', 'post_comments', 'concert_reviews', 'nearby_spots']
+      if (!record_id || !ALLOWED_TABLES.includes(table)) {
+        return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+      }
+
+      if (user) {
+        // 認証ユーザー: auth.uid() が一致するレコードのみ削除（サーバー側で強制）
+        const { error } = await admin.from(table as any).delete().eq('id', record_id).eq('user_id', userId)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ ok: true })
+      } else {
+        // ゲスト: guest_user_id が本物の認証ユーザーでないことを確認
+        if (!guest_user_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const { data: authData } = await admin.auth.admin.getUserById(guest_user_id)
+        if (authData?.user) {
+          // guest_user_id が実際の認証ユーザーのIDと一致 → 拒否
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        const { error } = await admin.from(table as any).delete().eq('id', record_id).eq('user_id', guest_user_id)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ ok: true })
+      }
+    }
+
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }

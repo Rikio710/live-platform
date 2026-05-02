@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Heart, MessageCircle, MoreHorizontal, Image, X, EyeOff, Eye, Trash2 } from 'lucide-react'
-import { getGuestIdentity } from '@/lib/guestId'
+import { getGuestIdentity, readGuestId } from '@/lib/guestId'
 import type { RealtimePostgresInsertPayload } from '@supabase/realtime-js'
 import type { Tables } from '@/types/supabase'
 
@@ -67,6 +67,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
+  const [guestUserId, setGuestUserId] = useState<string | null>(null)
   const [myUsername, setMyUsername] = useState<string | null>(null)
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState('all')
@@ -102,6 +103,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         setUserId(user?.id ?? null)
+        if (!user) setGuestUserId(readGuestId())
 
         if (user) {
           const { data: blocks } = await supabase
@@ -249,16 +251,28 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     setSubmittingComment(false)
   }
 
+  const deleteRecord = async (table: string, recordId: string) => {
+    const guestInfo = !userId && guestUserId ? { guest_user_id: guestUserId } : null
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', table, record_id: recordId, ...(guestInfo ?? {}) }),
+    })
+    return res.ok
+  }
+
   const handleDeletePost = async (postId: string) => {
     if (!confirm('この投稿を削除しますか？')) return
-    await supabase.from('board_posts').delete().eq('id', postId).eq('user_id', userId!)
+    const ok = await deleteRecord('board_posts', postId)
+    if (!ok) return
     setPosts(prev => prev.filter(p => p.id !== postId))
     setOpenMenuPostId(null)
     if (expandedPostId === postId) setExpandedPostId(null)
   }
 
   const handleDeleteComment = async (postId: string, commentId: string) => {
-    await supabase.from('post_comments').delete().eq('id', commentId).eq('user_id', userId!)
+    const ok = await deleteRecord('post_comments', commentId)
+    if (!ok) return
     setComments(prev => ({ ...prev, [postId]: (prev[postId] ?? []).filter(c => c.id !== commentId) }))
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 1) - 1) } : p))
   }
@@ -415,7 +429,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                     </button>
                     {openMenuPostId === post.id && (
                       <div className="absolute right-0 top-8 z-20 bg-[#1a1a2e] border border-white/10 rounded-xl overflow-hidden shadow-xl min-w-[110px]">
-                        {post.user_id === userId ? (
+                        {(post.user_id === userId || (!userId && post.user_id === guestUserId)) ? (
                           <button onClick={() => handleDeletePost(post.id)}
                             className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors">削除</button>
                         ) : (
@@ -487,7 +501,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                           </div>
                           <p className="text-sm text-white mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>
                         </div>
-                        {c.user_id === userId && (
+                        {(c.user_id === userId || (!userId && c.user_id === guestUserId)) && (
                           <button onClick={() => handleDeleteComment(post.id, c.id)}
                             className="shrink-0 text-[#8888aa] hover:text-red-400 transition-colors p-1">
                             <Trash2 size={12} />

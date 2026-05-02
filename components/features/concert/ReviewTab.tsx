@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Star, Pencil, Trash2 } from 'lucide-react'
-import { getGuestIdentity } from '@/lib/guestId'
+import { getGuestIdentity, readGuestId } from '@/lib/guestId'
 
 type Review = {
   id: string
@@ -52,6 +52,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
   const supabase = createClient()
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
+  const [guestUserId, setGuestUserId] = useState<string | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [myReview, setMyReview] = useState<Review | null>(null)
@@ -65,14 +66,17 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      setUserId(user?.id ?? null)
-      await load(user?.id ?? null)
+      const uid = user?.id ?? null
+      const gid = !user ? readGuestId() : null
+      setUserId(uid)
+      setGuestUserId(gid)
+      await load(uid, gid)
       setLoading(false)
     }
     init()
   }, [concertId])
 
-  const load = async (uid: string | null) => {
+  const load = async (uid: string | null, gid: string | null = null) => {
     const { data } = await supabase
       .from('concert_reviews')
       .select('id, user_id, rating, comment, created_at, guest_name')
@@ -91,7 +95,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
 
     const rows = data.map(r => ({ ...r, guest_name: r.guest_name ?? null, profiles: profileMap[r.user_id] ?? null })) as Review[]
     setReviews(rows)
-    setMyReview(uid ? (rows.find(r => r.user_id === uid) ?? null) : null)
+    setMyReview((uid ?? gid) ? (rows.find(r => r.user_id === uid || (gid !== null && r.user_id === gid)) ?? null) : null)
   }
 
   const handleSubmit = async () => {
@@ -111,15 +115,22 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
 
     setShowForm(false)
     setSubmitting(false)
-    await load(userId)
+    await load(userId, guestUserId)
   }
 
   const handleDelete = async () => {
-    if (!myReview || !userId) return
+    if (!myReview || (!userId && !guestUserId)) return
     if (!confirm('レビューを削除しますか？')) return
-    await supabase.from('concert_reviews').delete().eq('id', myReview.id)
+    const guestInfo = !userId && guestUserId ? { guest_user_id: guestUserId } : null
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', table: 'concert_reviews', record_id: myReview.id, ...(guestInfo ?? {}) }),
+    })
+    if (!res.ok) return
+    const deleted = myReview
     setMyReview(null)
-    setReviews(prev => prev.filter(r => r.id !== myReview.id))
+    setReviews(prev => prev.filter(r => r.id !== deleted.id))
   }
 
   const startEdit = () => {
@@ -154,10 +165,12 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
         <div className="flex justify-end">
           {myReview ? (
             <div className="flex gap-2">
-              <button onClick={startEdit}
-                className="flex items-center gap-1.5 text-sm border border-white/10 text-[#8888aa] hover:text-white px-4 py-2 rounded-full transition-colors">
-                <Pencil size={13} />編集
-              </button>
+              {userId && (
+                <button onClick={startEdit}
+                  className="flex items-center gap-1.5 text-sm border border-white/10 text-[#8888aa] hover:text-white px-4 py-2 rounded-full transition-colors">
+                  <Pencil size={13} />編集
+                </button>
+              )}
               <button onClick={handleDelete}
                 className="flex items-center gap-1.5 text-sm border border-red-500/20 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-full transition-colors">
                 <Trash2 size={13} />削除
