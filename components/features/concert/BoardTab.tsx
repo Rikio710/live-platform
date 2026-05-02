@@ -163,7 +163,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       likes_count: p.likes_count ?? 0,
       media_type: p.media_type as 'image' | 'video' | null,
       created_at: p.created_at ?? new Date().toISOString(),
-      guest_name: (p as any).guest_name ?? null,
+      guest_name: p.guest_name ?? null,
       profiles: { username: profileMap[p.user_id]?.username ?? null, avatar_url: profileMap[p.user_id]?.avatar_url ?? null },
     }))
 
@@ -216,7 +216,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       ...prev,
       [postId]: data.map((c) => ({
         ...c,
-        guest_name: (c as any).guest_name ?? null,
+        guest_name: c.guest_name ?? null,
         profiles: { username: pm[c.user_id]?.username ?? null, avatar_url: pm[c.user_id]?.avatar_url ?? null },
       })) as Comment[]
     }))

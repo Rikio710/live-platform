@@ -89,7 +89,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
     const profileMap: Record<string, { username: string | null; avatar_url: string | null }> = {}
     for (const p of profiles ?? []) profileMap[p.id] = { username: p.username, avatar_url: p.avatar_url }
 
-    const rows = data.map(r => ({ ...r, guest_name: (r as any).guest_name ?? null, profiles: profileMap[r.user_id] ?? null })) as Review[]
+    const rows = data.map(r => ({ ...r, guest_name: r.guest_name ?? null, profiles: profileMap[r.user_id] ?? null })) as Review[]
     setReviews(rows)
     setMyReview(uid ? (rows.find(r => r.user_id === uid) ?? null) : null)
   }

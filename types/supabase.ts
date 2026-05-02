@@ -90,6 +90,7 @@ export type Database = {
           rating: number
           comment: string | null
           created_at: string | null
+          guest_name: string | null
         }
         Insert: {
           id?: string
@@ -98,6 +99,7 @@ export type Database = {
           rating: number
           comment?: string | null
           created_at?: string | null
+          guest_name?: string | null
         }
         Update: {
           id?: string
@@ -106,6 +108,7 @@ export type Database = {
           rating?: number
           comment?: string | null
           created_at?: string | null
+          guest_name?: string | null
         }
         Relationships: []
       }
@@ -144,6 +147,7 @@ export type Database = {
           concert_id: string
           content: string
           created_at: string | null
+          guest_name: string | null
           id: string
           is_spoiler: boolean | null
           likes_count: number | null
@@ -156,6 +160,7 @@ export type Database = {
           concert_id: string
           content: string
           created_at?: string | null
+          guest_name?: string | null
           id?: string
           is_spoiler?: boolean | null
           likes_count?: number | null
@@ -168,6 +173,7 @@ export type Database = {
           concert_id?: string
           content?: string
           created_at?: string | null
+          guest_name?: string | null
           id?: string
           is_spoiler?: boolean | null
           likes_count?: number | null
@@ -279,6 +285,7 @@ export type Database = {
         Row: {
           color_options: string[] | null
           created_at: string | null
+          guest_name: string | null
           id: string
           image_url: string | null
           name: string
@@ -290,6 +297,7 @@ export type Database = {
         Insert: {
           color_options?: string[] | null
           created_at?: string | null
+          guest_name?: string | null
           id?: string
           image_url?: string | null
           name: string
@@ -301,6 +309,7 @@ export type Database = {
         Update: {
           color_options?: string[] | null
           created_at?: string | null
+          guest_name?: string | null
           id?: string
           image_url?: string | null
           name?: string
@@ -498,6 +507,7 @@ export type Database = {
           concert_id: string
           created_at: string | null
           description: string | null
+          guest_name: string | null
           id: string
           name: string
           url: string | null
@@ -509,6 +519,7 @@ export type Database = {
           concert_id: string
           created_at?: string | null
           description?: string | null
+          guest_name?: string | null
           id?: string
           name: string
           url?: string | null
@@ -520,6 +531,7 @@ export type Database = {
           concert_id?: string
           created_at?: string | null
           description?: string | null
+          guest_name?: string | null
           id?: string
           name?: string
           url?: string | null
@@ -539,6 +551,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string | null
+          guest_name: string | null
           id: string
           post_id: string
           user_id: string
@@ -546,6 +559,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string | null
+          guest_name?: string | null
           id?: string
           post_id: string
           user_id: string
@@ -553,6 +567,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string | null
+          guest_name?: string | null
           id?: string
           post_id?: string
           user_id?: string

@@ -84,14 +84,14 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
 
         if (error) throw error
 
-        type NearbySpotRow = Pick<Tables<'nearby_spots'>, 'id' | 'category' | 'name' | 'description' | 'address' | 'url' | 'created_at' | 'user_id'>
+        type NearbySpotRow = Pick<Tables<'nearby_spots'>, 'id' | 'category' | 'name' | 'description' | 'address' | 'url' | 'created_at' | 'user_id' | 'guest_name'>
         const rows: NearbySpotRow[] = data ?? []
         if (rows.length > 0) {
           const userIds = [...new Set(rows.map((r) => r.user_id))]
           const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
           const profileMap: Record<string, string | null> = {}
           for (const p of profilesData ?? []) profileMap[p.id] = p.username
-          setSpots(rows.map((r) => ({ ...r, category: r.category as Category, guest_name: (r as any).guest_name ?? null, profiles: { username: profileMap[r.user_id] ?? null } })))
+          setSpots(rows.map((r) => ({ ...r, category: r.category as Category, guest_name: r.guest_name ?? null, profiles: { username: profileMap[r.user_id] ?? null } })))
         } else {
           setSpots([])
         }
