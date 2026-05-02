@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ThumbsUp, Trash2, ChevronDown, ChevronUp, Pencil, X, Share2 } from 'lucide-react'
 import ShareModal from './ShareModal'
+import { getGuestIdentity, readGuestId } from '@/lib/guestId'
 
 type Song = {
   id: string
@@ -63,6 +64,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [guestUserId, setGuestUserId] = useState<string | null>(null)
 
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [votedSubmissionIds, setVotedSubmissionIds] = useState<Set<string>>(new Set())
@@ -90,6 +92,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
       try {
         const { data: { user } } = await supabase.auth.getUser()
         setUserId(user?.id ?? null)
+        if (!user) setGuestUserId(readGuestId())
         await loadSubmissions(user?.id ?? null)
       } catch {
         setLoadError(true)
@@ -144,50 +147,59 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
 
   // ---- Submit new submission ----
   const handleSubmit = async () => {
-    if (!userId) { router.push('/login'); return }
     const toInsert = inputMode === 'text'
       ? pasteText.split('\n').map(l => l.trim()).filter(l => l !== '').map(l => ({ type: 'song' as const, name: l, encore: false }))
       : rows.map(r => ({ ...r, name: r.name.trim() || (r.type === 'mc' ? 'MC' : r.type === 'other' ? 'その他' : '') })).filter(r => r.name !== '')
     if (toInsert.length === 0) return
     setSubmitting(true)
 
-    // Upsert submission row
-    const { data: subData, error: subErr } = await supabase
-      .from('setlist_submissions')
-      .upsert({
-        concert_id: concertId,
-        user_id: userId,
-        spotify_url: formSpotify.trim() || null,
-        apple_music_url: formAppleMusic.trim() || null,
-      }, { onConflict: 'concert_id,user_id' })
-      .select('id')
-      .single()
+    if (userId) {
+      // 認証ユーザー: 直接supabase
+      const { data: subData, error: subErr } = await supabase
+        .from('setlist_submissions')
+        .upsert({
+          concert_id: concertId,
+          user_id: userId,
+          spotify_url: formSpotify.trim() || null,
+          apple_music_url: formAppleMusic.trim() || null,
+        }, { onConflict: 'concert_id,user_id' })
+        .select('id').single()
 
-    if (subErr || !subData) {
-      alert(`投稿失敗: ${subErr?.message ?? '不明なエラー'}`)
-      setSubmitting(false)
-      return
-    }
-    const subId = subData.id
-
-    // Delete old songs
-    await supabase.from('setlist_songs').delete().eq('submission_id', subId)
-
-    // Insert new songs
-    const inserts = toInsert.map((r, i) => ({
-      submission_id: subId,
-      concert_id: concertId,
-      user_id: userId,
-      song_name: r.name,
-      song_type: r.type,
-      order_num: i + 1,
-      is_encore: r.encore,
-    }))
-    const { error: songsErr } = await supabase.from('setlist_songs').insert(inserts)
-    if (songsErr) {
-      alert(`曲の保存失敗: ${songsErr.message}`)
-      setSubmitting(false)
-      return
+      if (subErr || !subData) {
+        alert(`投稿失敗: ${subErr?.message ?? '不明なエラー'}`)
+        setSubmitting(false)
+        return
+      }
+      const subId = subData.id
+      await supabase.from('setlist_songs').delete().eq('submission_id', subId)
+      const inserts = toInsert.map((r, i) => ({
+        submission_id: subId, concert_id: concertId, user_id: userId,
+        song_name: r.name, song_type: r.type, order_num: i + 1, is_encore: r.encore,
+      }))
+      const { error: songsErr } = await supabase.from('setlist_songs').insert(inserts)
+      if (songsErr) {
+        alert(`曲の保存失敗: ${songsErr.message}`)
+        setSubmitting(false)
+        return
+      }
+    } else {
+      // ゲスト: API経由
+      const { guest_user_id, guest_name } = getGuestIdentity()
+      setGuestUserId(guest_user_id)
+      const res = await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setlist_submit', concert_id: concertId,
+          songs: toInsert, spotify_url: formSpotify, apple_music_url: formAppleMusic,
+          guest_user_id, guest_name,
+        }),
+      })
+      if (!res.ok) {
+        alert('投稿失敗しました')
+        setSubmitting(false)
+        return
+      }
     }
 
     setRows(Array.from({ length: 5 }, emptyBulkRow))
@@ -201,21 +213,34 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
 
   // ---- Vote ----
   const handleVote = async (submissionId: string) => {
-    if (!userId) { router.push('/login'); return }
     const hasVoted = votedSubmissionIds.has(submissionId)
-    if (hasVoted) {
-      await supabase.from('setlist_submission_votes').delete()
-        .eq('submission_id', submissionId).eq('user_id', userId)
-      setVotedSubmissionIds(prev => { const s = new Set(prev); s.delete(submissionId); return s })
-      setSubmissions(prev => prev.map(s =>
-        s.id === submissionId ? { ...s, votes_count: s.votes_count - 1 } : s
-      ))
+
+    if (userId) {
+      if (hasVoted) {
+        await supabase.from('setlist_submission_votes').delete()
+          .eq('submission_id', submissionId).eq('user_id', userId)
+      } else {
+        await supabase.from('setlist_submission_votes').insert({ submission_id: submissionId, user_id: userId })
+      }
     } else {
-      await supabase.from('setlist_submission_votes').insert({ submission_id: submissionId, user_id: userId })
+      const gid = guestUserId ?? readGuestId()
+      if (!gid) { router.push('/login'); return }
+      await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setlist_vote', submission_id: submissionId,
+          action_type: hasVoted ? 'unvote' : 'vote', guest_user_id: gid,
+        }),
+      })
+    }
+
+    if (hasVoted) {
+      setVotedSubmissionIds(prev => { const s = new Set(prev); s.delete(submissionId); return s })
+      setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, votes_count: s.votes_count - 1 } : s))
+    } else {
       setVotedSubmissionIds(prev => new Set([...prev, submissionId]))
-      setSubmissions(prev => prev.map(s =>
-        s.id === submissionId ? { ...s, votes_count: s.votes_count + 1 } : s
-      ))
+      setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, votes_count: s.votes_count + 1 } : s))
     }
   }
 
@@ -251,32 +276,36 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
   const removeEditRow = (i: number) => setEditRows(prev => prev.filter((_, idx) => idx !== i))
 
   const handleSaveEdit = async () => {
-    if (!userId || !editingSubmissionId) return
+    if (!editingSubmissionId) return
     const toSave = editRows
       .map(r => ({ ...r, name: r.name.trim() || (r.type === 'mc' ? 'MC' : r.type === 'other' ? 'その他' : '') }))
       .filter(r => r.name !== '')
     setSavingEdit(true)
 
-    // Update submission URLs
-    await supabase.from('setlist_submissions').update({
-      spotify_url: editSpotify.trim() || null,
-      apple_music_url: editAppleMusic.trim() || null,
-    }).eq('id', editingSubmissionId)
-
-    // Delete old songs
-    await supabase.from('setlist_songs').delete().eq('submission_id', editingSubmissionId)
-
-    // Insert updated songs
-    const inserts = toSave.map((r, i) => ({
-      submission_id: editingSubmissionId,
-      concert_id: concertId,
-      user_id: userId,
-      song_name: r.name,
-      song_type: r.type,
-      order_num: i + 1,
-      is_encore: r.encore,
-    }))
-    if (inserts.length > 0) await supabase.from('setlist_songs').insert(inserts)
+    if (userId) {
+      await supabase.from('setlist_submissions').update({
+        spotify_url: editSpotify.trim() || null,
+        apple_music_url: editAppleMusic.trim() || null,
+      }).eq('id', editingSubmissionId)
+      await supabase.from('setlist_songs').delete().eq('submission_id', editingSubmissionId)
+      const inserts = toSave.map((r, i) => ({
+        submission_id: editingSubmissionId, concert_id: concertId, user_id: userId,
+        song_name: r.name, song_type: r.type, order_num: i + 1, is_encore: r.encore,
+      }))
+      if (inserts.length > 0) await supabase.from('setlist_songs').insert(inserts)
+    } else {
+      const { guest_user_id, guest_name } = getGuestIdentity()
+      await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setlist_submit', concert_id: concertId,
+          songs: toSave.map((r, i) => ({ name: r.name, type: r.type, encore: r.encore })),
+          spotify_url: editSpotify, apple_music_url: editAppleMusic,
+          guest_user_id, guest_name,
+        }),
+      })
+    }
 
     setSavingEdit(false)
     setEditingSubmissionId(null)
@@ -288,11 +317,17 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
 
   const handleDeleteSubmission = async (submissionId: string) => {
     if (!confirm('自分のセトリ投稿を削除しますか？')) return
-    await supabase.from('setlist_submissions').delete().eq('id', submissionId).eq('user_id', userId!)
+    const guestInfo = !userId && guestUserId ? { guest_user_id: guestUserId } : null
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', table: 'setlist_submissions', record_id: submissionId, ...(guestInfo ?? {}) }),
+    })
+    if (!res.ok) return
     setSubmissions(prev => prev.filter(s => s.id !== submissionId))
   }
 
-  const mySubmission = submissions.find(s => s.user_id === userId)
+  const mySubmission = submissions.find(s => s.user_id === userId || (guestUserId !== null && s.user_id === guestUserId))
   const hasMySubmission = !!mySubmission
   const topSubmission = submissions[0] ?? null
   const otherSubmissions = submissions.slice(1)
@@ -330,7 +365,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
               <p className="text-[#8888aa] text-sm">セトリがまだ投稿されていません</p>
               <p className="text-xs text-[#8888aa]">ライブ後に投稿してみよう！</p>
               <button
-                onClick={() => userId ? setShowForm(true) : router.push('/login')}
+                onClick={() => setShowForm(true)}
                 className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
               >
                 投稿する
@@ -366,7 +401,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
                   submission={topSubmission}
                   isExpanded={true}
                   voted={votedSubmissionIds.has(topSubmission.id)}
-                  isOwn={topSubmission.user_id === userId}
+                  isOwn={topSubmission.user_id === userId || (guestUserId !== null && topSubmission.user_id === guestUserId)}
                   isEditing={editingSubmissionId === topSubmission.id}
                   editRows={editRows}
                   editSpotify={editSpotify}
@@ -402,7 +437,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
                       submission={sub}
                       isExpanded={false}
                       voted={votedSubmissionIds.has(sub.id)}
-                      isOwn={sub.user_id === userId}
+                      isOwn={sub.user_id === userId || (guestUserId !== null && sub.user_id === guestUserId)}
                       isEditing={editingSubmissionId === sub.id}
                       editRows={editRows}
                       editSpotify={editSpotify}
@@ -430,7 +465,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
           {!hasMySubmission && (
             <div className="flex justify-end">
               <button
-                onClick={() => userId ? setShowForm(!showForm) : router.push('/login')}
+                onClick={() => setShowForm(!showForm)}
                 className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold"
               >
                 ＋ セトリを投稿

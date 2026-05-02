@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// ゲスト（未ログイン）投稿用API
+// ゲスト（未ログイン）投稿・投票用API
 // ログイン済みの場合は実際のuser_idを使い、未ログインの場合はguest_user_id（localStorageから渡す）を使う
 
 async function ensureGuestProfile(admin: ReturnType<typeof createAdminClient>, guestUserId: string, guestName: string) {
-  // profileが存在しなければ作成（存在するなら何もしない）
   const { data } = await admin.from('profiles').select('id').eq('id', guestUserId).maybeSingle()
   if (!data) {
     await admin.from('profiles').insert({ id: guestUserId, username: guestName })
@@ -19,25 +18,140 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   const admin = createAdminClient()
+  const isGuest = !user
+
+  // ---- 投票・いいね系（identity要件が異なる） ----
+
+  if (action === 'like_post') {
+    const { post_id, action_type } = data
+    if (!post_id || !['like', 'unlike'].includes(action_type)) {
+      return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+    }
+    if (user) {
+      if (action_type === 'like') {
+        await admin.from('post_likes').insert({ post_id, user_id: user.id })
+        await admin.rpc('increment_likes', { post_id })
+      } else {
+        await admin.from('post_likes').delete().eq('post_id', post_id).eq('user_id', user.id)
+        await admin.rpc('decrement_likes', { post_id })
+      }
+    } else {
+      // ゲスト: カウンターのみ更新（post_likes への記録なし）
+      if (action_type === 'like') await admin.rpc('increment_likes', { post_id })
+      else await admin.rpc('decrement_likes', { post_id })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'setlist_submit') {
+    const actorId = user?.id ?? guest_user_id
+    if (!actorId || (!user && !guest_name)) {
+      return NextResponse.json({ error: 'guest_user_id and guest_name are required' }, { status: 400 })
+    }
+    if (!user && guest_user_id && guest_name) await ensureGuestProfile(admin, guest_user_id, guest_name)
+
+    const { concert_id, songs, spotify_url, apple_music_url } = data
+    if (!concert_id || !Array.isArray(songs) || songs.length === 0) {
+      return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+    }
+
+    const { data: subData, error: subErr } = await admin
+      .from('setlist_submissions')
+      .upsert(
+        { concert_id, user_id: actorId, spotify_url: spotify_url?.trim() || null, apple_music_url: apple_music_url?.trim() || null },
+        { onConflict: 'concert_id,user_id' }
+      )
+      .select('id').single()
+    if (subErr || !subData) return NextResponse.json({ error: subErr?.message ?? 'Failed' }, { status: 500 })
+
+    await admin.from('setlist_songs').delete().eq('submission_id', subData.id)
+
+    const inserts = songs.map((s: any, i: number) => ({
+      submission_id: subData.id, concert_id, user_id: actorId,
+      song_name: s.name, song_type: s.type, order_num: i + 1, is_encore: s.encore ?? false,
+    }))
+    if (inserts.length > 0) {
+      const { error: songsErr } = await admin.from('setlist_songs').insert(inserts)
+      if (songsErr) return NextResponse.json({ error: songsErr.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ submission_id: subData.id, guest_name: isGuest ? guest_name : null })
+  }
+
+  if (action === 'setlist_vote') {
+    const actorId = user?.id ?? guest_user_id
+    if (!actorId) return NextResponse.json({ error: 'guest_user_id required' }, { status: 400 })
+    const { submission_id, action_type } = data
+    if (!submission_id || !['vote', 'unvote'].includes(action_type)) {
+      return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+    }
+    if (action_type === 'vote') {
+      await admin.from('setlist_submission_votes').insert({ submission_id, user_id: actorId })
+    } else {
+      await admin.from('setlist_submission_votes').delete()
+        .eq('submission_id', submission_id).eq('user_id', actorId)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'merch_wait_vote') {
+    const actorId = user?.id ?? guest_user_id
+    if (!actorId) return NextResponse.json({ error: 'guest_user_id required' }, { status: 400 })
+    const { concert_id, wait_label, action_type } = data
+    if (!concert_id || !action_type) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+    if (action_type === 'unvote') {
+      await admin.from('merch_wait_votes').delete().eq('concert_id', concert_id).eq('user_id', actorId)
+    } else {
+      await admin.from('merch_wait_votes').upsert(
+        { concert_id, user_id: actorId, wait_label },
+        { onConflict: 'concert_id,user_id' }
+      )
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'merch_combo_vote') {
+    const actorId = user?.id ?? guest_user_id
+    if (!actorId) return NextResponse.json({ error: 'guest_user_id required' }, { status: 400 })
+    const { catalog_item_id, concert_id, color_option, size_option, status, action_type } = data
+    if (!catalog_item_id || !concert_id || !action_type) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+    if (action_type === 'unvote') {
+      await admin.from('merch_combo_votes').delete()
+        .eq('catalog_item_id', catalog_item_id).eq('concert_id', concert_id).eq('user_id', actorId)
+        .eq('color_option', color_option ?? '').eq('size_option', size_option ?? '')
+    } else {
+      await admin.from('merch_combo_votes').upsert({
+        catalog_item_id, concert_id, user_id: actorId,
+        color_option: color_option ?? '', size_option: size_option ?? '', status,
+      }, { onConflict: 'catalog_item_id,concert_id,user_id,color_option,size_option' })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // ---- 投稿・削除系（フルidentity必要） ----
 
   let userId: string
   let displayName: string | null
 
   if (user) {
     userId = user.id
-    displayName = null // profileから取得されるので不要
+    displayName = null
   } else {
-    if (!guest_user_id || !guest_name) {
-      return NextResponse.json({ error: 'guest_user_id and guest_name are required' }, { status: 400 })
+    if (action === 'delete') {
+      // delete はguest_nameが不要
+      if (!guest_user_id) return NextResponse.json({ error: 'guest_user_id required' }, { status: 401 })
+      userId = guest_user_id
+      displayName = null
+    } else {
+      if (!guest_user_id || !guest_name) {
+        return NextResponse.json({ error: 'guest_user_id and guest_name are required' }, { status: 400 })
+      }
+      userId = guest_user_id
+      displayName = guest_name
+      await ensureGuestProfile(admin, guest_user_id, guest_name)
     }
-    userId = guest_user_id
-    displayName = guest_name
-    await ensureGuestProfile(admin, guest_user_id, guest_name)
   }
-
-  const isGuest = !user
 
   switch (action) {
     case 'board_post': {
@@ -109,24 +223,19 @@ export async function POST(req: NextRequest) {
 
     case 'delete': {
       const { table, record_id } = data
-      const ALLOWED_TABLES = ['board_posts', 'post_comments', 'concert_reviews', 'nearby_spots']
+      const ALLOWED_TABLES = ['board_posts', 'post_comments', 'concert_reviews', 'nearby_spots', 'setlist_submissions']
       if (!record_id || !ALLOWED_TABLES.includes(table)) {
         return NextResponse.json({ error: 'Invalid' }, { status: 400 })
       }
 
       if (user) {
-        // 認証ユーザー: auth.uid() が一致するレコードのみ削除（サーバー側で強制）
         const { error } = await admin.from(table as any).delete().eq('id', record_id).eq('user_id', userId)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         return NextResponse.json({ ok: true })
       } else {
         // ゲスト: guest_user_id が本物の認証ユーザーでないことを確認
-        if (!guest_user_id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         const { data: authData } = await admin.auth.admin.getUserById(guest_user_id)
-        if (authData?.user) {
-          // guest_user_id が実際の認証ユーザーのIDと一致 → 拒否
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
+        if (authData?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         const { error } = await admin.from(table as any).delete().eq('id', record_id).eq('user_id', guest_user_id)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         return NextResponse.json({ ok: true })

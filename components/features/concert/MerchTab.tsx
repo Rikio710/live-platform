@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ShoppingBag } from 'lucide-react'
-import { getGuestIdentity } from '@/lib/guestId'
+import { getGuestIdentity, readGuestId } from '@/lib/guestId'
 import ImageCropUploader from '@/components/ImageCropUploader'
 
 type CatalogItem = {
@@ -40,6 +40,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   const router = useRouter()
 
   const [userId, setUserId] = useState<string | null>(null)
+  const [guestUserId, setGuestUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [waitVotes, setWaitVotes] = useState<Record<string, number>>({})
@@ -68,6 +69,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setUserId(user?.id ?? null)
+      if (!user) setGuestUserId(readGuestId())
 
       const oneHourAgo = new Date(Date.now() - 3600000).toISOString()
       // 集計用：wait_label のみ取得（他ユーザーの user_id は不要）
@@ -147,16 +149,36 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   }
 
   const handleWaitVote = async (label: string) => {
-    if (!userId) { router.push('/login'); return }
+    const actorId = userId ?? guestUserId ?? readGuestId()
+    if (!actorId) { router.push('/login'); return }
+    if (!guestUserId && !userId) setGuestUserId(actorId)
     if (votingWait) return
     setVotingWait(true)
-    if (myWaitVote === label) {
-      await supabase.from('merch_wait_votes').delete().eq('concert_id', concertId).eq('user_id', userId)
+
+    const isUnvote = myWaitVote === label
+    if (userId) {
+      if (isUnvote) {
+        await supabase.from('merch_wait_votes').delete().eq('concert_id', concertId).eq('user_id', userId)
+      } else {
+        await supabase.from('merch_wait_votes')
+          .upsert({ concert_id: concertId, user_id: userId, wait_label: label }, { onConflict: 'concert_id,user_id' })
+      }
+    } else {
+      await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'merch_wait_vote', concert_id: concertId,
+          wait_label: label, action_type: isUnvote ? 'unvote' : 'vote',
+          guest_user_id: actorId,
+        }),
+      })
+    }
+
+    if (isUnvote) {
       setWaitVotes(prev => ({ ...prev, [label]: Math.max(0, (prev[label] ?? 1) - 1) }))
       setMyWaitVote(null)
     } else {
-      await supabase.from('merch_wait_votes')
-        .upsert({ concert_id: concertId, user_id: userId, wait_label: label }, { onConflict: 'concert_id,user_id' })
       setWaitVotes(prev => {
         const next = { ...prev }
         if (myWaitVote) next[myWaitVote] = Math.max(0, (next[myWaitVote] ?? 1) - 1)
@@ -169,18 +191,40 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   }
 
   const handleComboVote = async (itemId: string, color: string, size: string, status: 'available' | 'sold_out') => {
-    if (!userId) { router.push('/login'); return }
+    const actorId = userId ?? guestUserId ?? readGuestId()
+    if (!actorId) { router.push('/login'); return }
+    if (!guestUserId && !userId) setGuestUserId(actorId)
+
     const key = ck(itemId, color, size)
     const myVote = comboVotes[key]?.myVote
+    const isUnvote = myVote === status
 
-    if (myVote === status) {
-      await supabase.from('merch_combo_votes')
-        .delete()
-        .eq('catalog_item_id', itemId)
-        .eq('concert_id', concertId)
-        .eq('user_id', userId)
-        .eq('color_option', color)
-        .eq('size_option', size)
+    if (userId) {
+      if (isUnvote) {
+        await supabase.from('merch_combo_votes').delete()
+          .eq('catalog_item_id', itemId).eq('concert_id', concertId).eq('user_id', userId)
+          .eq('color_option', color).eq('size_option', size)
+      } else {
+        await supabase.from('merch_combo_votes').upsert({
+          catalog_item_id: itemId, concert_id: concertId, user_id: userId,
+          color_option: color, size_option: size, status,
+        }, { onConflict: 'catalog_item_id,concert_id,user_id,color_option,size_option' })
+      }
+    } else {
+      await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'merch_combo_vote',
+          catalog_item_id: itemId, concert_id: concertId,
+          color_option: color, size_option: size, status,
+          action_type: isUnvote ? 'unvote' : 'vote',
+          guest_user_id: actorId,
+        }),
+      })
+    }
+
+    if (isUnvote) {
       setComboVotes(prev => {
         const stat = { ...(prev[key] ?? { available: 0, sold_out: 0 }) }
         stat[status] = Math.max(0, stat[status] - 1)
@@ -188,14 +232,6 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
         return { ...prev, [key]: stat }
       })
     } else {
-      await supabase.from('merch_combo_votes').upsert({
-        catalog_item_id: itemId,
-        concert_id: concertId,
-        user_id: userId,
-        color_option: color,
-        size_option: size,
-        status,
-      }, { onConflict: 'catalog_item_id,concert_id,user_id,color_option,size_option' })
       setComboVotes(prev => {
         const stat = { ...(prev[key] ?? { available: 0, sold_out: 0 }) }
         if (myVote) stat[myVote] = Math.max(0, stat[myVote] - 1)

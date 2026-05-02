@@ -68,6 +68,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
 
   const [userId, setUserId] = useState<string | null>(null)
   const [guestUserId, setGuestUserId] = useState<string | null>(null)
+  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set())
   const [myUsername, setMyUsername] = useState<string | null>(null)
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState('all')
@@ -192,15 +193,31 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   }
 
   const handleLike = async (post: Post) => {
-    if (!userId) { router.push('/login'); return }
-    if (post.myLike) {
-      await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', userId)
-      await supabase.rpc('decrement_likes', { post_id: post.id })
-      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, myLike: false, likes_count: Math.max(0, p.likes_count - 1) } : p))
+    if (userId) {
+      if (post.myLike) {
+        await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', userId)
+        await supabase.rpc('decrement_likes', { post_id: post.id })
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, myLike: false, likes_count: Math.max(0, p.likes_count - 1) } : p))
+      } else {
+        await supabase.from('post_likes').insert({ post_id: post.id, user_id: userId })
+        await supabase.rpc('increment_likes', { post_id: post.id })
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, myLike: true, likes_count: p.likes_count + 1 } : p))
+      }
     } else {
-      await supabase.from('post_likes').insert({ post_id: post.id, user_id: userId })
-      await supabase.rpc('increment_likes', { post_id: post.id })
-      setPosts(prev => prev.map(p => p.id === post.id ? { ...p, myLike: true, likes_count: p.likes_count + 1 } : p))
+      // ゲスト: セッション内でのみ追跡、DBはカウンターのみ更新
+      const isLiked = likedPostIds.has(post.id)
+      if (isLiked) {
+        setLikedPostIds(prev => { const s = new Set(prev); s.delete(post.id); return s })
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, myLike: false, likes_count: Math.max(0, p.likes_count - 1) } : p))
+      } else {
+        setLikedPostIds(prev => new Set([...prev, post.id]))
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, myLike: true, likes_count: p.likes_count + 1 } : p))
+      }
+      fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'like_post', post_id: post.id, action_type: isLiked ? 'unlike' : 'like' }),
+      })
     }
   }
 
