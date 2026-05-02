@@ -65,16 +65,19 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
     setSaving(true); setError(null)
     try {
       const blob = await getCroppedImg(imageSrc, croppedAreaPixels)
-      const path = `users/${userId}/avatar.jpg`
-      const { error: storageErr } = await supabase.storage.from('avatars').upload(path, blob, {
-        contentType: 'image/jpeg', upsert: true,
-      })
-      if (storageErr) throw storageErr
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-      const url = `${publicUrl}?t=${Date.now()}`
-      await saveAvatar(url)
-    } catch {
-      setError('アップロードに失敗しました')
+      const formData = new FormData()
+      formData.append('file', blob, 'avatar.jpg')
+      const res = await fetch('/api/profile/avatar-upload', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'アップロードに失敗しました' }))
+        throw new Error(error)
+      }
+      const { url } = await res.json()
+      setAvatarUrl(url)
+      setOpen(false)
+      setImageSrc(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'アップロードに失敗しました')
     } finally {
       setSaving(false)
     }

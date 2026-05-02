@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest) {
       if (!preset) return NextResponse.json({ error: 'Invalid avatar_url' }, { status: 400 })
     }
   }
-  const { error } = await supabase.from('profiles').update({ avatar_url: avatar_url ?? null }).eq('id', user.id)
+  const { error } = await supabase.from('profiles').upsert({ id: user.id, avatar_url: avatar_url ?? null }, { onConflict: 'id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
