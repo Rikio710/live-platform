@@ -196,7 +196,8 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
         }),
       })
       if (!res.ok) {
-        alert('投稿失敗しました')
+        const { error } = await res.json().catch(() => ({ error: '不明なエラー' }))
+        alert(`投稿失敗: ${error}`)
         setSubmitting(false)
         return
       }
