@@ -32,3 +32,8 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+/* iOSでinput/textareaタップ時の自動ズームを防ぐ */
+input, textarea, select {
+  font-size: 16px !important;
+}
