@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Utensils, Hotel, ShoppingBag, MapPin, ExternalLink, Trash2 } from 'lucide-react'
+import { getGuestIdentity } from '@/lib/guestId'
 import type { Tables } from '@/types/supabase'
 
 type Category = 'restaurant' | 'hotel' | 'convenience' | 'other'
@@ -106,6 +107,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
     if (!formName.trim()) return
     setSubmitting(true)
 
+    const guestInfo = !userId ? getGuestIdentity() : null
     const res = await fetch('/api/guest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -117,6 +119,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
         description: formDesc.trim() || null,
         address: formAddress.trim() || null,
         url: formUrl.trim() || null,
+        ...(guestInfo ?? {}),
       }),
     })
 
@@ -125,8 +128,8 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
       setSubmitting(false)
       return
     }
-    const { spot: data, isGuest } = await res.json()
-    if (data) setSpots(prev => [{ ...data, category: data.category as Category, profiles: { username: isGuest ? 'ゲスト' : myUsername } }, ...prev])
+    const { spot: data, displayName } = await res.json()
+    if (data) setSpots(prev => [{ ...data, category: data.category as Category, profiles: { username: displayName ?? myUsername } }, ...prev])
     setFormName('')
     setFormDesc('')
     setFormAddress('')

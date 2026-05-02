@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Star, Pencil, Trash2 } from 'lucide-react'
+import { getGuestIdentity } from '@/lib/guestId'
 
 type Review = {
   id: string
@@ -99,10 +100,11 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
     if (myReview && userId) {
       await supabase.from('concert_reviews').update({ rating, comment: comment.trim() || null }).eq('id', myReview.id)
     } else {
+      const guestInfo = !userId ? getGuestIdentity() : null
       await fetch('/api/guest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'review', concert_id: concertId, rating, comment: comment.trim() || null }),
+        body: JSON.stringify({ action: 'review', concert_id: concertId, rating, comment: comment.trim() || null, ...(guestInfo ?? {}) }),
       })
     }
 

@@ -1,20 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { GUEST_USER_ID } from '@/lib/guest'
 
 // ゲスト（未ログイン）投稿用API
-// ログイン済みの場合は実際のuser_idを使い、未ログインの場合はGUEST_USER_IDを使う
+// ログイン済みの場合は実際のuser_idを使い、未ログインの場合はguest_user_id（localStorageから渡す）を使う
+
+async function ensureGuestProfile(admin: ReturnType<typeof createAdminClient>, guestUserId: string, guestName: string) {
+  // profileが存在しなければ作成（存在するなら何もしない）
+  const { data } = await admin.from('profiles').select('id').eq('id', guestUserId).maybeSingle()
+  if (!data) {
+    await admin.from('profiles').insert({ id: guestUserId, username: guestName })
+  }
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { action, ...data } = body
+  const { action, guest_user_id, guest_name, ...data } = body
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const userId = user?.id ?? GUEST_USER_ID
 
   const admin = createAdminClient()
+
+  let userId: string
+  let displayName: string | null
+
+  if (user) {
+    userId = user.id
+    displayName = null // profileから取得されるので不要
+  } else {
+    if (!guest_user_id || !guest_name) {
+      return NextResponse.json({ error: 'guest_user_id and guest_name are required' }, { status: 400 })
+    }
+    userId = guest_user_id
+    displayName = guest_name
+    await ensureGuestProfile(admin, guest_user_id, guest_name)
+  }
+
+  const isGuest = !user
 
   switch (action) {
     case 'board_post': {
@@ -28,7 +51,7 @@ export async function POST(req: NextRequest) {
         media_type: media_type ?? null,
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ post, isGuest: !user })
+      return NextResponse.json({ post, isGuest, displayName })
     }
 
     case 'comment': {
@@ -38,18 +61,17 @@ export async function POST(req: NextRequest) {
         post_id, user_id: userId, content: content.trim(),
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ comment, isGuest: !user })
+      return NextResponse.json({ comment, isGuest, displayName })
     }
 
     case 'review': {
       const { concert_id, rating, comment } = data
       if (!concert_id || !rating) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
-      // ゲストは複数投稿可能（user_idがGUEST_USER_IDなので同一concert_idに複数入る可能性あり）
       const { data: review, error } = await admin.from('concert_reviews').insert({
         concert_id, user_id: userId, rating, comment: comment?.trim() || null,
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ review, isGuest: !user })
+      return NextResponse.json({ review, isGuest, displayName })
     }
 
     case 'nearby_spot': {
@@ -63,7 +85,7 @@ export async function POST(req: NextRequest) {
         url: url?.trim() || null,
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ spot, isGuest: !user })
+      return NextResponse.json({ spot, isGuest, displayName })
     }
 
     case 'merch_catalog': {
@@ -77,7 +99,7 @@ export async function POST(req: NextRequest) {
         color_options: color_options ?? [],
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ item, isGuest: !user })
+      return NextResponse.json({ item, isGuest, displayName })
     }
 
     default:

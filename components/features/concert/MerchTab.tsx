@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ShoppingBag } from 'lucide-react'
+import { getGuestIdentity } from '@/lib/guestId'
 import ImageCropUploader from '@/components/ImageCropUploader'
 
 type CatalogItem = {
@@ -267,6 +268,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
     if (!formName.trim() || !tourId) return
     setSubmitting(true)
     setAddError(null)
+    const guestInfo = !userId ? getGuestIdentity() : null
     const res = await fetch('/api/guest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -278,6 +280,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
         image_url: formImageUrl.trim() || null,
         size_options: formSizes,
         color_options: formColors,
+        ...(guestInfo ?? {}),
       }),
     })
     if (!res.ok) {

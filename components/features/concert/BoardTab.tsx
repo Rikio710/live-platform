@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Heart, MessageCircle, MoreHorizontal, Image, X, EyeOff, Eye, Trash2 } from 'lucide-react'
+import { getGuestIdentity } from '@/lib/guestId'
 import type { RealtimePostgresInsertPayload } from '@supabase/realtime-js'
 import type { Tables } from '@/types/supabase'
 
@@ -224,15 +225,16 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const handleComment = async (postId: string) => {
     if (!commentInput.trim()) return
     setSubmittingComment(true)
+    const guestInfo = !userId ? getGuestIdentity() : null
     const res = await fetch('/api/guest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'comment', post_id: postId, content: commentInput.trim() }),
+      body: JSON.stringify({ action: 'comment', post_id: postId, content: commentInput.trim(), ...(guestInfo ?? {}) }),
     })
     if (res.ok) {
-      const { comment: data, isGuest } = await res.json()
+      const { comment: data, displayName } = await res.json()
       if (data) {
-        setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: isGuest ? 'ゲスト' : myUsername, avatar_url: isGuest ? null : myAvatarUrl } } as Comment] }))
+        setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: displayName ?? myUsername, avatar_url: displayName ? null : myAvatarUrl } } as Comment] }))
         setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p))
         setCommentInput('')
       }
@@ -302,6 +304,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       }
     }
 
+    const guestInfo = !userId ? getGuestIdentity() : null
     const res = await fetch('/api/guest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -313,6 +316,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
         is_spoiler: postIsSpoiler,
         media_url: mediaUrl,
         media_type: mediaType,
+        ...(guestInfo ?? {}),
       }),
     })
 
@@ -322,14 +326,14 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       setSubmitting(false)
       return
     }
-    const { post: data, isGuest } = await res.json()
+    const { post: data, displayName } = await res.json()
     if (data) setPosts(prev => [{
       ...data,
       is_spoiler: data.is_spoiler ?? false,
       likes_count: data.likes_count ?? 0,
       media_type: data.media_type as 'image' | 'video' | null,
       created_at: data.created_at ?? new Date().toISOString(),
-      profiles: { username: isGuest ? 'ゲスト' : myUsername, avatar_url: isGuest ? null : myAvatarUrl },
+      profiles: { username: displayName ?? myUsername, avatar_url: displayName ? null : myAvatarUrl },
       myLike: false, comment_count: 0,
     }, ...prev])
     clearModal()
