@@ -15,7 +15,7 @@ function randomUUID(): string {
   })
 }
 
-export function getGuestIdentity(): { guestUserId: string; guestName: string } {
+export function getGuestIdentity(): { guest_user_id: string; guest_name: string } {
   let guestUserId = localStorage.getItem(STORAGE_KEY_ID)
   let guestName = localStorage.getItem(STORAGE_KEY_NAME)
 
@@ -26,5 +26,5 @@ export function getGuestIdentity(): { guestUserId: string; guestName: string } {
     localStorage.setItem(STORAGE_KEY_NAME, guestName)
   }
 
-  return { guestUserId, guestName }
+  return { guest_user_id: guestUserId, guest_name: guestName }
 }
