@@ -264,16 +264,29 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
   }
 
   const handleAddCatalog = async () => {
-    if (!formName.trim() || !userId || !tourId) return
+    if (!formName.trim() || !tourId) return
     setSubmitting(true)
     setAddError(null)
-    const { data, error } = await supabase.from('merch_catalog').insert({
-      tour_id: tourId, user_id: userId, name: formName.trim(),
-      price: formPrice ? Number(formPrice) : null,
-      image_url: formImageUrl.trim() || null,
-      size_options: formSizes, color_options: formColors,
-    }).select('id, name, image_url, price, size_options, color_options, created_at').single()
-    if (error) { setAddError(`追加失敗: ${error.message}`); setSubmitting(false); return }
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'merch_catalog',
+        tour_id: tourId,
+        name: formName.trim(),
+        price: formPrice || null,
+        image_url: formImageUrl.trim() || null,
+        size_options: formSizes,
+        color_options: formColors,
+      }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: '追加失敗' }))
+      setAddError(error)
+      setSubmitting(false)
+      return
+    }
+    const { item: data } = await res.json()
     if (data) setItems(prev => [...prev, data as CatalogItem])
     resetAddForm()
     setSubmitting(false)
@@ -324,7 +337,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-white text-sm">グッズ一覧</h3>
           {tourId && (
-            <button onClick={() => userId ? setShowAddForm(!showAddForm) : router.push('/login')}
+            <button onClick={() => setShowAddForm(!showAddForm)}
               className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold shrink-0">
               ＋ グッズを追加
             </button>
@@ -607,7 +620,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                       </div>
                     ) : (
                       <button
-                        onClick={() => { if (!userId) { router.push('/login'); return }; setReportingItemId(item.id); setReportingColor(''); setReportingSize('') }}
+                        onClick={() => { setReportingItemId(item.id); setReportingColor(''); setReportingSize('') }}
                         className="text-xs text-[#8888aa] hover:text-white border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">
                         在庫報告
                       </button>

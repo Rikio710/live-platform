@@ -6,7 +6,7 @@ import AttendanceHistory from '@/components/features/mypage/AttendanceHistory'
 import UsernameEditor from '@/components/features/mypage/UsernameEditor'
 import AvatarEditor from '@/components/features/mypage/AvatarEditor'
 import LogoutButton from '@/components/LogoutButton'
-import { Ticket, Calendar, Trophy, Mic2, Heart, PlusCircle } from 'lucide-react'
+import { Ticket, Calendar, Trophy, Mic2, Heart, PlusCircle, Lock } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
 
 type AttendanceWithConcert = Pick<Tables<'attendances'>, 'id' | 'created_at'> & {
@@ -31,7 +31,74 @@ export default async function MyPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+  if (!user) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+        {/* プレビューヘッダー */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black text-white">マイページ</h1>
+        </div>
+
+        {/* ログインCTA */}
+        <div className="glass rounded-2xl p-6 border border-violet-500/20 space-y-4 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-violet-500/15 flex items-center justify-center mx-auto">
+            <Lock size={22} className="text-violet-400" />
+          </div>
+          <div>
+            <p className="font-black text-white text-lg">ログインして記録をはじめよう</p>
+            <p className="text-sm text-[#8888aa] mt-1">参戦履歴・フォロー・セトリ投稿などの機能はログインが必要です</p>
+          </div>
+          <div className="flex justify-center gap-3">
+            <Link href="/login" className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
+              ログイン / 新規登録
+            </Link>
+          </div>
+        </div>
+
+        {/* プレビュー：統計カード */}
+        <div className="space-y-3">
+          <p className="text-xs text-[#8888aa] font-bold uppercase tracking-wider">プレビュー</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 opacity-40 pointer-events-none select-none">
+            {[
+              { label: '総参戦回数', value: '??回', icon: Ticket },
+              { label: '2026年', value: '??回', icon: Calendar },
+              { label: '最多参戦', value: '——', icon: Trophy },
+              { label: 'アーティスト', value: '??組', icon: Mic2 },
+            ].map(s => (
+              <div key={s.label} className="glass rounded-2xl p-4 text-center space-y-1">
+                <div className="flex justify-center mb-1">
+                  <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
+                    <s.icon size={14} className="text-violet-400" />
+                  </div>
+                </div>
+                <p className="text-xs text-[#8888aa]">{s.label}</p>
+                <p className="font-black text-white text-lg leading-tight">{s.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* プレビュー：フォロー */}
+        <div className="space-y-3 opacity-40 pointer-events-none select-none">
+          <div className="flex items-center gap-2">
+            <Heart size={16} className="text-pink-400" />
+            <p className="text-base font-bold text-white">フォロー中のアーティスト</p>
+          </div>
+          <div className="glass rounded-2xl p-6 text-center text-sm text-[#8888aa]">
+            ログインするとフォロー機能が使えます
+          </div>
+        </div>
+
+        {/* プレビュー：参戦履歴 */}
+        <div className="space-y-3 opacity-40 pointer-events-none select-none">
+          <p className="text-base font-bold text-white">参戦履歴</p>
+          <div className="glass rounded-2xl p-6 text-center text-sm text-[#8888aa]">
+            ログインすると参戦したライブの記録が残せます
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const { data: attendances } = await supabase
     .from('attendances')

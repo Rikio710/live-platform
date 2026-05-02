@@ -25,8 +25,6 @@ export default function RequestPage() {
   const [submitting, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [authed, setAuthed] = useState<boolean | null>(null)
-
   // アーティストフォーム
   const [aName, setAName] = useState('')
   const [aImage, setAImage] = useState('')
@@ -52,7 +50,6 @@ export default function RequestPage() {
   const [cTime, setCTime] = useState('')
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setAuthed(!!user))
     supabase.from('artists').select('id, name').order('name').then(({ data }) => setArtists(data ?? []))
     supabase.from('tours').select('id, name, artist_id').order('name').then(({ data }) => setTours(data ?? []))
   }, [])
@@ -92,18 +89,6 @@ export default function RequestPage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  if (authed === false) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
-        <p className="text-white font-bold">リクエストにはログインが必要です</p>
-        <button onClick={() => router.push('/login')}
-          className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
-          ログインする
-        </button>
-      </div>
-    )
   }
 
   if (done) {

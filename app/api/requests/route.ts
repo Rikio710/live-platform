@@ -6,7 +6,6 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
     if (!body.type || !body.payload) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
@@ -15,7 +14,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await admin.from('requests').insert({
       type: body.type,
       payload: body.payload,
-      submitted_by: user.id,
+      submitted_by: user?.id ?? null,
     }).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

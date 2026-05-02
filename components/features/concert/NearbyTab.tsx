@@ -104,29 +104,29 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
 
   const handleSubmit = async () => {
     if (!formName.trim()) return
-    if (!userId) { router.push('/login'); return }
     setSubmitting(true)
 
-    const { data, error } = await supabase
-      .from('nearby_spots')
-      .insert({
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'nearby_spot',
         concert_id: concertId,
-        user_id: userId,
         category,
         name: formName.trim(),
         description: formDesc.trim() || null,
         address: formAddress.trim() || null,
         url: formUrl.trim() || null,
-      })
-      .select('id, category, name, description, address, url, created_at, user_id')
-      .single()
+      }),
+    })
 
-    if (error) {
-      alert(`追加失敗: ${error.message}`)
+    if (!res.ok) {
+      alert('追加失敗しました')
       setSubmitting(false)
       return
     }
-    if (data) setSpots(prev => [{ ...data, category: data.category as Category, profiles: { username: myUsername } }, ...prev])
+    const { spot: data, isGuest } = await res.json()
+    if (data) setSpots(prev => [{ ...data, category: data.category as Category, profiles: { username: isGuest ? 'ゲスト' : myUsername } }, ...prev])
     setFormName('')
     setFormDesc('')
     setFormAddress('')
@@ -166,7 +166,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
       {/* Add button */}
       <div className="flex justify-end">
         <button
-          onClick={() => userId ? setShowForm(!showForm) : router.push('/login')}
+          onClick={() => setShowForm(!showForm)}
           className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold"
         >
           ＋ スポットを追加

@@ -93,21 +93,17 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
   }
 
   const handleSubmit = async () => {
-    if (!userId) { router.push('/login'); return }
     if (rating === 0) return
     setSubmitting(true)
 
-    const payload = {
-      concert_id: concertId,
-      user_id: userId,
-      rating,
-      comment: comment.trim() || null,
-    }
-
-    if (myReview) {
+    if (myReview && userId) {
       await supabase.from('concert_reviews').update({ rating, comment: comment.trim() || null }).eq('id', myReview.id)
     } else {
-      await supabase.from('concert_reviews').insert(payload)
+      await fetch('/api/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'review', concert_id: concertId, rating, comment: comment.trim() || null }),
+      })
     }
 
     setShowForm(false)
@@ -166,7 +162,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
             </div>
           ) : (
             <button
-              onClick={() => userId ? setShowForm(true) : router.push('/login')}
+              onClick={() => setShowForm(true)}
               className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold"
             >
               ＋ レビューを投稿

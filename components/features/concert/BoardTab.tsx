@@ -222,15 +222,20 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   }
 
   const handleComment = async (postId: string) => {
-    if (!userId || !commentInput.trim()) return
+    if (!commentInput.trim()) return
     setSubmittingComment(true)
-    const { data } = await supabase.from('post_comments')
-      .insert({ post_id: postId, user_id: userId, content: commentInput.trim() })
-      .select('*').single()
-    if (data) {
-      setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: myUsername, avatar_url: myAvatarUrl } } as Comment] }))
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p))
-      setCommentInput('')
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'comment', post_id: postId, content: commentInput.trim() }),
+    })
+    if (res.ok) {
+      const { comment: data, isGuest } = await res.json()
+      if (data) {
+        setComments(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), { ...data, profiles: { username: isGuest ? 'ゲスト' : myUsername, avatar_url: isGuest ? null : myAvatarUrl } } as Comment] }))
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, comment_count: (p.comment_count ?? 0) + 1 } : p))
+        setCommentInput('')
+      }
     }
     setSubmittingComment(false)
   }
@@ -279,14 +284,14 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   }
 
   const handlePost = async () => {
-    if (!postContent.trim() || !userId) return
+    if (!postContent.trim()) return
     setSubmitting(true)
     setPostError(null)
 
     let mediaUrl: string | null = null
     let mediaType: 'image' | 'video' | null = null
 
-    if (postMedia) {
+    if (postMedia && userId) {
       const ext = postMedia.name.split('.').pop()
       const filename = `${Date.now()}.${ext}`
       const { error } = await supabase.storage.from('board-media').upload(filename, postMedia, { upsert: false })
@@ -297,24 +302,34 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       }
     }
 
-    const { data, error } = await supabase.from('board_posts').insert({
-      concert_id: concertId, user_id: userId,
-      content: postContent.trim(), category: postCategory,
-      is_spoiler: postIsSpoiler, media_url: mediaUrl, media_type: mediaType,
-    }).select('*').single()
+    const res = await fetch('/api/guest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'board_post',
+        concert_id: concertId,
+        content: postContent.trim(),
+        category: postCategory,
+        is_spoiler: postIsSpoiler,
+        media_url: mediaUrl,
+        media_type: mediaType,
+      }),
+    })
 
-    if (error) {
-      setPostError(`投稿失敗: ${error.message}`)
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: '投稿失敗' }))
+      setPostError(error)
       setSubmitting(false)
       return
     }
+    const { post: data, isGuest } = await res.json()
     if (data) setPosts(prev => [{
       ...data,
       is_spoiler: data.is_spoiler ?? false,
       likes_count: data.likes_count ?? 0,
       media_type: data.media_type as 'image' | 'video' | null,
       created_at: data.created_at ?? new Date().toISOString(),
-      profiles: { username: myUsername, avatar_url: myAvatarUrl },
+      profiles: { username: isGuest ? 'ゲスト' : myUsername, avatar_url: isGuest ? null : myAvatarUrl },
       myLike: false, comment_count: 0,
     }, ...prev])
     clearModal()
@@ -488,7 +503,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       )}
 
       {/* Floating post button */}
-      <button onClick={() => userId ? setShowModal(true) : router.push('/login')}
+      <button onClick={() => setShowModal(true)}
         className="fixed bottom-20 sm:bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-500/30 flex items-center justify-center transition-all hover:scale-105">
         <Plus size={24} className="text-white" />
       </button>
