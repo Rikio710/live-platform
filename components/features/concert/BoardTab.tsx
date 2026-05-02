@@ -34,6 +34,7 @@ type Post = {
   media_type: 'image' | 'video' | null
   likes_count: number
   created_at: string
+  guest_name?: string | null
   profiles: { username: string | null; avatar_url: string | null } | null
   myLike?: boolean
   comment_count?: number
@@ -45,6 +46,7 @@ type Comment = {
   user_id: string
   content: string
   created_at: string
+  guest_name?: string | null
   profiles: { username: string | null; avatar_url: string | null } | null
 }
 
@@ -142,7 +144,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const loadPosts = async (cid: string, uid: string | null) => {
     const { data } = await supabase
       .from('board_posts')
-      .select('id, concert_id, user_id, content, category, media_url, media_type, is_spoiler, likes_count, created_at')
+      .select('id, concert_id, user_id, content, category, media_url, media_type, is_spoiler, likes_count, created_at, guest_name')
       .eq('concert_id', cid)
       .order('created_at', { ascending: false })
       .limit(100)
@@ -161,6 +163,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       likes_count: p.likes_count ?? 0,
       media_type: p.media_type as 'image' | 'video' | null,
       created_at: p.created_at ?? new Date().toISOString(),
+      guest_name: (p as any).guest_name ?? null,
       profiles: { username: profileMap[p.user_id]?.username ?? null, avatar_url: profileMap[p.user_id]?.avatar_url ?? null },
     }))
 
@@ -202,7 +205,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
   const loadComments = async (postId: string) => {
     if (comments[postId]) return
     const { data } = await supabase
-      .from('post_comments').select('id, post_id, user_id, content, created_at')
+      .from('post_comments').select('id, post_id, user_id, content, created_at, guest_name')
       .eq('post_id', postId).order('created_at', { ascending: true })
     if (!data) return
     const userIds = [...new Set(data.map((c) => c.user_id))]
@@ -211,7 +214,11 @@ export default function BoardTab({ concertId }: { concertId: string }) {
     for (const p of profs ?? []) pm[p.id] = { username: p.username, avatar_url: p.avatar_url }
     setComments(prev => ({
       ...prev,
-      [postId]: data.map((c) => ({ ...c, profiles: { username: pm[c.user_id]?.username ?? null, avatar_url: pm[c.user_id]?.avatar_url ?? null } })) as Comment[]
+      [postId]: data.map((c) => ({
+        ...c,
+        guest_name: (c as any).guest_name ?? null,
+        profiles: { username: pm[c.user_id]?.username ?? null, avatar_url: pm[c.user_id]?.avatar_url ?? null },
+      })) as Comment[]
     }))
   }
 
@@ -389,10 +396,10 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                       <img src={post.profiles.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
-                        {(post.profiles?.username ?? '?')[0].toUpperCase()}
+                        {(post.guest_name ?? post.profiles?.username ?? '?')[0].toUpperCase()}
                       </div>
                     )}
-                    <span className="text-sm font-bold text-white truncate">{post.profiles?.username ?? '匿名'}</span>
+                    <span className="text-sm font-bold text-white truncate">{post.guest_name ?? post.profiles?.username ?? '匿名'}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${catStyle}`}>
                       {CATEGORIES.find(c => c.value === post.category)?.label ?? post.category}
                     </span>
@@ -470,12 +477,12 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                           <img src={c.profiles.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
                         ) : (
                           <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-xs text-violet-300 shrink-0 font-bold">
-                            {(c.profiles?.username ?? '?')[0].toUpperCase()}
+                            {(c.guest_name ?? c.profiles?.username ?? '?')[0].toUpperCase()}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-white">{c.profiles?.username ?? '匿名'}</span>
+                            <span className="text-xs font-bold text-white">{c.guest_name ?? c.profiles?.username ?? '匿名'}</span>
                             <span className="text-xs text-[#8888aa]">{timeAgo(c.created_at)}</span>
                           </div>
                           <p className="text-sm text-white mt-0.5 leading-relaxed whitespace-pre-wrap">{c.content}</p>

@@ -18,6 +18,7 @@ type Spot = {
   address: string | null
   url: string | null
   created_at: string | null
+  guest_name?: string | null
   profiles: { username: string | null } | null
 }
 
@@ -77,7 +78,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
 
         const { data, error } = await supabase
           .from('nearby_spots')
-          .select('id, category, name, description, address, url, created_at, user_id')
+          .select('id, category, name, description, address, url, created_at, user_id, guest_name')
           .eq('concert_id', concertId)
           .order('created_at', { ascending: false })
 
@@ -90,7 +91,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
           const { data: profilesData } = await supabase.from('profiles').select('id, username').in('id', userIds)
           const profileMap: Record<string, string | null> = {}
           for (const p of profilesData ?? []) profileMap[p.id] = p.username
-          setSpots(rows.map((r) => ({ ...r, category: r.category as Category, profiles: { username: profileMap[r.user_id] ?? null } })))
+          setSpots(rows.map((r) => ({ ...r, category: r.category as Category, guest_name: (r as any).guest_name ?? null, profiles: { username: profileMap[r.user_id] ?? null } })))
         } else {
           setSpots([])
         }
@@ -302,7 +303,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
                       </a>
                     )}
                     <p className="text-xs text-[#8888aa] mt-1">
-                      {spot.profiles?.username ?? '匿名'} ・{' '}
+                      {spot.guest_name ?? spot.profiles?.username ?? '匿名'} ・{' '}
                       {spot.created_at && new Date(spot.created_at).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                     </p>
                   </div>

@@ -12,6 +12,7 @@ type Review = {
   rating: number
   comment: string | null
   created_at: string
+  guest_name?: string | null
   profiles: { username: string | null; avatar_url: string | null } | null
 }
 
@@ -74,7 +75,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
   const load = async (uid: string | null) => {
     const { data } = await supabase
       .from('concert_reviews')
-      .select('id, user_id, rating, comment, created_at')
+      .select('id, user_id, rating, comment, created_at, guest_name')
       .eq('concert_id', concertId)
       .order('created_at', { ascending: false })
 
@@ -88,7 +89,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
     const profileMap: Record<string, { username: string | null; avatar_url: string | null }> = {}
     for (const p of profiles ?? []) profileMap[p.id] = { username: p.username, avatar_url: p.avatar_url }
 
-    const rows = data.map(r => ({ ...r, profiles: profileMap[r.user_id] ?? null })) as Review[]
+    const rows = data.map(r => ({ ...r, guest_name: (r as any).guest_name ?? null, profiles: profileMap[r.user_id] ?? null })) as Review[]
     setReviews(rows)
     setMyReview(uid ? (rows.find(r => r.user_id === uid) ?? null) : null)
   }
@@ -219,10 +220,10 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
                     <img src={r.profiles.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-violet-500/30 flex items-center justify-center text-[10px] font-bold text-violet-300 shrink-0">
-                      {(r.profiles?.username ?? '?')[0].toUpperCase()}
+                      {(r.guest_name ?? r.profiles?.username ?? '?')[0].toUpperCase()}
                     </div>
                   )}
-                  <span className="text-sm font-bold text-white">{r.profiles?.username ?? '匿名'}</span>
+                  <span className="text-sm font-bold text-white">{r.guest_name ?? r.profiles?.username ?? '匿名'}</span>
                 </div>
                 <StarRating value={r.rating} readonly />
               </div>

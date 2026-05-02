@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
         is_spoiler: is_spoiler ?? false,
         media_url: media_url ?? null,
         media_type: media_type ?? null,
+        ...(isGuest ? { guest_name: displayName } : {}),
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ post, isGuest, displayName })
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
       if (!post_id || !content?.trim()) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
       const { data: comment, error } = await admin.from('post_comments').insert({
         post_id, user_id: userId, content: content.trim(),
+        ...(isGuest ? { guest_name: displayName } : {}),
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ comment, isGuest, displayName })
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest) {
       if (!concert_id || !rating) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
       const { data: review, error } = await admin.from('concert_reviews').insert({
         concert_id, user_id: userId, rating, comment: comment?.trim() || null,
+        ...(isGuest ? { guest_name: displayName } : {}),
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ review, isGuest, displayName })
@@ -83,6 +86,7 @@ export async function POST(req: NextRequest) {
         description: description?.trim() || null,
         address: address?.trim() || null,
         url: url?.trim() || null,
+        ...(isGuest ? { guest_name: displayName } : {}),
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ spot, isGuest, displayName })
@@ -97,6 +101,7 @@ export async function POST(req: NextRequest) {
         image_url: image_url?.trim() || null,
         size_options: size_options ?? [],
         color_options: color_options ?? [],
+        ...(isGuest ? { guest_name: displayName } : {}),
       }).select('*').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ item, isGuest, displayName })
