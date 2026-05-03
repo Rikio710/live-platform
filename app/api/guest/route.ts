@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'setlist_submit') {
+    console.log('[setlist_submit] isGuest:', isGuest, 'guest_name:', guest_name, 'guest_user_id:', guest_user_id)
     const actorId = user?.id ?? guest_user_id
     if (!actorId || (!user && !guest_name)) {
       return NextResponse.json({ error: 'guest_user_id and guest_name are required' }, { status: 400 })
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     const { data: subData, error: subErr } = await admin
       .from('setlist_submissions')
       .upsert(
-        { concert_id, user_id: actorId, spotify_url: spotify_url?.trim() || null, apple_music_url: apple_music_url?.trim() || null },
+        { concert_id, user_id: actorId, spotify_url: spotify_url?.trim() || null, apple_music_url: apple_music_url?.trim() || null, guest_name: isGuest ? guest_name : null },
         { onConflict: 'concert_id,user_id' }
       )
       .select('id').single()

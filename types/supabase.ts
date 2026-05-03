@@ -809,6 +809,7 @@ export type Database = {
           apple_music_url: string | null
           concert_id: string
           created_at: string
+          guest_name: string | null
           id: string
           spotify_url: string | null
           user_id: string
@@ -818,6 +819,7 @@ export type Database = {
           apple_music_url?: string | null
           concert_id: string
           created_at?: string
+          guest_name?: string | null
           id?: string
           spotify_url?: string | null
           user_id: string
@@ -827,6 +829,7 @@ export type Database = {
           apple_music_url?: string | null
           concert_id?: string
           created_at?: string
+          guest_name?: string | null
           id?: string
           spotify_url?: string | null
           user_id?: string

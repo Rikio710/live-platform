@@ -22,6 +22,7 @@ type Submission = {
   created_at: string
   spotify_url: string | null
   apple_music_url: string | null
+  guest_name?: string | null
   profiles: { username: string | null } | null
   songs: Song[]
 }
@@ -106,7 +107,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
   const loadSubmissions = async (uid: string | null) => {
     const { data: subs } = await supabase
       .from('setlist_submissions')
-      .select('id, user_id, votes_count, created_at, spotify_url, apple_music_url')
+      .select('id, user_id, votes_count, created_at, spotify_url, apple_music_url, guest_name')
       .eq('concert_id', concertId)
       .order('votes_count', { ascending: false })
 
@@ -647,7 +648,7 @@ function SubmissionCard({
   onDelete: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const username = submission.profiles?.username ?? '匿名'
+  const username = submission.guest_name ?? submission.profiles?.username ?? '匿名'
   const timeStr = new Date(submission.created_at).toLocaleString('ja-JP', {
     month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
