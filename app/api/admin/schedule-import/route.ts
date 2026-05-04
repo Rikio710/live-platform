@@ -6,19 +6,9 @@ const UA = 'Mozilla/5.0 (compatible; LiveVault/1.0)'
 
 type ConcertRow = { venue_name: string; date: string; start_time: string }
 
-function parseFromHtml(html: string): { title: string; concerts: ConcertRow[] } {
-  const $ = cheerio.load(html)
-  $('script, style, nav, footer, header').remove()
-
-  const title =
-    $('h1').first().text().trim() ||
-    $('title').text().split(/[-|・]/)[0].trim() ||
-    ''
-
+function parseTableRows($: cheerio.CheerioAPI, selector: string): ConcertRow[] {
   const concerts: ConcertRow[] = []
-
-  // Strategy 1: table rows
-  $('table tr').each((_, row) => {
+  $(selector).each((_, row) => {
     const cells = $(row)
       .find('td')
       .toArray()
@@ -53,8 +43,24 @@ function parseFromHtml(html: string): { title: string; concerts: ConcertRow[] } 
 
     if (venue) concerts.push({ venue_name: venue, date, start_time: time })
   })
+  return concerts
+}
 
-  if (concerts.length > 0) return { title, concerts }
+function parseFromHtml(html: string): { title: string; concerts: ConcertRow[] } {
+  const $ = cheerio.load(html)
+  $('script, style').remove()
+
+  // タイトル: livefans は h3 にツアー名、title タグに "アーティスト名 -ツアー名 | サイト名" 形式
+  const h3 = $('h3').first().text().trim()
+  const pageTitle = $('title').text()
+  const titleFromTag = pageTitle.replace(/\s*\|.*$/, '').replace(/^[^-－]+-\s*/, '').trim()
+  const title = h3 || titleFromTag || pageTitle.split(/[-|]/)[0].trim()
+
+  // Strategy 1: scheduleBlock 内のテーブル（livefans.jp 専用）
+  let concerts = parseTableRows($, '.scheduleBlock table tr')
+
+  // Strategy 2: 全テーブル
+  if (concerts.length === 0) concerts = parseTableRows($, 'table tr')
 
   // Strategy 2: text fallback
   const lines = $.text()
