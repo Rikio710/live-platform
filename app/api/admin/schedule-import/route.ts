@@ -9,40 +9,30 @@ type ConcertRow = { venue_name: string; date: string; start_time: string }
 function parseTableRows($: cheerio.CheerioAPI, selector: string): ConcertRow[] {
   const concerts: ConcertRow[] = []
   $(selector).each((_, row) => {
-    const cells = $(row)
-      .find('td')
-      .toArray()
-      .map(td => $(td).text().trim())
-    if (cells.length < 2) return
+    const tds = $(row).find('td').toArray()
+    if (tds.length < 3) return
 
-    let date: string | null = null
-    let time: string | null = null
-    let venue: string | null = null
+    // セル0: 日付
+    const dateText = $(tds[0]).text().trim()
+    const dm = dateText.match(/(\d{4})\/(\d{2})\/(\d{2})/)
+    if (!dm) return
+    const date = `${dm[1]}-${dm[2]}-${dm[3]}`
 
-    for (const cell of cells) {
-      if (!date) {
-        const dm = cell.match(/(\d{4})\/(\d{2})\/(\d{2})/)
-        if (dm) date = `${dm[1]}-${dm[2]}-${dm[3]}`
-      }
-      if (!time) {
-        const tm = cell.match(/^(\d{1,2}):(\d{2})$/)
-        if (tm) time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
-      }
+    // セル1: 開演時間
+    const timeText = $(tds[1]).text().trim()
+    const tm = timeText.match(/^(\d{1,2}):(\d{2})$/)
+    if (!tm) return
+    const time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
+
+    // セル2: 会場名（都道府県サフィックスを除去）
+    const venueRaw = $(tds[2]).text().trim()
+    const venue = venueRaw
+      .replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '')
+      .trim()
+
+    if (venue && venue.length > 0 && venue.length <= 60) {
+      concerts.push({ venue_name: venue, date, start_time: time })
     }
-
-    if (!date || !time) return
-
-    for (let i = cells.length - 1; i >= 0; i--) {
-      const raw = cells[i]
-      if (raw.match(/^\d{4}\//) || raw.match(/^\d{1,2}:\d{2}$/) || raw.length < 2) continue
-      const cleaned = raw
-        .replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '')
-        .trim()
-      if (cleaned) { venue = cleaned; break }
-    }
-
-    // 会場名が長すぎる場合はレビュー本文などの誤検出として除外
-    if (venue && venue.length <= 60) concerts.push({ venue_name: venue, date, start_time: time })
   })
   return concerts
 }
@@ -72,7 +62,7 @@ function parseFromHtml(html: string): { title: string; concerts: ConcertRow[] } 
 
   let concerts = parseTableRows($, scheduleSelector)
 
-  // Strategy 2: text fallback
+  // Strategy 2: text fallback（1行に日付・時刻・会場が含まれるケース）
   const lines = $.text()
     .split('\n')
     .map(l => l.trim())
@@ -84,21 +74,22 @@ function parseFromHtml(html: string): { title: string; concerts: ConcertRow[] } 
     if (!dm) continue
 
     const date = `${dm[1]}-${dm[2]}-${dm[3]}`
-    const ctx = [line, lines[i + 1] ?? '', lines[i + 2] ?? ''].join(' ')
-    const tm = ctx.match(/(\d{1,2}):(\d{2})/)
+    // 時刻は同じ行か直後の行から
+    const ctx = [line, lines[i + 1] ?? ''].join(' ')
+    const tm = ctx.match(/\b(\d{1,2}):(\d{2})\b/)
     if (!tm) continue
 
     const time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
     const venue = ctx
       .replace(/\d{4}\/\d{2}\/\d{2}/, '')
       .replace(/[（(][月火水木金土日・祝]+[）)]/g, '')
-      .replace(/\d{1,2}:\d{2}/g, '')
+      .replace(/\b\d{1,2}:\d{2}\b/g, '')
       .replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '')
       .replace(/[|｜\t]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
 
-    if (venue && venue.length > 2) {
+    if (venue && venue.length > 1 && venue.length <= 60) {
       concerts.push({ venue_name: venue, date, start_time: time })
     }
   }
