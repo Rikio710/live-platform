@@ -41,7 +41,8 @@ function parseTableRows($: cheerio.CheerioAPI, selector: string): ConcertRow[] {
       if (cleaned) { venue = cleaned; break }
     }
 
-    if (venue) concerts.push({ venue_name: venue, date, start_time: time })
+    // 会場名が長すぎる場合はレビュー本文などの誤検出として除外
+    if (venue && venue.length <= 60) concerts.push({ venue_name: venue, date, start_time: time })
   })
   return concerts
 }
@@ -56,11 +57,20 @@ function parseFromHtml(html: string): { title: string; concerts: ConcertRow[] } 
   const titleFromTag = pageTitle.replace(/\s*\|.*$/, '').replace(/^[^-－]+-\s*/, '').trim()
   const title = h3 || titleFromTag || pageTitle.split(/[-|]/)[0].trim()
 
-  // Strategy 1: scheduleBlock 内のテーブル（livefans.jp 専用）
-  let concerts = parseTableRows($, '.scheduleBlock table tr')
+  // Strategy 1: 「公演日」「開演」ヘッダーを持つテーブルを特定
+  let scheduleSelector = 'table tr'
+  $('table').each((_, table) => {
+    const headerText = $(table).find('th').text()
+    if (headerText.includes('公演日') || headerText.includes('開演')) {
+      // このテーブルのtrのみを対象にするためselectorを上書き
+      const tableId = `livevault-schedule-${Math.random().toString(36).slice(2)}`
+      $(table).attr('id', tableId)
+      scheduleSelector = `#${tableId} tr`
+      return false
+    }
+  })
 
-  // Strategy 2: 全テーブル
-  if (concerts.length === 0) concerts = parseTableRows($, 'table tr')
+  let concerts = parseTableRows($, scheduleSelector)
 
   // Strategy 2: text fallback
   const lines = $.text()
