@@ -15,8 +15,10 @@ const UA = 'Mozilla/5.0 (compatible; LiveVault/1.0)'
 function parseSetlistHtml(html: string) {
   const $ = cheerio.load(html)
 
-  type Entry = {
-    top: number
+  type RawEntry = {
+    top: number | null   // style="top:Xpx" — 存在すれば最優先
+    pcslN: number
+    idx: number | null   // a[id="idx-N"] — topがない場合のフォールバック
     song_name: string
     song_type: 'song' | 'mc' | 'other'
     is_encore: boolean
@@ -24,17 +26,23 @@ function parseSetlistHtml(html: string) {
     cmts: string[]
   }
 
-  const entries: Entry[] = []
+  const rawEntries: RawEntry[] = []
 
-  // style="top: Xpx;" の値でソート（livefansが画面上の正しい順番を埋め込んでいる）
   $('td.rnd').each((_, el) => {
     const td = $(el)
     const tdClass = td.attr('class') ?? ''
     const style = td.attr('style') ?? ''
 
+    const pcslMatch = tdClass.match(/pcsl(\d+)/)
+    if (!pcslMatch) return
+    const pcslN = parseInt(pcslMatch[1], 10)
+
     const topMatch = style.match(/top:\s*(\d+)px/)
-    if (!topMatch) return
-    const top = parseInt(topMatch[1], 10)
+    const top = topMatch ? parseInt(topMatch[1], 10) : null
+
+    const idxAttr = td.find('a[id^="idx-"]').attr('id') ?? ''
+    const idxMatch = idxAttr.match(/idx-(\d+)/)
+    const idx = idxMatch ? parseInt(idxMatch[1], 10) : null
 
     const is_encore = !tdClass.includes('rnd2')
 
@@ -47,26 +55,63 @@ function parseSetlistHtml(html: string) {
     if (!rawName) return
 
     const memo = td.find('div.ttl p.memo').text().trim() || null
-
-    // 複数 div.cmt を個別に収集
     const cmts = td.find('div.cmt').map((_, c) => $(c).text().trim()).get().filter(Boolean)
 
     let song_type: 'song' | 'mc' | 'other' = 'song'
     if (/^MC$/i.test(rawName)) song_type = 'mc'
     else if (rawName.startsWith('///')) song_type = 'other'
 
-    entries.push({ top, song_name: rawName, song_type, is_encore, memo, cmts })
+    rawEntries.push({ top, pcslN, idx, song_name: rawName, song_type, is_encore, memo, cmts })
   })
 
-  entries.sort((a, b) => a.top - b.top)
+  if (rawEntries.length === 0) return []
+
+  // topが半数以上の曲にあれば top でソート（最も正確）
+  // なければ idx ベースのソート（AJAXレスポンスなど top がない場合）
+  const topCount = rawEntries.filter(e => e.top !== null).length
+  const useTop = topCount > rawEntries.length / 2
+
+  type FinalEntry = { sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null; cmts: string[] }
+  let entries: FinalEntry[]
+
+  if (useTop) {
+    // top CSS でソート。topのない曲はidxで補完
+    const maxTop = Math.max(...rawEntries.filter(e => e.top !== null).map(e => e.top!))
+    entries = rawEntries.map(e => ({
+      sort_key: e.top !== null ? e.top : (e.idx !== null ? maxTop + e.idx + 1 : maxTop + e.pcslN),
+      song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts,
+    }))
+  } else {
+    // idx ベースのソート（pcslN順に並べ、idxをソートキーに使用）
+    rawEntries.sort((a, b) => a.pcslN - b.pcslN)
+    const pcslToIdx = new Map<number, number>()
+    for (const e of rawEntries) {
+      if (e.idx !== null) pcslToIdx.set(e.pcslN, e.idx)
+    }
+    entries = rawEntries.map(e => {
+      let sort_key: number
+      if (e.idx !== null) {
+        sort_key = e.idx
+      } else {
+        let prevIdx = -1
+        for (let n = e.pcslN - 1; n >= 1; n--) {
+          if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
+        }
+        sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
+      }
+      return { sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts }
+    })
+  }
+
+  entries.sort((a, b) => a.sort_key - b.sort_key)
 
   // cmt を曲の直後に挿入
-  type FinalEntry = { sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }
-  const result: FinalEntry[] = []
+  type OutputEntry = { sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }
+  const result: OutputEntry[] = []
   for (const e of entries) {
-    result.push({ sort_key: e.top, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo })
+    result.push({ sort_key: e.sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo })
     e.cmts.forEach((cmt, i) => {
-      result.push({ sort_key: e.top + 0.1 + i * 0.01, song_name: `///${cmt}`, song_type: 'other', is_encore: e.is_encore, memo: null })
+      result.push({ sort_key: e.sort_key + 0.1 + i * 0.01, song_name: `///${cmt}`, song_type: 'other', is_encore: e.is_encore, memo: null })
     })
   }
 
