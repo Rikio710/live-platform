@@ -147,11 +147,14 @@ export default function AdminSetlistPage() {
 
     const { data: sub, error } = await supabase
       .from('setlist_submissions')
-      .insert({ concert_id: createConcertId, user_id: user.id, votes_count: 0 })
+      .upsert({ concert_id: createConcertId, user_id: user.id, votes_count: 0 }, { onConflict: 'concert_id,user_id' })
       .select('id')
       .single()
 
-    if (error || !sub) { alert('作成に失敗しました'); setCreating(false); return }
+    if (error || !sub) { alert(`作成に失敗しました: ${error?.message}`); setCreating(false); return }
+
+    // 既存の曲を削除してから再挿入
+    await supabase.from('setlist_songs').delete().eq('submission_id', sub.id)
 
     const parsed = parseBulkText(bulkText)
     const songRows = parsed.map((s, i) => ({
