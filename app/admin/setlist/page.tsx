@@ -166,7 +166,16 @@ export default function AdminSetlistPage() {
     }))
 
     if (songRows.length > 0) {
-      await supabase.from('setlist_songs').insert(songRows)
+      const { error: songsError } = await supabase.from('setlist_songs').insert(songRows)
+      if (songsError) {
+        alert(`曲の保存に失敗しました: ${songsError.message}`)
+        setCreating(false)
+        return
+      }
+    } else {
+      alert('曲が1曲も認識されませんでした。テキストを確認してください。')
+      setCreating(false)
+      return
     }
 
     setBulkText('')
