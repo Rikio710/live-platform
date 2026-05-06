@@ -161,7 +161,6 @@ export default function AdminSetlistPage() {
       song_name: s.song_name,
       song_type: s.song_type,
       is_encore: s.is_encore,
-      memo: s.memo,
       order_num: i + 1,
     }))
 
