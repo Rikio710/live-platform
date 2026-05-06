@@ -83,11 +83,23 @@ function parseSetlistHtml(html: string) {
     } else if (e.nomblePos !== null) {
       sort_key = e.nomblePos
     } else {
-      let prevIdx = -1
-      for (let n = e.pcslN - 1; n >= 1; n--) {
-        if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
+      // idxなし曲（サブスク未連携）: 直後のpcslNを持つ曲のidxから逆算
+      // 例: pcsl8(女王の猿)→pcsl9(高嶺の花子さん, idx7)→sort_key=6.5（idx6とidx7の間）
+      const maxPcslN = Math.max(...rawEntries.map(e => e.pcslN))
+      let nextIdx = -1
+      for (let n = e.pcslN + 1; n <= maxPcslN; n++) {
+        if (pcslToIdx.has(n)) { nextIdx = pcslToIdx.get(n)!; break }
       }
-      sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
+      if (nextIdx >= 0) {
+        sort_key = nextIdx - 0.5
+      } else {
+        // フォールバック: 直前のpcslNを探す
+        let prevIdx = -1
+        for (let n = e.pcslN - 1; n >= 1; n--) {
+          if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
+        }
+        sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
+      }
     }
     return { sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts }
   })
