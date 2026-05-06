@@ -9,6 +9,7 @@ import ArtistFilter from './ArtistFilter'
 type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'slug' | 'date' | 'start_time' | 'venue_name' | 'image_url'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
+  setlist_submissions: { id: string }[]
 }
 
 export const revalidate = 1800
@@ -35,12 +36,12 @@ export default async function ConcertsPage({
   const [{ data: upcoming }, { data: past }, { data: artists }] = await Promise.all([
     supabase
       .from('concerts')
-      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name), tours(id, name, image_url)')
+      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name), tours(id, name, image_url), setlist_submissions(id)')
       .gte('date', today)
       .order('date', { ascending: true }),
     supabase
       .from('concerts')
-      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name), tours(id, name, image_url)')
+      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name), tours(id, name, image_url), setlist_submissions(id)')
       .lt('date', today)
       .order('date', { ascending: false })
       .limit(100),
@@ -133,7 +134,7 @@ export default async function ConcertsPage({
                 <p className="font-bold text-white group-hover:text-violet-300 transition-colors truncate text-sm">
                   {c.tours?.name ?? c.venue_name}
                 </p>
-                <div className="flex items-center gap-3 mt-0.5">
+                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                   <p className="text-xs text-[#8888aa] flex items-center gap-1">
                     <MapPin size={10} />
                     {c.venue_name}
@@ -143,6 +144,11 @@ export default async function ConcertsPage({
                       <Calendar size={10} />
                       {c.start_time.slice(0, 5)}
                     </p>
+                  )}
+                  {c.setlist_submissions.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                      セットリスト
+                    </span>
                   )}
                 </div>
               </div>
