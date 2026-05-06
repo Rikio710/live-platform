@@ -14,7 +14,9 @@ type TourWithArtist = Tables<'tours'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'slug'> | null
 }
 
-type TourConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'venue_address' | 'date' | 'start_time' | 'image_url'>
+type TourConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'venue_address' | 'date' | 'start_time' | 'image_url'> & {
+  setlist_submissions: { id: string }[]
+}
 
 export const revalidate = 3600
 
@@ -70,7 +72,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
 
   const { data: concerts } = await supabase
     .from('concerts')
-    .select('id, slug, venue_name, venue_address, date, start_time, image_url')
+    .select('id, slug, venue_name, venue_address, date, start_time, image_url, setlist_submissions(id)')
     .eq('tour_id', tour.id)
     .order('date', { ascending: true })
   const today = new Date().toISOString().split('T')[0]
@@ -200,6 +202,11 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
                       <p className="text-xs text-[#8888aa] mt-0.5">開演 {c.start_time.slice(0, 5)}</p>
                     )}
                   </div>
+                  {c.setlist_submissions.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 shrink-0">
+                      セットリスト
+                    </span>
+                  )}
                   {isPast && (
                     <span className="text-xs text-[#8888aa] shrink-0 border border-white/10 rounded-full px-2 py-0.5">終了</span>
                   )}
