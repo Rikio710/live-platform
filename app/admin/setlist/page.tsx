@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { adminUpdateSong, adminDeleteSong, adminDeleteSubmission } from '../actions'
 import { ChevronDown, ChevronUp, Plus, Trash2, Check, X, PlusCircle, Download } from 'lucide-react'
 import type { LiveFansSong } from '@/app/api/admin/livefans-import/route'
+import type { TourEvent } from '@/app/api/admin/livefans-tour-events/route'
 
 type Concert = { id: string; venue_name: string; date: string; artists: { name: string } | null; tours: { name: string } | null }
 type Profile = { username: string | null }
@@ -104,7 +105,7 @@ export default function AdminSetlistPage() {
   const [bulkText, setBulkText] = useState('')
   const [creating, setCreating] = useState(false)
 
-  // LiveFansインポート
+  // LiveFansインポート（単体）
   const [showLiveFans, setShowLiveFans] = useState(false)
   const [liveFansUrl, setLiveFansUrl] = useState('')
   const [liveFansSongs, setLiveFansSongs] = useState<LiveFansSong[] | null>(null)
@@ -115,6 +116,16 @@ export default function AdminSetlistPage() {
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
+
+  // LiveFansツアー一括取込
+  const [showTourImport, setShowTourImport] = useState(false)
+  const [tourUrl, setTourUrl] = useState('')
+  const [tourFetching, setTourFetching] = useState(false)
+  const [tourFetchError, setTourFetchError] = useState<string | null>(null)
+  const [tourEvents, setTourEvents] = useState<TourEvent[] | null>(null)
+  const [tourMatches, setTourMatches] = useState<Record<number, string>>({})
+  const [tourBulkImporting, setTourBulkImporting] = useState(false)
+  const [tourProgress, setTourProgress] = useState<{ done: number; total: number; log: string[] } | null>(null)
 
   const loadConcerts = async () => {
     const { data } = await supabase
@@ -360,6 +371,91 @@ export default function AdminSetlistPage() {
     await load()
   }
 
+  const handleFetchTourEvents = async () => {
+    if (!tourUrl.trim()) return
+    setTourFetching(true)
+    setTourFetchError(null)
+    setTourEvents(null)
+    setTourProgress(null)
+    try {
+      const res = await fetch('/api/admin/livefans-tour-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tourUrl.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setTourFetchError(data.error ?? '取得失敗'); return }
+
+      // Auto-match each event to a DB concert by date
+      const matches: Record<number, string> = {}
+      ;(data.events as TourEvent[]).forEach((event, i) => {
+        const match = allConcerts.find(c => c.date === event.date)
+        if (match) matches[i] = match.id
+      })
+      setTourEvents(data.events)
+      setTourMatches(matches)
+    } catch { setTourFetchError('通信エラーが発生しました') }
+    finally { setTourFetching(false) }
+  }
+
+  const handleBulkTourImport = async () => {
+    if (!tourEvents) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const toImport = tourEvents
+      .map((event, i) => ({ event, concertId: tourMatches[i] }))
+      .filter(x => x.concertId && x.event.event_url)
+
+    if (toImport.length === 0) return
+    setTourBulkImporting(true)
+    setTourProgress({ done: 0, total: toImport.length, log: [] })
+
+    for (const { event, concertId } of toImport) {
+      try {
+        const res = await fetch('/api/admin/livefans-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: event.event_url }),
+        })
+        const data = await res.json()
+
+        if (!res.ok || !data.songs?.length) {
+          setTourProgress(prev => prev ? { ...prev, done: prev.done + 1, log: [...prev.log, `${event.venue_name}（${event.date}）: セトリなし`] } : prev)
+          continue
+        }
+
+        const { data: sub, error } = await supabase
+          .from('setlist_submissions')
+          .insert({ concert_id: concertId, user_id: user.id, votes_count: 0 })
+          .select('id').single()
+
+        if (error || !sub) {
+          setTourProgress(prev => prev ? { ...prev, done: prev.done + 1, log: [...prev.log, `${event.venue_name}（${event.date}）: 登録失敗`] } : prev)
+          continue
+        }
+
+        const rows = (data.songs as LiveFansSong[]).map(s => ({
+          submission_id: sub.id,
+          concert_id: concertId,
+          user_id: user.id,
+          song_name: s.song_name,
+          song_type: s.song_type,
+          is_encore: s.is_encore,
+          order_num: s.order_num,
+        }))
+        await supabase.from('setlist_songs').insert(rows)
+
+        setTourProgress(prev => prev ? { ...prev, done: prev.done + 1, log: [...prev.log, `${event.venue_name}（${event.date}）: ${data.songs.length}曲 ✓`] } : prev)
+      } catch {
+        setTourProgress(prev => prev ? { ...prev, done: prev.done + 1, log: [...prev.log, `${event.venue_name}（${event.date}）: エラー`] } : prev)
+      }
+    }
+
+    setTourBulkImporting(false)
+    await load()
+  }
+
   const formatDate = (ts: string) => new Date(ts).toLocaleDateString('ja-JP')
   const formatTime = (ts: string) => new Date(ts).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -382,14 +478,21 @@ export default function AdminSetlistPage() {
             ))}
           </select>
           <button
-            onClick={() => { setShowLiveFans(v => !v); setShowCreate(false) }}
+            onClick={() => { setShowTourImport(v => !v); setShowLiveFans(false); setShowCreate(false) }}
+            className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
+          >
+            <Download size={15} />
+            ツアー一括取込
+          </button>
+          <button
+            onClick={() => { setShowLiveFans(v => !v); setShowTourImport(false); setShowCreate(false) }}
             className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <Download size={15} />
             LiveFansから取込
           </button>
           <button
-            onClick={() => { setShowCreate(v => !v); setShowLiveFans(false) }}
+            onClick={() => { setShowCreate(v => !v); setShowLiveFans(false); setShowTourImport(false) }}
             className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <PlusCircle size={15} />
@@ -397,6 +500,112 @@ export default function AdminSetlistPage() {
           </button>
         </div>
       </div>
+
+      {/* ツアー一括取込パネル */}
+      {showTourImport && (
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-bold text-white">LiveFansツアーページからセトリを一括取込</h2>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={tourUrl}
+              onChange={e => { setTourUrl(e.target.value); setTourEvents(null); setTourFetchError(null); setTourProgress(null) }}
+              placeholder="https://www.livefans.jp/groups/185785"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-orange-500/50"
+            />
+            <button
+              onClick={handleFetchTourEvents}
+              disabled={tourFetching || !tourUrl.trim()}
+              className="bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors shrink-0"
+            >
+              {tourFetching ? '取得中...' : '取得'}
+            </button>
+          </div>
+
+          {tourFetchError && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{tourFetchError}</p>}
+
+          {tourEvents && !tourProgress && (
+            <div className="space-y-3">
+              <p className="text-xs text-orange-400">{tourEvents.length}公演を取得。DBの公演と対応付けを確認してください。</p>
+              <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                {tourEvents.map((event, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-white/3 rounded-xl px-3 py-2">
+                    <div className="w-24 shrink-0">
+                      <p className="text-xs text-white">{event.date}</p>
+                      <p className="text-xs text-[#8888aa] truncate">{event.venue_name}</p>
+                    </div>
+                    <span className="text-[#8888aa] text-xs shrink-0">→</span>
+                    <select
+                      value={tourMatches[i] ?? ''}
+                      onChange={e => setTourMatches(prev => ({ ...prev, [i]: e.target.value }))}
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500/50"
+                    >
+                      <option value="">（スキップ）</option>
+                      {allConcerts
+                        .filter(c => c.date === event.date || Math.abs(new Date(c.date).getTime() - new Date(event.date).getTime()) < 86400000 * 3)
+                        .map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.venue_name}（{c.date}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
+                          </option>
+                        ))}
+                      {allConcerts.filter(c => c.date === event.date || Math.abs(new Date(c.date).getTime() - new Date(event.date).getTime()) < 86400000 * 3).length === 0 && (
+                        allConcerts.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.venue_name}（{c.date}）
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    {!event.event_url && <span className="text-xs text-[#8888aa] shrink-0">URLなし</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleBulkTourImport}
+                  disabled={tourBulkImporting || Object.values(tourMatches).filter(Boolean).length === 0}
+                  className="bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  {tourBulkImporting ? '取込中...' : `一括追加（${tourEvents.filter((e, i) => tourMatches[i] && e.event_url).length}件）`}
+                </button>
+                <button
+                  onClick={() => { setShowTourImport(false); setTourUrl(''); setTourEvents(null); setTourMatches({}); setTourProgress(null) }}
+                  className="border border-white/10 text-[#8888aa] hover:text-white text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tourProgress && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-white/5 rounded-full h-2">
+                  <div
+                    className="bg-orange-500 h-2 rounded-full transition-all"
+                    style={{ width: `${(tourProgress.done / tourProgress.total) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-white shrink-0">{tourProgress.done}/{tourProgress.total}</span>
+              </div>
+              <div className="bg-white/3 rounded-xl p-3 max-h-48 overflow-y-auto space-y-1">
+                {tourProgress.log.map((line, i) => (
+                  <p key={i} className={`text-xs ${line.includes('✓') ? 'text-green-400' : 'text-[#8888aa]'}`}>{line}</p>
+                ))}
+              </div>
+              {!tourBulkImporting && (
+                <button
+                  onClick={() => { setShowTourImport(false); setTourUrl(''); setTourEvents(null); setTourMatches({}); setTourProgress(null) }}
+                  className="bg-orange-600 hover:bg-orange-500 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  完了
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* LiveFansインポートパネル */}
       {showLiveFans && (
