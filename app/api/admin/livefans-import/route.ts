@@ -16,9 +16,9 @@ function parseSetlistHtml(html: string) {
   const $ = cheerio.load(html)
 
   type RawEntry = {
-    top: number | null   // style="top:Xpx" — 存在すれば最優先
     pcslN: number
-    idx: number | null   // a[id="idx-N"] — topがない場合のフォールバック
+    idx: number | null       // a[id="idx-N"] — サブスク連携曲に付く正確な順番
+    nomblePos: number | null // div.nomble の background-position / 35px — idx なし曲の順番
     song_name: string
     song_type: 'song' | 'mc' | 'other'
     is_encore: boolean
@@ -31,18 +31,20 @@ function parseSetlistHtml(html: string) {
   $('td.rnd').each((_, el) => {
     const td = $(el)
     const tdClass = td.attr('class') ?? ''
-    const style = td.attr('style') ?? ''
 
     const pcslMatch = tdClass.match(/pcsl(\d+)/)
     if (!pcslMatch) return
     const pcslN = parseInt(pcslMatch[1], 10)
 
-    const topMatch = style.match(/top:\s*(\d+)px/)
-    const top = topMatch ? parseInt(topMatch[1], 10) : null
-
     const idxAttr = td.find('a[id^="idx-"]').attr('id') ?? ''
     const idxMatch = idxAttr.match(/idx-(\d+)/)
     const idx = idxMatch ? parseInt(idxMatch[1], 10) : null
+
+    // div.nomble の background-position から順番を取得（35px単位）
+    // 例: background-position: -245px 0px → 245/35 = 7 → 8番目の曲
+    const nombleStyle = td.find('div.nomble').attr('style') ?? ''
+    const nombleMatch = nombleStyle.match(/background-position:\s*(-?\d+)px/)
+    const nomblePos = nombleMatch ? Math.abs(parseInt(nombleMatch[1], 10)) / 35 : null
 
     const is_encore = !tdClass.includes('rnd2')
 
@@ -61,47 +63,34 @@ function parseSetlistHtml(html: string) {
     if (/^MC$/i.test(rawName)) song_type = 'mc'
     else if (rawName.startsWith('///')) song_type = 'other'
 
-    rawEntries.push({ top, pcslN, idx, song_name: rawName, song_type, is_encore, memo, cmts })
+    rawEntries.push({ pcslN, idx, nomblePos, song_name: rawName, song_type, is_encore, memo, cmts })
   })
 
   if (rawEntries.length === 0) return []
 
-  // topが半数以上の曲にあれば top でソート（最も正確）
-  // なければ idx ベースのソート（AJAXレスポンスなど top がない場合）
-  const topCount = rawEntries.filter(e => e.top !== null).length
-  const useTop = topCount > rawEntries.length / 2
+  // ソートキー優先順位: idx > nomblePos > pcslN補間
+  rawEntries.sort((a, b) => a.pcslN - b.pcslN)
+  const pcslToIdx = new Map<number, number>()
+  for (const e of rawEntries) {
+    if (e.idx !== null) pcslToIdx.set(e.pcslN, e.idx)
+  }
 
   type FinalEntry = { sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null; cmts: string[] }
-  let entries: FinalEntry[]
-
-  if (useTop) {
-    // top CSS でソート。topのない曲はidxで補完
-    const maxTop = Math.max(...rawEntries.filter(e => e.top !== null).map(e => e.top!))
-    entries = rawEntries.map(e => ({
-      sort_key: e.top !== null ? e.top : (e.idx !== null ? maxTop + e.idx + 1 : maxTop + e.pcslN),
-      song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts,
-    }))
-  } else {
-    // idx ベースのソート（pcslN順に並べ、idxをソートキーに使用）
-    rawEntries.sort((a, b) => a.pcslN - b.pcslN)
-    const pcslToIdx = new Map<number, number>()
-    for (const e of rawEntries) {
-      if (e.idx !== null) pcslToIdx.set(e.pcslN, e.idx)
-    }
-    entries = rawEntries.map(e => {
-      let sort_key: number
-      if (e.idx !== null) {
-        sort_key = e.idx
-      } else {
-        let prevIdx = -1
-        for (let n = e.pcslN - 1; n >= 1; n--) {
-          if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
-        }
-        sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
+  const entries: FinalEntry[] = rawEntries.map(e => {
+    let sort_key: number
+    if (e.idx !== null) {
+      sort_key = e.idx
+    } else if (e.nomblePos !== null) {
+      sort_key = e.nomblePos
+    } else {
+      let prevIdx = -1
+      for (let n = e.pcslN - 1; n >= 1; n--) {
+        if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
       }
-      return { sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts }
-    })
-  }
+      sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
+    }
+    return { sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts }
+  })
 
   entries.sort((a, b) => a.sort_key - b.sort_key)
 
