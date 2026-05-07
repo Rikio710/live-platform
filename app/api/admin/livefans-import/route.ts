@@ -74,6 +74,11 @@ function parseSetlistHtml(html: string, slToPos: Record<number, number>) {
     const memo = td.find('div.ttl p.memo').text().trim() || null
     const cmts = td.find('div.cmt').map((_, c) => $(c).text().trim()).get().filter(Boolean)
 
+    // 数字のみ・ENマーカー・ダッシュ始まり（— 会場N位 など）はスキップ
+    if (/^\d+$/.test(rawName)) return
+    if (/^EN\d*$/i.test(rawName)) return
+    if (/^[\u2014\u2013\u2012\u2010\uFF0D-]/.test(rawName)) return
+
     let song_type: 'song' | 'mc' | 'other' = 'song'
     if (/^MC$/i.test(rawName)) song_type = 'mc'
     else if (rawName.startsWith('///')) song_type = 'other'
