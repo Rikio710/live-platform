@@ -63,6 +63,28 @@ function parseBulkText(text: string): Array<{ song_name: string; song_type: 'son
   return result
 }
 
+// スケジュールテキストを日付ごとのセクションに分割
+type ScheduleSection = { date: string; setlistText: string }
+function parseScheduleText(text: string): ScheduleSection[] {
+  const lines = text.split('\n')
+  const sections: ScheduleSection[] = []
+  let currentDate = ''
+  let currentLines: string[] = []
+
+  for (const line of lines) {
+    const dateMatch = line.trim().match(/^(\d{4})\/(\d{2})\/(\d{2})/)
+    if (dateMatch) {
+      if (currentDate) sections.push({ date: currentDate, setlistText: currentLines.join('\n') })
+      currentDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+      currentLines = []
+    } else if (currentDate) {
+      currentLines.push(line)
+    }
+  }
+  if (currentDate) sections.push({ date: currentDate, setlistText: currentLines.join('\n') })
+  return sections
+}
+
 export default function AdminSetlistPage() {
   const supabase = createClient()
   const [submissions, setSubmissions] = useState<Submission[]>([])
@@ -109,6 +131,14 @@ export default function AdminSetlistPage() {
   const [tourMatches, setTourMatches] = useState<Record<number, string>>({})
   const [tourBulkImporting, setTourBulkImporting] = useState(false)
   const [tourProgress, setTourProgress] = useState<{ done: number; total: number; log: string[] } | null>(null)
+
+  // スケジュール一括貼り付け
+  const [showSchedulePaste, setShowSchedulePaste] = useState(false)
+  const [schedulePasteText, setSchedulePasteText] = useState('')
+  const [scheduleArtistFilter, setScheduleArtistFilter] = useState('')
+  const [scheduleSections, setScheduleSections] = useState<Array<{ date: string; songs: ReturnType<typeof parseBulkText>; concertId: string }> | null>(null)
+  const [scheduleBulkCreating, setScheduleBulkCreating] = useState(false)
+  const [scheduleProgress, setScheduleProgress] = useState<{ done: number; total: number; log: string[] } | null>(null)
 
   const loadConcerts = async () => {
     const { data } = await supabase
@@ -450,6 +480,52 @@ export default function AdminSetlistPage() {
     await load()
   }
 
+  const handleParseSchedule = () => {
+    const raw = parseScheduleText(schedulePasteText)
+    const matched = raw.map(s => {
+      const concert = allConcerts.find(c =>
+        c.date === s.date &&
+        (!scheduleArtistFilter || c.artists?.name === scheduleArtistFilter)
+      )
+      return { date: s.date, songs: parseBulkText(s.setlistText), concertId: concert?.id ?? '' }
+    })
+    setScheduleSections(matched)
+    setScheduleProgress(null)
+  }
+
+  const handleScheduleBulkCreate = async () => {
+    if (!scheduleSections) return
+    const toCreate = scheduleSections.filter(s => s.concertId && s.songs.length > 0)
+    if (toCreate.length === 0) return
+    setScheduleBulkCreating(true)
+    setScheduleProgress({ done: 0, total: toCreate.length, log: [] })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setScheduleBulkCreating(false); return }
+
+    for (const section of toCreate) {
+      const { data: sub, error } = await supabase
+        .from('setlist_submissions')
+        .upsert({ concert_id: section.concertId, user_id: user.id, votes_count: 0 }, { onConflict: 'concert_id,user_id' })
+        .select('id').single()
+      if (error || !sub) {
+        setScheduleProgress(prev => prev ? { ...prev, log: [...prev.log, `${section.date}: 失敗 ${error?.message}`] } : prev)
+        continue
+      }
+      await supabase.from('setlist_songs').delete().eq('submission_id', sub.id)
+      await supabase.from('setlist_songs').insert(section.songs.map((s, i) => ({
+        submission_id: sub.id, concert_id: section.concertId, user_id: user.id,
+        song_name: s.song_name, song_type: s.song_type, is_encore: s.is_encore, order_num: i + 1,
+      })))
+      const concert = allConcerts.find(c => c.id === section.concertId)
+      setScheduleProgress(prev => prev ? {
+        done: prev.done + 1, total: prev.total,
+        log: [...prev.log, `✓ ${concert?.venue_name ?? section.date}（${section.songs.length}曲）`],
+      } : prev)
+    }
+    setScheduleBulkCreating(false)
+    await load()
+  }
+
   const formatDate = (ts: string) => new Date(ts).toLocaleDateString('ja-JP')
   const formatTime = (ts: string) => new Date(ts).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -472,21 +548,28 @@ export default function AdminSetlistPage() {
             ))}
           </select>
           <button
-            onClick={() => { setShowTourImport(v => !v); setShowLiveFans(false); setShowCreate(false) }}
+            onClick={() => { setShowSchedulePaste(v => !v); setShowTourImport(false); setShowLiveFans(false); setShowCreate(false) }}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
+          >
+            <PlusCircle size={15} />
+            スケジュール一括
+          </button>
+          <button
+            onClick={() => { setShowTourImport(v => !v); setShowLiveFans(false); setShowCreate(false); setShowSchedulePaste(false) }}
             className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <Download size={15} />
             ツアー一括取込
           </button>
           <button
-            onClick={() => { setShowLiveFans(v => !v); setShowTourImport(false); setShowCreate(false) }}
+            onClick={() => { setShowLiveFans(v => !v); setShowTourImport(false); setShowCreate(false); setShowSchedulePaste(false) }}
             className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <Download size={15} />
             LiveFansから取込
           </button>
           <button
-            onClick={() => { setShowCreate(v => !v); setShowLiveFans(false); setShowTourImport(false) }}
+            onClick={() => { setShowCreate(v => !v); setShowLiveFans(false); setShowTourImport(false); setShowSchedulePaste(false) }}
             className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <PlusCircle size={15} />
@@ -494,6 +577,88 @@ export default function AdminSetlistPage() {
           </button>
         </div>
       </div>
+
+      {/* スケジュール一括貼り付けパネル */}
+      {showSchedulePaste && (
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-bold text-white">スケジュール一括貼り付け</h2>
+          <p className="text-xs text-[#8888aa]">livefansの日付行（2026/03/14...）を含めてまるごとコピペ。日付ごとに公演を自動マッチングします。</p>
+
+          <select
+            value={scheduleArtistFilter}
+            onChange={e => { setScheduleArtistFilter(e.target.value); setScheduleSections(null) }}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+          >
+            <option value="">アーティストを選択...</option>
+            {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort().map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+
+          <textarea
+            value={schedulePasteText}
+            onChange={e => { setSchedulePasteText(e.target.value); setScheduleSections(null) }}
+            rows={10}
+            placeholder={'2026/03/14 (土)    18:00    福岡サンパレス\nアケホノ\n運命の人\n...\n\n2026/03/15 (日)    18:00    福岡サンパレス\n...'}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none font-mono"
+          />
+
+          <button
+            onClick={handleParseSchedule}
+            disabled={!schedulePasteText.trim() || !scheduleArtistFilter}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+          >
+            解析する
+          </button>
+
+          {scheduleSections && (
+            <div className="space-y-2">
+              {scheduleSections.map((s, i) => {
+                const concert = allConcerts.find(c => c.id === s.concertId)
+                return (
+                  <div key={i} className="flex items-center gap-3 text-sm">
+                    <span className="text-[#8888aa] w-28 shrink-0">{s.date}</span>
+                    {s.concertId ? (
+                      <span className="text-green-400">✓ {concert?.venue_name}（{s.songs.length}曲）</span>
+                    ) : (
+                      <span className="text-red-400">✗ 公演が見つかりません</span>
+                    )}
+                  </div>
+                )
+              })}
+              <div className="pt-2 flex gap-2">
+                <button
+                  onClick={handleScheduleBulkCreate}
+                  disabled={scheduleBulkCreating || scheduleSections.every(s => !s.concertId)}
+                  className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  {scheduleBulkCreating ? '作成中...' : `${scheduleSections.filter(s => s.concertId).length}公演を一括作成`}
+                </button>
+                <button
+                  onClick={() => { setShowSchedulePaste(false); setSchedulePasteText(''); setScheduleSections(null); setScheduleProgress(null) }}
+                  className="border border-white/10 text-[#8888aa] hover:text-white text-sm px-6 py-2.5 rounded-full transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+
+          {scheduleProgress && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-white/10 rounded-full h-1.5">
+                  <div className="bg-violet-500 h-1.5 rounded-full transition-all" style={{ width: `${(scheduleProgress.done / scheduleProgress.total) * 100}%` }} />
+                </div>
+                <span className="text-xs text-[#8888aa]">{scheduleProgress.done}/{scheduleProgress.total}</span>
+              </div>
+              <div className="space-y-0.5">
+                {scheduleProgress.log.map((l, i) => <p key={i} className="text-xs text-[#8888aa]">{l}</p>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ツアー一括取込パネル */}
       {showTourImport && (
