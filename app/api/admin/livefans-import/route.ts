@@ -83,28 +83,20 @@ function parseSetlistHtml(html: string, slToPos: Record<number, number>) {
 
   if (rawEntries.length === 0) return []
 
-  // slToPos で正確な表示順を取得（未登録の場合は slN をそのまま使う）
-  const entries = rawEntries.map(e => ({
+  // song_type が 'song' のみ残す（MC・その他・cmtは除外）
+  const songEntries = rawEntries.filter(e => e.song_type === 'song')
+
+  const entries = songEntries.map(e => ({
     sort_key: slToPos[e.slN] ?? e.slN,
     song_name: e.song_name,
-    song_type: e.song_type,
+    song_type: 'song' as const,
     is_encore: e.is_encore,
     memo: e.memo,
-    cmts: e.cmts,
   }))
 
   entries.sort((a, b) => a.sort_key - b.sort_key)
 
-  // cmt を曲の直後に挿入
-  const result: Array<{ sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }> = []
-  for (const e of entries) {
-    result.push({ sort_key: e.sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo })
-    e.cmts.forEach((cmt, i) => {
-      result.push({ sort_key: e.sort_key + 0.1 + i * 0.01, song_name: `///${cmt}`, song_type: 'other', is_encore: e.is_encore, memo: null })
-    })
-  }
-
-  return result
+  return entries
 }
 
 export async function POST(req: NextRequest) {
