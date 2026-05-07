@@ -396,11 +396,17 @@ export default function AdminSetlistPage() {
       const data = await res.json()
       if (!res.ok) { setTourFetchError(data.error ?? '取得失敗'); return }
 
-      // Auto-match each event to a DB concert by date
+      // Auto-match each event to a DB concert by date + venue name
+      const normalize = (s: string) => s.replace(/[\s　・･]/g, '').toLowerCase()
       const matches: Record<number, string> = {}
       ;(data.events as TourEvent[]).forEach((event, i) => {
-        const match = allConcerts.find(c => c.date === event.date)
-        if (match) matches[i] = match.id
+        const sameDate = allConcerts.filter(c => c.date === event.date)
+        const venueNorm = normalize(event.venue_name)
+        // 1. 日付＋会場名が部分一致
+        const exact = sameDate.find(c => normalize(c.venue_name).includes(venueNorm) || venueNorm.includes(normalize(c.venue_name)))
+        if (exact) { matches[i] = exact.id; return }
+        // 2. 日付のみで1件しかなければそれを採用
+        if (sameDate.length === 1) matches[i] = sameDate[0].id
       })
       setTourEvents(data.events)
       setTourMatches(matches)
