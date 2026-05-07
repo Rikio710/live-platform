@@ -46,6 +46,12 @@ function parseBulkText(text: string): Array<{ song_name: string; song_type: 'son
   for (const line of rawLines) {
     // 空行 → アンコール開始
     if (line === '') { isEncore = true; continue }
+    // 数字のみの行（曲番号）はスキップ
+    if (/^\d+$/.test(line)) continue
+    // EN単体 → アンコール開始マーカー
+    if (/^EN\d*$/.test(line)) { isEncore = true; continue }
+    // ダッシュ始まりの行（— 会場N位・— 新曲 など）はスキップ
+    if (/^[—–-]/.test(line)) continue
     // ///で始まる行（MC・SE・クイズなど）はスキップ
     if (line.startsWith('///')) continue
     // メドレー区切りはスキップ
