@@ -789,7 +789,6 @@ export default function AdminSetlistPage() {
                     {s.song_type === 'other' && <span className="text-[#8888aa] shrink-0">///</span>}
                     {s.song_type === 'mc' && <span className="text-blue-400 shrink-0">MC</span>}
                     <span className="text-white">{s.song_name}</span>
-                    {s.memo && <span className="text-[#8888aa]">— {s.memo}</span>}
                   </div>
                 ))}
               </div>

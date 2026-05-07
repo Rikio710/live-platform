@@ -71,7 +71,6 @@ function parseSetlistHtml(html: string, slToPos: Record<number, number>) {
     const rawName = linkedName || plainName
     if (!rawName) return
 
-    const memo = td.find('div.ttl p.memo').text().trim() || null
     const cmts = td.find('div.cmt').map((_, c) => $(c).text().trim()).get().filter(Boolean)
 
     // 数字のみ・ENマーカー・ダッシュ始まり（— 会場N位 など）はスキップ
@@ -83,7 +82,7 @@ function parseSetlistHtml(html: string, slToPos: Record<number, number>) {
     if (/^MC$/i.test(rawName)) song_type = 'mc'
     else if (rawName.startsWith('///')) song_type = 'other'
 
-    rawEntries.push({ slN, song_name: rawName, song_type, is_encore, memo, cmts })
+    rawEntries.push({ slN, song_name: rawName, song_type, is_encore, memo: null, cmts })
   })
 
   if (rawEntries.length === 0) return []
