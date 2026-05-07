@@ -114,6 +114,7 @@ export default function AdminSetlistPage() {
   const [tourFetchError, setTourFetchError] = useState<string | null>(null)
   const [tourEvents, setTourEvents] = useState<TourEvent[] | null>(null)
   const [tourMatches, setTourMatches] = useState<Record<number, string>>({})
+  const [tourExistingConcertIds, setTourExistingConcertIds] = useState<Set<string>>(new Set())
   const [tourBulkImporting, setTourBulkImporting] = useState(false)
   const [tourProgress, setTourProgress] = useState<{ done: number; total: number; log: string[] } | null>(null)
 
@@ -403,6 +404,16 @@ export default function AdminSetlistPage() {
       })
       setTourEvents(data.events)
       setTourMatches(matches)
+
+      // 既存submission確認
+      const concertIds = Object.values(matches)
+      if (concertIds.length > 0) {
+        const { data: existing } = await supabase
+          .from('setlist_submissions')
+          .select('concert_id')
+          .in('concert_id', concertIds)
+        setTourExistingConcertIds(new Set((existing ?? []).map((r: any) => r.concert_id)))
+      }
     } catch { setTourFetchError('通信エラーが発生しました') }
     finally { setTourFetching(false) }
   }
@@ -414,7 +425,7 @@ export default function AdminSetlistPage() {
 
     const toImport = tourEvents
       .map((event, i) => ({ event, concertId: tourMatches[i] }))
-      .filter(x => x.concertId && x.event.event_url)
+      .filter(x => x.concertId && x.event.event_url && !tourExistingConcertIds.has(x.concertId))
 
     if (toImport.length === 0) return
     setTourBulkImporting(true)
@@ -436,7 +447,7 @@ export default function AdminSetlistPage() {
 
         const { data: sub, error } = await supabase
           .from('setlist_submissions')
-          .upsert({ concert_id: concertId, user_id: user.id, votes_count: 0 }, { onConflict: 'concert_id,user_id' })
+          .insert({ concert_id: concertId, user_id: user.id, votes_count: 0 })
           .select('id').single()
 
         if (error || !sub) {
@@ -704,6 +715,9 @@ export default function AdminSetlistPage() {
                       )}
                     </select>
                     {!event.event_url && <span className="text-xs text-[#8888aa] shrink-0">URLなし</span>}
+                    {tourMatches[i] && tourExistingConcertIds.has(tourMatches[i]) && (
+                      <span className="text-xs text-green-400 shrink-0">登録済</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -713,7 +727,7 @@ export default function AdminSetlistPage() {
                   disabled={tourBulkImporting || Object.values(tourMatches).filter(Boolean).length === 0}
                   className="bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
                 >
-                  {tourBulkImporting ? '取込中...' : `一括追加（${tourEvents.filter((e, i) => tourMatches[i] && e.event_url).length}件）`}
+                  {tourBulkImporting ? '取込中...' : `一括追加（${tourEvents.filter((e, i) => tourMatches[i] && e.event_url && !tourExistingConcertIds.has(tourMatches[i])).length}件・未登録のみ）`}
                 </button>
                 <button
                   onClick={() => { setShowTourImport(false); setTourUrl(''); setTourEvents(null); setTourMatches({}); setTourProgress(null) }}
