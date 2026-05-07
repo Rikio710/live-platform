@@ -436,13 +436,15 @@ export default function AdminSetlistPage() {
 
         const { data: sub, error } = await supabase
           .from('setlist_submissions')
-          .insert({ concert_id: concertId, user_id: user.id, votes_count: 0 })
+          .upsert({ concert_id: concertId, user_id: user.id, votes_count: 0 }, { onConflict: 'concert_id,user_id' })
           .select('id').single()
 
         if (error || !sub) {
           setTourProgress(prev => prev ? { ...prev, done: prev.done + 1, log: [...prev.log, `${event.venue_name}（${event.date}）: 登録失敗`] } : prev)
           continue
         }
+
+        await supabase.from('setlist_songs').delete().eq('submission_id', sub.id)
 
         const rows = (data.songs as LiveFansSong[]).map(s => ({
           submission_id: sub.id,
