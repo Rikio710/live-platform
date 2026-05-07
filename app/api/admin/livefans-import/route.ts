@@ -10,15 +10,39 @@ export type LiveFansSong = {
   order_num: number
 }
 
-const UA = 'Mozilla/5.0 (compatible; LiveVault/1.0)'
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-function parseSetlistHtml(html: string) {
+// livefans jquery.setlist3.js の getSort() を完全再現
+// キー: 表示位置（1-based）、値: そこに置くslNクラスの番号
+const SORT_MAPS: Record<string, Record<string, string>> = {
+  beck:      { '1':'2','2':'1' },
+  hammett:   { '1':'4','4':'1','2':'3','3':'2','6':'5','5':'6' },
+  blackmore: { '1':'3','3':'1','2':'5','5':'2','6':'4','4':'6' },
+  white:     { '1':'6','6':'1','3':'5','5':'3','2':'4','4':'2' },
+  may:       { '1':'3','3':'1','2':'6','6':'2','4':'5','5':'4' },
+  johnson:   { '1':'4','4':'1','2':'8','8':'2','3':'10','10':'3' },
+  harrison:  { '1':'9','9':'1','3':'5','5':'3','6':'8','8':'6' },
+  young:     { '4':'2','2':'4','6':'8','8':'6','1':'10','10':'1' },
+  rhoads:    { '2':'9','9':'2','3':'4','4':'3','6':'1','1':'6' },
+  luke:      { '1':'6','6':'1','3':'7','7':'3','4':'5','5':'4' },
+}
+
+// slN → 表示順位のマップを構築（jquery.setlist3.js の asort() ロジックを再現）
+function buildSlToPosition(mode: string, total: number): Record<number, number> {
+  const sort = SORT_MAPS[mode] ?? {}
+  const slToPos: Record<number, number> = {}
+  for (let b = 1; b <= total + 10; b++) {
+    const slN = sort[String(b)] ? parseInt(sort[String(b)]) : b
+    slToPos[slN] = b
+  }
+  return slToPos
+}
+
+function parseSetlistHtml(html: string, slToPos: Record<number, number>) {
   const $ = cheerio.load(html)
 
   type RawEntry = {
-    pcslN: number
-    idx: number | null       // a[id="idx-N"] — サブスク連携曲に付く正確な順番
-    nomblePos: number | null // div.nomble の background-position / 35px — idx なし曲の順番
+    slN: number
     song_name: string
     song_type: 'song' | 'mc' | 'other'
     is_encore: boolean
@@ -32,19 +56,10 @@ function parseSetlistHtml(html: string) {
     const td = $(el)
     const tdClass = td.attr('class') ?? ''
 
-    const pcslMatch = tdClass.match(/pcsl(\d+)/)
-    if (!pcslMatch) return
-    const pcslN = parseInt(pcslMatch[1], 10)
-
-    const idxAttr = td.find('a[id^="idx-"]').attr('id') ?? ''
-    const idxMatch = idxAttr.match(/idx-(\d+)/)
-    const idx = idxMatch ? parseInt(idxMatch[1], 10) : null
-
-    // div.nomble の background-position から順番を取得（35px単位）
-    // 例: background-position: -245px 0px → 245/35 = 7 → 8番目の曲
-    const nombleStyle = td.find('div.nomble').attr('style') ?? ''
-    const nombleMatch = nombleStyle.match(/background-position:\s*(-?\d+)px/)
-    const nomblePos = nombleMatch ? Math.abs(parseInt(nombleMatch[1], 10)) / 35 : null
+    // slN クラスを取得（pcslN とは別物）
+    const slMatch = tdClass.match(/\bsl(\d+)\b/)
+    if (!slMatch) return
+    const slN = parseInt(slMatch[1], 10)
 
     const is_encore = !tdClass.includes('rnd2')
 
@@ -63,52 +78,25 @@ function parseSetlistHtml(html: string) {
     if (/^MC$/i.test(rawName)) song_type = 'mc'
     else if (rawName.startsWith('///')) song_type = 'other'
 
-    rawEntries.push({ pcslN, idx, nomblePos, song_name: rawName, song_type, is_encore, memo, cmts })
+    rawEntries.push({ slN, song_name: rawName, song_type, is_encore, memo, cmts })
   })
 
   if (rawEntries.length === 0) return []
 
-  // ソートキー優先順位: idx > nomblePos > pcslN補間
-  rawEntries.sort((a, b) => a.pcslN - b.pcslN)
-  const pcslToIdx = new Map<number, number>()
-  for (const e of rawEntries) {
-    if (e.idx !== null) pcslToIdx.set(e.pcslN, e.idx)
-  }
-
-  type FinalEntry = { sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null; cmts: string[] }
-  const entries: FinalEntry[] = rawEntries.map(e => {
-    let sort_key: number
-    if (e.idx !== null) {
-      sort_key = e.idx
-    } else if (e.nomblePos !== null) {
-      sort_key = e.nomblePos
-    } else {
-      // idxなし曲（サブスク未連携）: 直後のpcslNを持つ曲のidxから逆算
-      // 例: pcsl8(女王の猿)→pcsl9(高嶺の花子さん, idx7)→sort_key=6.5（idx6とidx7の間）
-      const maxPcslN = Math.max(...rawEntries.map(e => e.pcslN))
-      let nextIdx = -1
-      for (let n = e.pcslN + 1; n <= maxPcslN; n++) {
-        if (pcslToIdx.has(n)) { nextIdx = pcslToIdx.get(n)!; break }
-      }
-      if (nextIdx >= 0) {
-        sort_key = nextIdx - 0.5
-      } else {
-        // フォールバック: 直前のpcslNを探す
-        let prevIdx = -1
-        for (let n = e.pcslN - 1; n >= 1; n--) {
-          if (pcslToIdx.has(n)) { prevIdx = pcslToIdx.get(n)!; break }
-        }
-        sort_key = (prevIdx >= 0 ? prevIdx : -1) + 0.5 + e.pcslN / 10000
-      }
-    }
-    return { sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo, cmts: e.cmts }
-  })
+  // slToPos で正確な表示順を取得（未登録の場合は slN をそのまま使う）
+  const entries = rawEntries.map(e => ({
+    sort_key: slToPos[e.slN] ?? e.slN,
+    song_name: e.song_name,
+    song_type: e.song_type,
+    is_encore: e.is_encore,
+    memo: e.memo,
+    cmts: e.cmts,
+  }))
 
   entries.sort((a, b) => a.sort_key - b.sort_key)
 
   // cmt を曲の直後に挿入
-  type OutputEntry = { sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }
-  const result: OutputEntry[] = []
+  const result: Array<{ sort_key: number; song_name: string; song_type: 'song' | 'mc' | 'other'; is_encore: boolean; memo: string | null }> = []
   for (const e of entries) {
     result.push({ sort_key: e.sort_key, song_name: e.song_name, song_type: e.song_type, is_encore: e.is_encore, memo: e.memo })
     e.cmts.forEach((cmt, i) => {
@@ -132,31 +120,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'LiveFansのイベントURLを入力してください' }, { status: 400 })
   }
 
-  // Step 1: メインページ取得
-  const html = await fetch(url, { headers: { 'User-Agent': UA } }).then(r => r.text()).catch(() => null)
-  if (!html) return NextResponse.json({ error: 'ページの取得に失敗しました' }, { status: 502 })
+  const baseHeaders = {
+    'User-Agent': UA,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'ja,en;q=0.5',
+  }
+
+  // Step 1: メインページ取得（クッキー保存）
+  const mainRes = await fetch(url, { headers: baseHeaders }).catch(() => null)
+  if (!mainRes?.ok) return NextResponse.json({ error: 'ページの取得に失敗しました' }, { status: 502 })
+
+  const html = await mainRes.text()
+  const cookies = mainRes.headers.get('set-cookie') ?? ''
 
   const $main = cheerio.load(html)
   const eventTitle = $main('h1.eventTitle, h1.title, .eventName').first().text().trim()
     || $main('title').text().replace(' - LiveFans', '').trim()
 
-  // Step 2: まず静的HTMLからセトリを試みる
-  let entries = parseSetlistHtml(html)
+  // Step 2: 同じセッションで legend エンドポイントを叩いてシャッフルモードを取得
+  let slToPos: Record<number, number> = {}
 
-  // Step 3: 静的HTMLに曲がない場合 → AJAXエンドポイントから取得
-  if (entries.length === 0) {
-    // window.onload の element_read呼び出しからkey1・key2を抽出
-    const ajaxMatch = html.match(/element_read\([^,]+,\s*[^,]+,\s*'(key1=\d+&key2=[^']+)'/)
-    if (ajaxMatch) {
-      const params = ajaxMatch[1]
-      const legendUrl = `https://www.livefans.jp/events/legend?${params}`
-      const legendHtml = await fetch(legendUrl, { headers: { 'User-Agent': UA, 'Referer': url } })
-        .then(r => r.text()).catch(() => null)
-      if (legendHtml) {
-        entries = parseSetlistHtml(legendHtml)
+  const ajaxMatch = html.match(/element_read\([^,]+,\s*[^,]+,\s*'(key1=\d+&key2=[^']+)'/)
+  if (ajaxMatch) {
+    const params = ajaxMatch[1]
+    const legendUrl = `https://www.livefans.jp/events/legend?${params}`
+    const legendRes = await fetch(legendUrl, {
+      headers: {
+        ...baseHeaders,
+        'Referer': url,
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(cookies ? { 'Cookie': cookies } : {}),
+      },
+    }).catch(() => null)
+
+    if (legendRes?.ok) {
+      const legendText = await legendRes.text()
+      // rowNoRewrite('young') または getSort('young') からモード名を取得
+      const modeMatch = legendText.match(/(?:rowNoRewrite|getSort)\(['"](\w+)['"]/)
+      if (modeMatch) {
+        const mode = modeMatch[1]
+        const total = $main('td.rnd').length
+        slToPos = buildSlToPosition(mode, total)
       }
     }
   }
+
+  const entries = parseSetlistHtml(html, slToPos)
 
   const songs: LiveFansSong[] = entries.map((e, i) => ({
     song_name: e.song_name,
