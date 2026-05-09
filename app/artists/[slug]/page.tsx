@@ -11,7 +11,9 @@ import type { Tables } from '@/types/supabase'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date' | 'image_url' | 'slug'>
+type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date' | 'image_url' | 'slug'> & {
+  concerts: { id: string; setlist_submissions: { id: string }[] }[]
+}
 
 export const revalidate = 3600
 
@@ -61,7 +63,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
   if (!artist) notFound()
 
   const { data: tours } = await supabase
-    .from('tours').select('id, name, start_date, end_date, image_url, slug')
+    .from('tours').select('id, name, start_date, end_date, image_url, slug, concerts(id, setlist_submissions(id))')
     .eq('artist_id', artist.id).order('start_date', { ascending: false })
 
   const breadcrumbLd = {
@@ -168,6 +170,18 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
                       {t.end_date && new Date(t.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </p>
                   )}
+                  {t.concerts && t.concerts.length > 0 && (() => {
+                    const concertCount = t.concerts.length
+                    const setlistCount = t.concerts.filter(c => c.setlist_submissions.length > 0).length
+                    return (
+                      <p className="text-xs text-[#8888aa] mt-0.5">
+                        {concertCount}公演
+                        {setlistCount > 0 && (
+                          <span className="ml-2 text-violet-400">セトリ {setlistCount}公演分</span>
+                        )}
+                      </p>
+                    )
+                  })()}
                 </div>
                 <span className="text-[#8888aa] group-hover:text-violet-300 transition-colors">›</span>
               </Link>
