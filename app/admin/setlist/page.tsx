@@ -131,6 +131,7 @@ export default function AdminSetlistPage() {
       .from('concerts')
       .select('id, venue_name, date, artists(name), tours(name)')
       .order('date', { ascending: false })
+      .limit(5000)
     setAllConcerts((data ?? []) as unknown as Concert[])
   }
 

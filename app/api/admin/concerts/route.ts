@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin()
     const admin = createAdminClient()
-    const { data, error } = await admin
+    const { searchParams } = new URL(req.url)
+    const artistId = searchParams.get('artist_id')
+    let query = admin
       .from('concerts')
       .select('*, artists(id, name), tours(id, name)')
       .order('date', { ascending: false })
+      .limit(5000)
+    if (artistId) query = query.eq('artist_id', artistId)
+    const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)
   } catch {

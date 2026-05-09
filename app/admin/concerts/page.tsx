@@ -30,16 +30,23 @@ export default function AdminConcertsPage() {
   const [loadError, setLoadError] = useState(false)
   const [filterArtist, setFilterArtist] = useState('')
 
+  const loadConcerts = async (artistId?: string) => {
+    const url = artistId ? `/api/admin/concerts?artist_id=${artistId}` : '/api/admin/concerts'
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('fetch failed')
+    setConcerts(await res.json())
+  }
+
   const load = async () => {
     try {
-      const [ccRes, arRes, trRes] = await Promise.all([
-        fetch('/api/admin/concerts'),
+      const [arRes, trRes] = await Promise.all([
         fetch('/api/admin/artists'),
         fetch('/api/admin/tours'),
       ])
-      if (!ccRes.ok || !arRes.ok || !trRes.ok) throw new Error('fetch failed')
-      const [cc, ar, tr] = await Promise.all([ccRes.json(), arRes.json(), trRes.json()])
-      setConcerts(cc); setArtists(ar); setTours(tr)
+      if (!arRes.ok || !trRes.ok) throw new Error('fetch failed')
+      const [ar, tr] = await Promise.all([arRes.json(), trRes.json()])
+      setArtists(ar); setTours(tr)
+      await loadConcerts()
     } catch {
       setLoadError(true)
     } finally {
@@ -102,17 +109,15 @@ export default function AdminConcertsPage() {
     }
   }
 
-  const displayed = filterArtist ? concerts.filter(c => c.artists?.id === filterArtist) : concerts
-
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-black text-white">公演管理</h1>
-          <p className="text-sm text-[#8888aa] mt-0.5">{displayed.length}件</p>
+          <p className="text-sm text-[#8888aa] mt-0.5">{concerts.length}件</p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={filterArtist} onChange={e => setFilterArtist(e.target.value)}
+          <select value={filterArtist} onChange={e => { setFilterArtist(e.target.value); loadConcerts(e.target.value || undefined) }}
             className="bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none">
             <option value="">全アーティスト</option>
             {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -131,11 +136,11 @@ export default function AdminConcertsPage() {
           <p className="text-red-400 text-sm">データの読み込みに失敗しました</p>
           <button onClick={load} className="text-xs border border-white/10 text-[#8888aa] hover:text-white px-4 py-2 rounded-full transition-colors">再試行</button>
         </div>
-      ) : displayed.length === 0 ? (
+      ) : concerts.length === 0 ? (
         <div className="glass rounded-2xl p-10 text-center text-[#8888aa] text-sm">公演がまだ登録されていません</div>
       ) : (
         <div className="space-y-2">
-          {displayed.map(c => (
+          {concerts.map(c => (
             <div key={c.id} className="glass rounded-2xl px-5 py-4 flex items-center gap-4">
               <div className="shrink-0 text-center w-12">
                 <p className="text-xs text-[#8888aa]">{new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}</p>
