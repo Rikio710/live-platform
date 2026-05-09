@@ -127,12 +127,10 @@ export default function AdminSetlistPage() {
   const [tourSetlistProgress, setTourSetlistProgress] = useState<{ done: number; total: number; log: string[] } | null>(null)
 
   const loadConcerts = async () => {
-    const { data } = await supabase
-      .from('concerts')
-      .select('id, venue_name, date, artists(name), tours(name)')
-      .order('date', { ascending: false })
-      .limit(5000)
-    setAllConcerts((data ?? []) as unknown as Concert[])
+    const res = await fetch('/api/admin/concerts')
+    if (!res.ok) return
+    const data = await res.json()
+    setAllConcerts(data as Concert[])
   }
 
   const load = async () => {
