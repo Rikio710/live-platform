@@ -18,11 +18,10 @@ function parseTableRows($: cheerio.CheerioAPI, selector: string): ConcertRow[] {
     if (!dm) return
     const date = `${dm[1]}-${dm[2]}-${dm[3]}`
 
-    // セル1: 開演時間
+    // セル1: 開演時間（なくてもスキップしない）
     const timeText = $(tds[1]).text().trim()
-    const tm = timeText.match(/^(\d{1,2}):(\d{2})$/)
-    if (!tm) return
-    const time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
+    const tm = timeText.match(/(\d{1,2}):(\d{2})/)
+    const time = tm ? `${tm[1].padStart(2, '0')}:${tm[2]}:00` : ''
 
     // セル2: 会場名（都道府県サフィックスを除去）
     const venueRaw = $(tds[2]).text().trim()
