@@ -8,15 +8,25 @@ export async function GET(req: NextRequest) {
     const admin = createAdminClient()
     const { searchParams } = new URL(req.url)
     const artistId = searchParams.get('artist_id')
-    let query = admin
-      .from('concerts')
-      .select('*, artists(id, name), tours(id, name)')
-      .order('date', { ascending: false })
-      .limit(5000)
-    if (artistId) query = query.eq('artist_id', artistId)
-    const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data)
+
+    const PAGE = 1000
+    const all: any[] = []
+    let page = 0
+    while (true) {
+      let query = admin
+        .from('concerts')
+        .select('*, artists(id, name), tours(id, name)')
+        .order('date', { ascending: false })
+        .range(page * PAGE, (page + 1) * PAGE - 1)
+      if (artistId) query = query.eq('artist_id', artistId)
+      const { data, error } = await query
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (!data?.length) break
+      all.push(...data)
+      if (data.length < PAGE) break
+      page++
+    }
+    return NextResponse.json(all)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
