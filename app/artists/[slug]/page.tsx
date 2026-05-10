@@ -10,6 +10,7 @@ import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SHORT_ID_RE = /^[0-9a-f]{8}$/i
 
 type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date' | 'image_url' | 'slug'> & {
   concerts: { id: string; setlist_submissions: { id: string }[] }[]
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const slug = decodeURIComponent(rawSlug)
   const supabase = await createClient()
   const query = supabase.from('artists').select('name, description, image_url')
-  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : query.eq('slug', slug)).single()
+  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
   if (!data) return { title: 'アーティスト' }
   const title = `${data.name} セトリ・ライブ情報 2026`
   const description = `${data.name}のセットリスト・ライブ・コンサート情報を公演ごとに記録。参戦レポート・掲示板・参戦履歴管理も。${data.description ? data.description.slice(0, 40) : ''}`
@@ -51,13 +52,11 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
   const supabase = await createClient()
 
   if (UUID_RE.test(slug)) {
-    const { data: r } = await supabase.from('artists').select('slug').eq('id', slug).single()
-    if (r?.slug) permanentRedirect(`/artists/${r.slug}`)
+    permanentRedirect(`/artists/${slug.slice(0, 8)}`)
   }
 
-  const isUuid = UUID_RE.test(slug)
-  const { data: artist } = await (isUuid
-    ? supabase.from('artists').select('*').eq('id', slug)
+  const { data: artist } = await (SHORT_ID_RE.test(slug)
+    ? supabase.from('artists').select('*').like('id', `${slug}%`)
     : supabase.from('artists').select('*').eq('slug', slug)
   ).single()
   if (!artist) notFound()
@@ -81,7 +80,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
     name: artist.name,
     description: artist.description ?? undefined,
     image: artist.image_url ?? undefined,
-    url: `${siteUrl}/artists/${artist.slug ?? slug}`,
+    url: `${siteUrl}/artists/${artist.id.slice(0, 8)}`,
   }
 
   return (
@@ -152,7 +151,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
         ) : (
           <div className="space-y-3">
             {(tours ?? [] as ArtistTour[]).map((t) => (
-              <Link key={t.id} href={`/tours/${t.slug ?? t.id}`}
+              <Link key={t.id} href={`/tours/${t.id.slice(0, 8)}`}
                 className="glass rounded-2xl p-5 flex items-center gap-4 hover:border-violet-500/40 transition-colors group">
                 {t.image_url ? (
                   <img src={t.image_url} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />

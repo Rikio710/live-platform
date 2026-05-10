@@ -47,7 +47,7 @@ export default function UpcomingConcerts({ initialConcerts }: { initialConcerts:
     <div className="space-y-4">
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {concerts.map(c => (
-          <Link key={c.id} href={`/concerts/${c.slug ?? c.id}`}
+          <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
             className="glass rounded-2xl overflow-hidden hover:border-violet-500/40 transition-all group">
             <div className="h-36 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
               {(c.image_url || c.tours?.image_url) && (

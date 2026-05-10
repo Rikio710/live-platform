@@ -82,7 +82,7 @@ export default async function SearchPage({
           </h2>
           <div className="space-y-2">
             {(artists ?? []).map(a => (
-              <Link key={a.id} href={`/artists/${a.slug ?? a.id}`}
+              <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
                 className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-violet-500/40 transition-colors group">
                 {a.image_url
                   ? <img src={a.image_url} alt={a.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
@@ -103,7 +103,7 @@ export default async function SearchPage({
           </h2>
           <div className="space-y-2">
             {(tours ?? []).map((t: any) => (
-              <Link key={t.id} href={`/tours/${t.slug ?? t.id}`}
+              <Link key={t.id} href={`/tours/${t.id.slice(0, 8)}`}
                 className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-violet-500/40 transition-colors group">
                 <div className="flex-1 min-w-0">
                   {t.artists?.name && <p className="text-xs text-violet-300">{t.artists.name}</p>}
@@ -124,7 +124,7 @@ export default async function SearchPage({
           </h2>
           <div className="space-y-2">
             {(concerts ?? []).map((c: any) => (
-              <Link key={c.id} href={`/concerts/${c.slug ?? c.id}`}
+              <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
                 className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-violet-500/40 transition-colors group">
                 <div className="flex-1 min-w-0">
                   {c.artists?.name && <p className="text-xs text-violet-300">{c.artists.name}</p>}
@@ -149,7 +149,7 @@ export default async function SearchPage({
                 <p className="font-bold text-white">{s.song_name}</p>
                 <div className="space-y-1">
                   {s.concerts.slice(0, 3).map(c => (
-                    <Link key={c.id} href={`/concerts/${c.slug ?? c.id}`}
+                    <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
                       className="flex items-center gap-2 text-xs text-[#8888aa] hover:text-violet-300 transition-colors">
                       <span className="shrink-0">{c.date}</span>
                       <span className="truncate">{c.artist && `${c.artist} `}{c.venue_name}</span>

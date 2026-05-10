@@ -9,6 +9,7 @@ import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SHORT_ID_RE = /^[0-9a-f]{8}$/i
 
 type TourWithArtist = Tables<'tours'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'slug'> | null
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const slug = decodeURIComponent(rawSlug)
   const supabase = await createClient()
   const query = supabase.from('tours').select('name, image_url, artists(name)')
-  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : query.eq('slug', slug)).single()
+  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
   if (!data) return { title: 'ツアー' }
   const metaTour = data as { name: string; image_url: string | null; artists: Pick<Tables<'artists'>, 'name'> | null }
   const artistName = metaTour.artists?.name ?? ''
@@ -56,13 +57,11 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
   const supabase = await createClient()
 
   if (UUID_RE.test(slug)) {
-    const { data: r } = await supabase.from('tours').select('slug').eq('id', slug).single()
-    if (r?.slug) permanentRedirect(`/tours/${r.slug}`)
+    permanentRedirect(`/tours/${slug.slice(0, 8)}`)
   }
 
-  const isUuid = UUID_RE.test(slug)
-  const { data: tourRaw } = await (isUuid
-    ? supabase.from('tours').select('*, artists(id, name, image_url, slug)').eq('id', slug)
+  const { data: tourRaw } = await (SHORT_ID_RE.test(slug)
+    ? supabase.from('tours').select('*, artists(id, name, image_url, slug)').like('id', `${slug}%`)
     : supabase.from('tours').select('*, artists(id, name, image_url, slug)').eq('slug', slug)
   ).single()
 
@@ -82,7 +81,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'ホーム', item: siteUrl },
-      ...(tour.artists ? [{ '@type': 'ListItem', position: 2, name: tour.artists.name, item: `${siteUrl}/artists/${tour.artists.id}` }] : []),
+      ...(tour.artists ? [{ '@type': 'ListItem', position: 2, name: tour.artists.name, item: `${siteUrl}/artists/${tour.artists.id.slice(0, 8)}` }] : []),
       { '@type': 'ListItem', position: tour.artists ? 3 : 2, name: tour.name },
     ],
   }
@@ -94,7 +93,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
     name: tour.name,
     performer: tour.artists ? { '@type': 'MusicGroup', name: tour.artists.name } : undefined,
     image: tour.image_url ?? undefined,
-    url: `${siteUrl}/tours/${tour.slug ?? slug}`,
+    url: `${siteUrl}/tours/${tour.id.slice(0, 8)}`,
     ...(tour.start_date ? { startDate: tour.start_date } : {}),
     ...(tour.end_date ? { endDate: tour.end_date } : {}),
     ...(firstConcert ? {
@@ -113,7 +112,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
         name: c.venue_name,
         address: c.venue_address ?? undefined,
       },
-      url: `${siteUrl}/concerts/${c.id}`,
+      url: `${siteUrl}/concerts/${c.id.slice(0, 8)}`,
     })),
   }
 
@@ -127,7 +126,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
         <span>/</span>
         {tour.artists && (
           <>
-            <Link href={`/artists/${tour.artists.slug ?? tour.artists.id}`} className="hover:text-white transition-colors">
+            <Link href={`/artists/${tour.artists.id.slice(0, 8)}`} className="hover:text-white transition-colors">
               {tour.artists.name}
             </Link>
             <span>/</span>
@@ -139,7 +138,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
       {/* ヘッダー */}
       <div className="space-y-3">
         {tour.artists && (
-          <Link href={`/artists/${tour.artists.slug ?? tour.artists.id}`}
+          <Link href={`/artists/${tour.artists.id.slice(0, 8)}`}
             className="inline-flex items-center gap-2 text-sm text-violet-300 hover:text-violet-200 transition-colors">
             {tour.artists.image_url && (
               <img src={tour.artists.image_url} alt={tour.artists.name} className="w-5 h-5 rounded-full object-cover" />
@@ -177,7 +176,7 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
             {(concerts ?? [] as TourConcert[]).map((c) => {
               const isPast = c.date < today
               return (
-                <Link key={c.id} href={`/concerts/${c.slug ?? c.id}`}
+                <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
                   className={`glass rounded-2xl p-5 flex items-center gap-4 hover:border-violet-500/40 transition-colors group ${isPast ? 'opacity-60' : ''}`}>
                   <div className="shrink-0 text-center w-14">
                     <p className="text-xs text-[#8888aa]">

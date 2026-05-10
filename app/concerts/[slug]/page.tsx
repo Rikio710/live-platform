@@ -24,6 +24,7 @@ type MetadataConcert = Pick<Tables<'concerts'>, 'venue_name' | 'date' | 'image_u
 export const revalidate = 60
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SHORT_ID_RE = /^[0-9a-f]{8}$/i
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
@@ -31,10 +32,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const supabase = await createClient()
   const query = supabase
     .from('concerts')
-    .select('venue_name, date, image_url, artists(name), tours(name, image_url)')
-  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : query.eq('slug', slug)).single()
+    .select('id, venue_name, date, image_url, artists(name), tours(name, image_url)')
+  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
   if (!data) return { title: '公演' }
-  const d = data as MetadataConcert & { slug?: string }
+  const d = data as MetadataConcert & { id: string; slug?: string }
+  const shortId = d.id.slice(0, 8)
   const dateStr = new Date(d.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
   const dateShort = new Date(d.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })
   const title = `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} ${dateShort} セトリ`
@@ -44,12 +46,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     alternates: {
-      canonical: `${siteUrl}/concerts/${d.slug ?? slug}`,
+      canonical: `${siteUrl}/concerts/${shortId}`,
     },
     openGraph: {
       title,
       description,
-      url: `${siteUrl}/concerts/${d.slug ?? slug}`,
+      url: `${siteUrl}/concerts/${shortId}`,
       ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}),
     },
     twitter: {
@@ -73,17 +75,15 @@ export default async function ConcertPage({
   const { tab = 'board' } = await searchParams
   const supabase = await createClient()
 
-  // UUID での旧URLは slug にリダイレクト
+  // UUID での旧URLは短縮URLにリダイレクト
   if (UUID_RE.test(slug)) {
-    const { data: r } = await supabase.from('concerts').select('slug').eq('id', slug).single()
-    if (r?.slug) permanentRedirect(`/concerts/${r.slug}`)
+    permanentRedirect(`/concerts/${slug.slice(0, 8)}`)
   }
 
-  const isUuid = UUID_RE.test(slug)
   const query = supabase
     .from('concerts')
     .select('*, artists(id, name, image_url), tours(id, name, image_url)')
-  const { data: concert } = await (isUuid ? query.eq('id', slug) : query.eq('slug', slug)).single()
+  const { data: concert } = await (SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
 
   if (!concert) notFound()
 
@@ -114,8 +114,8 @@ export default async function ConcertPage({
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'ホーム', item: siteUrl },
-      ...(c.artists ? [{ '@type': 'ListItem', position: 2, name: c.artists.name, item: `${siteUrl}/artists/${(c.artists as any).slug ?? c.artists.id}` }] : []),
-      ...(c.tours ? [{ '@type': 'ListItem', position: c.artists ? 3 : 2, name: c.tours.name, item: `${siteUrl}/tours/${(c.tours as any).slug ?? c.tours.id}` }] : []),
+      ...(c.artists ? [{ '@type': 'ListItem', position: 2, name: c.artists.name, item: `${siteUrl}/artists/${c.artists.id.slice(0, 8)}` }] : []),
+      ...(c.tours ? [{ '@type': 'ListItem', position: c.artists ? 3 : 2, name: c.tours.name, item: `${siteUrl}/tours/${c.tours.id.slice(0, 8)}` }] : []),
       { '@type': 'ListItem', position: (c.artists ? 1 : 0) + (c.tours ? 1 : 0) + 2, name: c.venue_name },
     ],
   }
@@ -135,7 +135,7 @@ export default async function ConcertPage({
       name: c.artists.name,
     } : undefined,
     image: c.image_url || c.tours?.image_url || undefined,
-    url: `${siteUrl}/concerts/${c.slug ?? slug}`,
+    url: `${siteUrl}/concerts/${c.id.slice(0, 8)}`,
     ...(sortedSongs.length > 0 ? {
       workPerformed: sortedSongs
         .filter(s => s.song_type === 'song')
@@ -153,13 +153,13 @@ export default async function ConcertPage({
         <span>/</span>
         {c.artists && (
           <>
-            <Link href={`/artists/${(c.artists as any).slug ?? c.artists.id}`} className="hover:text-white transition-colors">{c.artists.name}</Link>
+            <Link href={`/artists/${c.artists.id.slice(0, 8)}`} className="hover:text-white transition-colors">{c.artists.name}</Link>
             <span>/</span>
           </>
         )}
         {c.tours && (
           <>
-            <Link href={`/tours/${(c.tours as any).slug ?? c.tours.id}`} className="hover:text-white transition-colors">{c.tours.name}</Link>
+            <Link href={`/tours/${c.tours.id.slice(0, 8)}`} className="hover:text-white transition-colors">{c.tours.name}</Link>
             <span>/</span>
           </>
         )}
@@ -175,7 +175,7 @@ export default async function ConcertPage({
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1">
               {c.artists && (
-                <Link href={`/artists/${(c.artists as any).slug ?? c.artists.id}`}
+                <Link href={`/artists/${c.artists.id.slice(0, 8)}`}
                   className="text-sm text-violet-300 font-bold hover:text-violet-200 transition-colors">
                   {c.artists.name}
                 </Link>
@@ -213,7 +213,7 @@ export default async function ConcertPage({
               <span className="text-white font-bold">{attendCount ?? 0}</span> 人が参戦登録
             </span>
             <ConcertShareButton
-              url={`${siteUrl}/concerts/${c.slug ?? slug}`}
+              url={`${siteUrl}/concerts/${c.id.slice(0, 8)}`}
               title={`${c.artists?.name ?? ''} ${c.tours?.name ?? c.venue_name} ${new Date(c.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}`}
             />
           </div>

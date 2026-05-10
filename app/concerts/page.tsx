@@ -98,7 +98,7 @@ export default async function ConcertsPage({
           {currentList.map(c => (
             <Link
               key={c.id}
-              href={`/concerts/${c.slug ?? c.id}`}
+              href={`/concerts/${c.id.slice(0, 8)}`}
               className="glass rounded-2xl p-4 flex items-center gap-4 hover:border-violet-500/40 transition-colors group"
             >
               {/* サムネイル */}

@@ -196,7 +196,7 @@ export default async function MyPage() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {follows.map((f) => (
-              <Link key={f.artist_id} href={`/artists/${f.artists.slug ?? f.artists.id}`}
+              <Link key={f.artist_id} href={`/artists/${f.artists.id.slice(0, 8)}`}
                 className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-pink-500/30 transition-colors text-sm font-medium">
                 {f.artists.image_url ? (
                   <img src={f.artists.image_url} alt="" className="w-6 h-6 rounded-full object-cover" />

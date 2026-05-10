@@ -18,20 +18,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const venueNames = [...new Set((venueRows ?? []).map(r => r.venue_name))]
 
   const concertUrls: MetadataRoute.Sitemap = (concerts ?? []).map(c => ({
-    url: `${baseUrl}/concerts/${c.slug ?? c.id}`,
+    url: `${baseUrl}/concerts/${c.id.slice(0, 8)}`,
     lastModified: new Date(c.date),
     changeFrequency: 'weekly',
     priority: 0.8,
   }))
 
   const artistUrls: MetadataRoute.Sitemap = (artists ?? []).map(a => ({
-    url: `${baseUrl}/artists/${a.slug ?? a.id}`,
+    url: `${baseUrl}/artists/${a.id.slice(0, 8)}`,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))
 
   const tourUrls: MetadataRoute.Sitemap = (tours ?? []).map(t => ({
-    url: `${baseUrl}/tours/${t.slug ?? t.id}`,
+    url: `${baseUrl}/tours/${t.id.slice(0, 8)}`,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))

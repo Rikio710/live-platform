@@ -64,7 +64,7 @@ export default function ArtistsPage() {
           ))
         ) : filtered.map((a) => (
           <div key={a.id} className="glass rounded-2xl overflow-hidden hover:border-violet-500/30 transition-all group">
-            <Link href={`/artists/${a.slug ?? a.id}`} className="block">
+            <Link href={`/artists/${a.id.slice(0, 8)}`} className="block">
               <div className="h-32 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
                 {a.image_url ? (
                   <img src={a.image_url} alt={a.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" />

@@ -80,7 +80,7 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
         ...(venueAddress ? { address: venueAddress } : {}),
       },
       performer: c.artists ? { '@type': 'MusicGroup', name: c.artists.name } : undefined,
-      url: `${siteUrl}/concerts/${(c as any).slug ?? c.id}`,
+      url: `${siteUrl}/concerts/${c.id.slice(0, 8)}`,
     })),
   }
 
@@ -135,7 +135,7 @@ function ConcertList({ concerts, today }: { concerts: ConcertRow[]; today: strin
       {concerts.map(c => {
         const isPast = c.date < today
         return (
-          <Link key={c.id} href={`/concerts/${c.slug ?? c.id}`}
+          <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
             className={`glass rounded-2xl p-4 flex items-center gap-4 hover:border-violet-500/40 transition-colors group ${isPast ? 'opacity-60' : ''}`}>
             <div className="shrink-0 text-center w-12">
               <p className="text-xs text-[#8888aa]">
