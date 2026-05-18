@@ -7,7 +7,7 @@ import { ChevronDown, ChevronUp, Plus, Trash2, Check, X, PlusCircle, Download } 
 import type { LiveFansSong } from '@/app/api/admin/livefans-import/route'
 import type { TourEvent } from '@/app/api/admin/livefans-tour-events/route'
 
-type Concert = { id: string; venue_name: string; date: string; artists: { name: string } | null; tours: { name: string } | null }
+type Concert = { id: string; venue_name: string; date: string; start_time: string | null; artists: { name: string } | null; tours: { name: string } | null }
 type Profile = { username: string | null }
 type Song = {
   id: string
@@ -395,17 +395,24 @@ export default function AdminSetlistPage() {
       const data = await res.json()
       if (!res.ok) { setTourFetchError(data.error ?? '取得失敗'); return }
 
-      // Auto-match each event to a DB concert by date + venue name
+      // Auto-match: 同日同会場の2回目は別のconcertを割り当てる
       const normalize = (s: string) => s.replace(/[\s　・･]/g, '').toLowerCase()
       const matches: Record<number, string> = {}
+      const usedConcertIds = new Set<string>()
       ;(data.events as TourEvent[]).forEach((event, i) => {
         const sameDate = allConcerts.filter(c => c.date === event.date)
         const venueNorm = normalize(event.venue_name)
-        // 1. 日付＋会場名が部分一致
-        const exact = sameDate.find(c => normalize(c.venue_name).includes(venueNorm) || venueNorm.includes(normalize(c.venue_name)))
-        if (exact) { matches[i] = exact.id; return }
-        // 2. 日付のみで1件しかなければそれを採用
-        if (sameDate.length === 1) matches[i] = sameDate[0].id
+        const venueMatches = sameDate.filter(c =>
+          normalize(c.venue_name).includes(venueNorm) || venueNorm.includes(normalize(c.venue_name))
+        )
+        // 会場名マッチなし → 日付のみで1件ならフォールバック
+        const candidates = venueMatches.length > 0 ? venueMatches : (sameDate.length === 1 ? sameDate : [])
+        // まだ使っていないconcertを順に割り当てる（2部目は自動的に別のconcertへ）
+        const pick = candidates.find(c => !usedConcertIds.has(c.id))
+        if (pick) {
+          matches[i] = pick.id
+          usedConcertIds.add(pick.id)
+        }
       })
       setTourEvents(data.events)
       setTourMatches(matches)
@@ -452,7 +459,7 @@ export default function AdminSetlistPage() {
 
         const { data: sub, error } = await supabase
           .from('setlist_submissions')
-          .insert({ concert_id: concertId, user_id: user.id, votes_count: 0 })
+          .upsert({ concert_id: concertId, user_id: user.id, votes_count: 0 }, { onConflict: 'concert_id,user_id' })
           .select('id').single()
 
         if (error || !sub) {
@@ -693,8 +700,8 @@ export default function AdminSetlistPage() {
               <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
                 {tourEvents.map((event, i) => (
                   <div key={i} className="flex items-center gap-2 bg-white/3 rounded-xl px-3 py-2">
-                    <div className="w-24 shrink-0">
-                      <p className="text-xs text-white">{event.date}</p>
+                    <div className="w-28 shrink-0">
+                      <p className="text-xs text-white">{event.date}{event.start_time ? ` ${event.start_time.slice(0, 5)}` : ''}</p>
                       <p className="text-xs text-[#8888aa] truncate">{event.venue_name}</p>
                     </div>
                     <span className="text-[#8888aa] text-xs shrink-0">→</span>
@@ -708,7 +715,7 @@ export default function AdminSetlistPage() {
                         .filter(c => c.date === event.date || Math.abs(new Date(c.date).getTime() - new Date(event.date).getTime()) < 86400000 * 3)
                         .map(c => (
                           <option key={c.id} value={c.id}>
-                            {c.venue_name}（{c.date}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
+                            {c.venue_name}（{c.date}{c.start_time ? ` ${c.start_time.slice(0, 5)}` : ''}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
                           </option>
                         ))}
                       {allConcerts.filter(c => c.date === event.date || Math.abs(new Date(c.date).getTime() - new Date(event.date).getTime()) < 86400000 * 3).length === 0 && (

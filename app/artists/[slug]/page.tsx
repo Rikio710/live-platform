@@ -12,6 +12,12 @@ import type { Tables } from '@/types/supabase'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i
 
+function shortIdRange(shortId: string) {
+  const lo = `${shortId}-0000-0000-0000-000000000000`
+  const hi = `${(parseInt(shortId, 16) + 1).toString(16).padStart(8, '0')}-0000-0000-0000-000000000000`
+  return { lo, hi }
+}
+
 type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date' | 'image_url' | 'slug'> & {
   concerts: { id: string; setlist_submissions: { id: string }[] }[]
 }
@@ -23,7 +29,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const slug = decodeURIComponent(rawSlug)
   const supabase = await createClient()
   const query = supabase.from('artists').select('name, description, image_url')
-  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
+  let metaQuery = UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
+  const { data } = await metaQuery.single()
   if (!data) return { title: 'アーティスト' }
   const title = `${data.name} セトリ・ライブ情報 2026`
   const description = `${data.name}のセットリスト・ライブ・コンサート情報を公演ごとに記録。参戦レポート・掲示板・参戦履歴管理も。${data.description ? data.description.slice(0, 40) : ''}`
@@ -56,7 +63,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ slug: s
   }
 
   const { data: artist } = await (SHORT_ID_RE.test(slug)
-    ? supabase.from('artists').select('*').like('id', `${slug}%`)
+    ? (() => { const { lo, hi } = shortIdRange(slug); return supabase.from('artists').select('*').gte('id', lo).lt('id', hi) })()
     : supabase.from('artists').select('*').eq('slug', slug)
   ).single()
   if (!artist) notFound()

@@ -63,11 +63,26 @@ export async function POST(req: NextRequest) {
     if (!dm) return
     const date = `${dm[1]}-${dm[2]}-${dm[3]}`
 
-    const timeText = $(tds[1]).text().trim()
-    const tm = timeText.match(/^(\d{1,2}):(\d{2})$/)
-    const start_time = tm ? `${tm[1].padStart(2, '0')}:${tm[2]}:00` : ''
+    // 全 td から時刻パターンを探す（列構成がページによって異なるため）
+    let start_time = ''
+    for (const td of tds) {
+      const txt = $(td).text().trim()
+      const tm = txt.match(/(\d{1,2}):(\d{2})/)
+      if (tm) {
+        start_time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
+        break
+      }
+    }
 
-    const venueRaw = $(tds[2]).text().trim()
+    // 日付セルの次のセルから会場名を探す（時刻セルをスキップ）
+    let venueRaw = ''
+    for (let j = 1; j < tds.length; j++) {
+      const txt = $(tds[j]).text().trim()
+      // 時刻っぽいもの・数字のみはスキップ
+      if (/^[\d:]+$/.test(txt)) continue
+      // 十分な長さがあれば会場名と判断
+      if (txt.length >= 3) { venueRaw = txt; break }
+    }
     const venue_name = venueRaw
       .replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '')
       .trim()

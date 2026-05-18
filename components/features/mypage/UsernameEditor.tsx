@@ -55,7 +55,7 @@ export default function UsernameEditor({ initialUsername }: { initialUsername: s
   }
 
   return (
-    <div className="glass rounded-2xl px-5 py-4 space-y-2">
+    <div className="flex-1 min-w-0 glass rounded-2xl px-5 py-4 space-y-2">
       <p className="text-xs text-[#8888aa]">ニックネーム</p>
       {editing ? (
         <div className="space-y-2">

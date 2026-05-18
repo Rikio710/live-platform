@@ -26,6 +26,12 @@ export const revalidate = 60
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i
 
+function shortIdRange(shortId: string) {
+  const lo = `${shortId}-0000-0000-0000-000000000000`
+  const hi = `${(parseInt(shortId, 16) + 1).toString(16).padStart(8, '0')}-0000-0000-0000-000000000000`
+  return { lo, hi }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
   const slug = decodeURIComponent(rawSlug)
@@ -33,7 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const query = supabase
     .from('concerts')
     .select('id, venue_name, date, image_url, artists(name), tours(name, image_url)')
-  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
+  let metaQuery = UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
+  const { data } = await metaQuery.single()
   if (!data) return { title: '公演' }
   const d = data as MetadataConcert & { id: string; slug?: string }
   const shortId = d.id.slice(0, 8)
@@ -83,7 +90,8 @@ export default async function ConcertPage({
   const query = supabase
     .from('concerts')
     .select('*, artists(id, name, image_url), tours(id, name, image_url)')
-  const { data: concert } = await (SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
+  const pageQuery = SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
+  const { data: concert } = await pageQuery.single()
 
   if (!concert) notFound()
 

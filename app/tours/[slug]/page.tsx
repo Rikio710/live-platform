@@ -11,6 +11,12 @@ import type { Tables } from '@/types/supabase'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i
 
+function shortIdRange(shortId: string) {
+  const lo = `${shortId}-0000-0000-0000-000000000000`
+  const hi = `${(parseInt(shortId, 16) + 1).toString(16).padStart(8, '0')}-0000-0000-0000-000000000000`
+  return { lo, hi }
+}
+
 type TourWithArtist = Tables<'tours'> & {
   artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'slug'> | null
 }
@@ -26,7 +32,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const slug = decodeURIComponent(rawSlug)
   const supabase = await createClient()
   const query = supabase.from('tours').select('name, image_url, artists(name)')
-  const { data } = await (UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? query.like('id', `${slug}%`) : query.eq('slug', slug)).single()
+  let metaQuery = UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
+  const { data } = await metaQuery.single()
   if (!data) return { title: 'ツアー' }
   const metaTour = data as { name: string; image_url: string | null; artists: Pick<Tables<'artists'>, 'name'> | null }
   const artistName = metaTour.artists?.name ?? ''
@@ -60,10 +67,14 @@ export default async function TourPage({ params }: { params: Promise<{ slug: str
     permanentRedirect(`/tours/${slug.slice(0, 8)}`)
   }
 
-  const { data: tourRaw } = await (SHORT_ID_RE.test(slug)
-    ? supabase.from('tours').select('*, artists(id, name, image_url, slug)').like('id', `${slug}%`)
-    : supabase.from('tours').select('*, artists(id, name, image_url, slug)').eq('slug', slug)
-  ).single()
+  const { data: tourRaw } = await (() => {
+    const q = supabase.from('tours').select('*, artists(id, name, image_url, slug)')
+    if (SHORT_ID_RE.test(slug)) {
+      const { lo, hi } = shortIdRange(slug)
+      return q.gte('id', lo).lt('id', hi)
+    }
+    return q.eq('slug', slug)
+  })().single()
 
   if (!tourRaw) notFound()
 
