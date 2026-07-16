@@ -1,0 +1,26 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/livefans-tour-crawl",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/admin/livefans-enrich",
+      "schedule": "0 3 * * *"
+    }
+  ],
+  "functions": {
+    "app/api/admin/setlist-crawl-queue/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/livefans-tour-crawl/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/livefans-full-crawl/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/livefans-enrich/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

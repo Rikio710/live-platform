@@ -1,0 +1,23 @@
+name: Setlist Auto Crawl
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # 2時間おき（UTC）
+  workflow_dispatch:         # 手動実行も可能
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run setlist crawl queue
+        run: |
+          response=$(curl -s -o /tmp/crawl_response.json -w "%{http_code}" \
+            -X GET "https://livevault.jp/api/admin/setlist-crawl-queue" \
+            -H "Authorization: Bearer ${{ secrets.CRAWL_SECRET }}")
+          echo "HTTP status: $response"
+          cat /tmp/crawl_response.json
+          if [ "$response" != "200" ]; then
+            echo "Crawl failed with status $response"
+            exit 1
+          fi
