@@ -35,7 +35,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja" className="h-full">
-      <body className="min-h-screen bg-[#0a0a0f] text-[#f0f0f5] flex flex-col">
+      <body className="min-h-screen bg-[#121212] text-[#f0f0f5] flex flex-col">
+        {/* Google Tag Manager (noscript) */}
+        <noscript dangerouslySetInnerHTML={{ __html: `<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W4KMGKTN" height="0" width="0" style="display:none;visibility:hidden"></iframe>` }} />
         <Header />
         <main className="flex-1 pb-16 sm:pb-0">{children}</main>
         <footer className="border-t border-white/5 mt-16 pb-16 sm:pb-0">
@@ -47,6 +49,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </footer>
         <Analytics />
+        {/* Google Tag Manager */}
+        <Script id="gtm" strategy="afterInteractive">{`
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-W4KMGKTN');
+        `}</Script>
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-CCZ7XJC4MD" strategy="afterInteractive" />
         <Script id="gtag-init" strategy="afterInteractive">{`
           window.dataLayer = window.dataLayer || [];

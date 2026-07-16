@@ -70,7 +70,7 @@ export default function AdminRequestsPage() {
           <h1 className="text-xl font-black text-white flex items-center gap-2">
             追加リクエスト
             {pendingCount > 0 && (
-              <span className="text-xs bg-violet-600 text-white font-bold px-2.5 py-1 rounded-full">{pendingCount}</span>
+              <span className="text-xs bg-white text-black font-bold px-2.5 py-1 rounded-full">{pendingCount}</span>
             )}
           </h1>
           <p className="text-sm text-[#8888aa] mt-0.5">{requests.length}件</p>
@@ -82,7 +82,7 @@ export default function AdminRequestsPage() {
         {STATUS_FILTER.map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
-              filter === s ? 'bg-violet-600 text-white' : 'border border-white/10 text-[#8888aa] hover:text-white'
+              filter === s ? 'bg-white text-black' : 'border border-white/10 text-[#8888aa] hover:text-white'
             }`}>
             {s === 'all' ? 'すべて' : s === 'pending' ? '審査中' : s === 'approved' ? '承認済み' : '却下'}
           </button>
@@ -107,8 +107,8 @@ export default function AdminRequestsPage() {
             return (
               <div key={r.id} className="glass rounded-2xl overflow-hidden">
                 <button className="w-full px-5 py-4 flex items-center gap-4 text-left" onClick={() => setExpanded(isOpen ? null : r.id)}>
-                  <div className="w-9 h-9 rounded-xl bg-violet-800/50 flex items-center justify-center shrink-0">
-                    <Icon size={16} className="text-violet-400" />
+                  <div className="w-9 h-9 rounded-xl bg-[#333333] flex items-center justify-center shrink-0">
+                    <Icon size={16} className="text-[#b3b3b3]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -139,7 +139,7 @@ export default function AdminRequestsPage() {
                         <button
                           onClick={() => handle(r.id, 'approved')}
                           disabled={processing === r.id}
-                          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors">
+                          className="flex items-center gap-2 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold text-sm px-5 py-2.5 rounded-xl transition-colors">
                           <CheckCircle size={15} />
                           {processing === r.id ? '処理中...' : '承認して登録'}
                         </button>

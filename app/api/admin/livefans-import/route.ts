@@ -161,7 +161,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const entries = parseSetlistHtml(html, slToPos)
+  let entries = parseSetlistHtml(html, slToPos)
+
+  // 古い形式のページ（td.rndがない）はリンクベースでパース
+  if (entries.length === 0) {
+    const $ = cheerio.load(html)
+    const encorePos = html.indexOf('アンコール')
+    let orderNum = 0
+    $('a[href*="/songs/"]').each((_, el) => {
+      const name = $(el).text().trim()
+      if (!name || /^(歌詞|youtube|YouTube)$/i.test(name)) return
+      const href = $(el).attr('href') ?? ''
+      const hrefPos = html.indexOf(`"${href}"`)
+      entries.push({
+        sort_key: ++orderNum,
+        song_name: name,
+        song_type: 'song' as const,
+        is_encore: encorePos > 0 && hrefPos > encorePos,
+        memo: null,
+      })
+    })
+  }
 
   const songs: LiveFansSong[] = entries.map((e, i) => ({
     song_name: e.song_name,
@@ -171,5 +191,13 @@ export async function POST(req: NextRequest) {
     order_num: i + 1,
   }))
 
-  return NextResponse.json({ songs, eventTitle })
+  // Extract performers from artist links on the event page
+  const performerSet = new Set<string>()
+  $main('a[href*="/artists/"]').each((_, el) => {
+    const name = $main(el).text().trim()
+    if (name && name.length >= 2 && name.length <= 50) performerSet.add(name)
+  })
+  const performers = [...performerSet]
+
+  return NextResponse.json({ songs, eventTitle, performers })
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { dataLayerPush } from '@/lib/gtag'
 
 export default function LoginForm() {
   const supabase = createClient()
@@ -26,6 +27,9 @@ export default function LoginForm() {
       if (data.user) {
         const { data: profile } = await supabase
           .from('profiles').select('username').eq('id', data.user.id).single()
+        if (profile?.username) {
+          dataLayerPush({ event: 'login', method: 'email' })
+        }
         router.push(profile?.username ? '/mypage' : '/setup-profile')
       }
     } else {
@@ -44,7 +48,7 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4">
+    <div className="px-4 py-12 flex flex-col items-center sm:min-h-[80vh] sm:justify-center">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-black text-white">
@@ -83,7 +87,7 @@ export default function LoginForm() {
             onChange={e => setEmail(e.target.value)}
             placeholder="メールアドレス"
             required
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
           />
           <input
             type="password"
@@ -91,7 +95,7 @@ export default function LoginForm() {
             onChange={e => setPassword(e.target.value)}
             placeholder="パスワード"
             required
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
           />
 
           {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
@@ -100,7 +104,7 @@ export default function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-3 rounded-2xl transition-colors text-sm"
+            className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-3 rounded-2xl transition-colors text-sm"
           >
             {loading ? '処理中...' : mode === 'login' ? 'ログイン' : 'アカウント作成'}
           </button>
@@ -110,7 +114,7 @@ export default function LoginForm() {
           {mode === 'login' ? 'アカウントがない方は ' : 'すでにアカウントがある方は '}
           <button
             onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(null); setMessage(null) }}
-            className="text-violet-400 hover:text-violet-300 font-bold underline"
+            className="text-[#b3b3b3] hover:text-[#b3b3b3] font-bold underline"
           >
             {mode === 'login' ? '新規登録' : 'ログイン'}
           </button>

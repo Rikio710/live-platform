@@ -46,14 +46,14 @@ export default async function VenuesPage() {
           <Link
             key={v.name}
             href={`/venues/${encodeURIComponent(v.name)}`}
-            className="glass rounded-2xl p-4 hover:border-violet-500/40 transition-colors group"
+            className="glass rounded-2xl p-4 hover:border-white/20 transition-colors group"
           >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                <MapPin size={16} className="text-violet-400" />
+              <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center shrink-0 mt-0.5">
+                <MapPin size={16} className="text-[#b3b3b3]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-white text-sm group-hover:text-violet-300 transition-colors leading-snug">{v.name}</p>
+                <p className="font-bold text-white text-sm group-hover:text-[#b3b3b3] transition-colors leading-snug">{v.name}</p>
                 {v.address && (
                   <p className="text-xs text-[#8888aa] mt-0.5 truncate">{v.address}</p>
                 )}

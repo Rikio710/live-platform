@@ -6,21 +6,25 @@ import Link from 'next/link'
 
 type Artist = { id: string; name: string }
 type Tour = { id: string; name: string; artist_id: string; image_url: string | null }
+type FestivalEvent = { id: string; name: string; start_date: string; festival_groups: { name: string } | null }
 type Concert = {
   id: string; venue_name: string; venue_address: string | null
   date: string; start_time: string | null; image_url: string | null
   artists: Artist | null; tours: { id: string; name: string } | null
+  festival_events: { id: string; name: string; festival_groups: { name: string } | null } | null
+  stage_name: string | null
 }
 type Form = {
-  artist_id: string; tour_id: string; venue_name: string
-  venue_address: string; date: string; start_time: string; image_url: string
+  artist_id: string; tour_id: string; festival_event_id: string; stage_name: string
+  venue_name: string; venue_address: string; date: string; start_time: string; image_url: string
 }
-const EMPTY: Form = { artist_id: '', tour_id: '', venue_name: '', venue_address: '', date: '', start_time: '18:00', image_url: '' }
+const EMPTY: Form = { artist_id: '', tour_id: '', festival_event_id: '', stage_name: '', venue_name: '', venue_address: '', date: '', start_time: '18:00', image_url: '' }
 
 export default function AdminConcertsPage() {
   const [concerts, setConcerts] = useState<Concert[]>([])
   const [artists, setArtists] = useState<Artist[]>([])
   const [tours, setTours] = useState<Tour[]>([])
+  const [festivalEvents, setFestivalEvents] = useState<FestivalEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<'create' | 'edit' | null>(null)
   const [editing, setEditing] = useState<Concert | null>(null)
@@ -39,13 +43,21 @@ export default function AdminConcertsPage() {
 
   const load = async () => {
     try {
-      const [arRes, trRes] = await Promise.all([
+      const [arRes, trRes, feRes] = await Promise.all([
         fetch('/api/admin/artists'),
         fetch('/api/admin/tours'),
+        fetch('/api/admin/festivals'),
       ])
       if (!arRes.ok || !trRes.ok) throw new Error('fetch failed')
       const [ar, tr] = await Promise.all([arRes.json(), trRes.json()])
       setArtists(ar); setTours(tr)
+      if (feRes.ok) {
+        const groups = await feRes.json()
+        const events: FestivalEvent[] = groups.flatMap((g: { id: string; name: string; festival_events: { id: string; name: string; start_date: string }[] }) =>
+          (g.festival_events ?? []).map((e) => ({ ...e, festival_groups: { name: g.name } }))
+        )
+        setFestivalEvents(events.sort((a, b) => b.start_date.localeCompare(a.start_date)))
+      }
       await loadConcerts()
     } catch {
       setLoadError(true)
@@ -62,6 +74,8 @@ export default function AdminConcertsPage() {
     setForm({
       artist_id: c.artists?.id ?? '',
       tour_id: c.tours?.id ?? '',
+      festival_event_id: c.festival_events?.id ?? '',
+      stage_name: c.stage_name ?? '',
       venue_name: c.venue_name,
       venue_address: c.venue_address ?? '',
       date: c.date,
@@ -123,7 +137,7 @@ export default function AdminConcertsPage() {
             {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <button onClick={openCreate}
-            className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-4 py-2.5 rounded-full transition-colors shrink-0">
+            className="bg-white hover:bg-[#e0e0e0] text-black font-bold text-sm px-4 py-2.5 rounded-full transition-colors shrink-0">
             ＋ 追加
           </button>
         </div>
@@ -150,7 +164,7 @@ export default function AdminConcertsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-bold text-white truncate">{c.venue_name}</p>
-                  <span className="text-xs bg-violet-800/40 text-violet-300 px-2 py-0.5 rounded-full shrink-0">{c.artists?.name}</span>
+                  <span className="text-xs bg-[#333333] text-[#b3b3b3] px-2 py-0.5 rounded-full shrink-0">{c.artists?.name}</span>
                 </div>
                 <p className="text-xs text-[#8888aa] mt-0.5 truncate">
                   {c.tours?.name && `${c.tours.name} ・ `}{c.venue_address}
@@ -183,7 +197,7 @@ export default function AdminConcertsPage() {
               <label className="text-xs text-[#8888aa] mb-1 block">アーティスト *</label>
               <select value={form.artist_id}
                 onChange={e => setForm(f => ({ ...f, artist_id: e.target.value, tour_id: '' }))}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50">
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30">
                 <option value="">選択してください</option>
                 {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
@@ -192,12 +206,34 @@ export default function AdminConcertsPage() {
               <label className="text-xs text-[#8888aa] mb-1 block">ツアー（任意）</label>
               <select value={form.tour_id}
                 onChange={e => setForm(f => ({ ...f, tour_id: e.target.value }))}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
                 disabled={!form.artist_id}>
                 <option value="">選択なし（単独公演）</option>
                 {filteredTours.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
+            <div>
+              <label className="text-xs text-[#8888aa] mb-1 block">フェス開催（任意）</label>
+              <select value={form.festival_event_id}
+                onChange={e => setForm(f => ({ ...f, festival_event_id: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30">
+                <option value="">選択なし</option>
+                {festivalEvents.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.festival_groups?.name ? `${e.festival_groups.name} / ` : ''}{e.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {form.festival_event_id && (
+              <div>
+                <label className="text-xs text-[#8888aa] mb-1 block">ステージ名</label>
+                <input type="text" value={form.stage_name}
+                  onChange={e => setForm(f => ({ ...f, stage_name: e.target.value }))}
+                  placeholder="例: LOTUS STAGE"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
+              </div>
+            )}
             <div>
               <label className="text-xs text-[#8888aa] mb-1 block">会場名 *</label>
               <input
@@ -214,7 +250,7 @@ export default function AdminConcertsPage() {
                   }))
                 }}
                 placeholder="例: 東京ガーデンシアター"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
               />
               <datalist id="venue-list">
                 {Array.from(new Map(concerts.map(c => [c.venue_name, c])).values()).map(c => (
@@ -227,12 +263,12 @@ export default function AdminConcertsPage() {
               <div>
                 <label className="text-xs text-[#8888aa] mb-1 block">日付 *</label>
                 <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30" />
               </div>
               <div>
                 <label className="text-xs text-[#8888aa] mb-1 block">開演時刻</label>
                 <input type="time" step="300" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50" />
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30" />
               </div>
             </div>
             <div>
@@ -240,7 +276,7 @@ export default function AdminConcertsPage() {
               <input type="text" value={form.image_url}
                 onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
                 placeholder="空欄 = ツアー画像をデフォルト使用"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
               />
               {/* プレビュー */}
               {(() => {
@@ -260,7 +296,7 @@ export default function AdminConcertsPage() {
             {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
             <div className="flex gap-3 pt-2">
               <button onClick={() => setModal(null)} className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">キャンセル</button>
-              <button onClick={handleSave} disabled={saving} className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
+              <button onClick={handleSave} disabled={saving} className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
                 {saving ? '保存中...' : '保存'}
               </button>
             </div>
@@ -276,7 +312,7 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
     <div>
       <label className="text-xs text-[#8888aa] mb-1 block">{label}</label>
       <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50" />
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
     </div>
   )
 }

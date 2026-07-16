@@ -24,20 +24,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }))
 
+  const now = new Date()
+
   const artistUrls: MetadataRoute.Sitemap = (artists ?? []).map(a => ({
     url: `${baseUrl}/artists/${a.id.slice(0, 8)}`,
+    lastModified: now,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))
 
   const tourUrls: MetadataRoute.Sitemap = (tours ?? []).map(t => ({
     url: `${baseUrl}/tours/${t.id.slice(0, 8)}`,
+    lastModified: now,
     changeFrequency: 'weekly',
     priority: 0.7,
   }))
 
   const venueUrls: MetadataRoute.Sitemap = venueNames.map(name => ({
     url: `${baseUrl}/venues/${encodeURIComponent(name)}`,
+    lastModified: now,
     changeFrequency: 'weekly' as const,
     priority: 0.6,
   }))
@@ -45,13 +50,45 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     {
       url: baseUrl,
+      lastModified: now,
       changeFrequency: 'daily',
       priority: 1,
     },
     {
       url: `${baseUrl}/artists`,
+      lastModified: now,
       changeFrequency: 'daily',
       priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/concerts`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/search`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/venues`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/request`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.4,
+    },
+    {
+      url: `${baseUrl}/contact`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.3,
     },
     ...artistUrls,
     ...tourUrls,

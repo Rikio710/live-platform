@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import type { Metadata } from 'next'
 import { Mic2, Route, CalendarDays, Music } from 'lucide-react'
-import SearchInput from './SearchInput'
+import SearchBox from '@/components/SearchBox'
+import SearchResultsTracker from './SearchResultsTracker'
 
 export const metadata: Metadata = { title: '検索' }
 
@@ -18,7 +19,7 @@ export default async function SearchPage({
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <h1 className="text-2xl font-black text-white">検索</h1>
-        <SearchInput defaultValue="" />
+        <SearchBox defaultValue="" />
         <p className="text-sm text-[#8888aa]">アーティスト・ツアー・公演・曲名で検索できます</p>
       </div>
     )
@@ -65,9 +66,10 @@ export default async function SearchPage({
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+      <SearchResultsTracker query={query} total={total} />
       <div className="space-y-4">
         <h1 className="text-2xl font-black text-white">検索</h1>
-        <SearchInput defaultValue={query} />
+        <SearchBox defaultValue={query} />
         <p className="text-xs text-[#8888aa]">「{query}」の検索結果 {total}件</p>
       </div>
 
@@ -83,13 +85,13 @@ export default async function SearchPage({
           <div className="space-y-2">
             {(artists ?? []).map(a => (
               <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
-                className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-violet-500/40 transition-colors group">
+                className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
                 {a.image_url
                   ? <img src={a.image_url} alt={a.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                  : <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-800 to-pink-800 shrink-0 flex items-center justify-center"><Mic2 size={14} className="text-white/60" /></div>
+                  : <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#333333] to-[#282828] shrink-0 flex items-center justify-center"><Mic2 size={14} className="text-white/60" /></div>
                 }
-                <span className="font-bold text-white group-hover:text-violet-300 transition-colors">{a.name}</span>
-                <span className="ml-auto text-[#8888aa] group-hover:text-violet-300">›</span>
+                <span className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors">{a.name}</span>
+                <span className="ml-auto text-[#8888aa] group-hover:text-[#b3b3b3]">›</span>
               </Link>
             ))}
           </div>
@@ -104,13 +106,13 @@ export default async function SearchPage({
           <div className="space-y-2">
             {(tours ?? []).map((t: any) => (
               <Link key={t.id} href={`/tours/${t.id.slice(0, 8)}`}
-                className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-violet-500/40 transition-colors group">
+                className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
                 <div className="flex-1 min-w-0">
-                  {t.artists?.name && <p className="text-xs text-violet-300">{t.artists.name}</p>}
-                  <p className="font-bold text-white group-hover:text-violet-300 transition-colors truncate">{t.name}</p>
+                  {t.artists?.name && <p className="text-xs text-[#b3b3b3]">{t.artists.name}</p>}
+                  <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{t.name}</p>
                   {t.start_date && <p className="text-xs text-[#8888aa]">{t.start_date.slice(0, 4)}</p>}
                 </div>
-                <span className="text-[#8888aa] group-hover:text-violet-300 shrink-0">›</span>
+                <span className="text-[#8888aa] group-hover:text-[#b3b3b3] shrink-0">›</span>
               </Link>
             ))}
           </div>
@@ -125,13 +127,13 @@ export default async function SearchPage({
           <div className="space-y-2">
             {(concerts ?? []).map((c: any) => (
               <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-violet-500/40 transition-colors group">
+                className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
                 <div className="flex-1 min-w-0">
-                  {c.artists?.name && <p className="text-xs text-violet-300">{c.artists.name}</p>}
-                  <p className="font-bold text-white group-hover:text-violet-300 transition-colors truncate">{c.venue_name}</p>
+                  {c.artists?.name && <p className="text-xs text-[#b3b3b3]">{c.artists.name}</p>}
+                  <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{c.venue_name}</p>
                   <p className="text-xs text-[#8888aa]">{c.date}{c.tours?.name ? ` — ${c.tours.name}` : ''}</p>
                 </div>
-                <span className="text-[#8888aa] group-hover:text-violet-300 shrink-0">›</span>
+                <span className="text-[#8888aa] group-hover:text-[#b3b3b3] shrink-0">›</span>
               </Link>
             ))}
           </div>
@@ -150,7 +152,7 @@ export default async function SearchPage({
                 <div className="space-y-1">
                   {s.concerts.slice(0, 3).map(c => (
                     <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                      className="flex items-center gap-2 text-xs text-[#8888aa] hover:text-violet-300 transition-colors">
+                      className="flex items-center gap-2 text-xs text-[#8888aa] hover:text-[#b3b3b3] transition-colors">
                       <span className="shrink-0">{c.date}</span>
                       <span className="truncate">{c.artist && `${c.artist} `}{c.venue_name}</span>
                     </Link>

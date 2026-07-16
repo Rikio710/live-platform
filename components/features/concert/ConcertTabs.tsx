@@ -9,8 +9,8 @@ import NearbyTab from './NearbyTab'
 import ReviewTab from './ReviewTab'
 
 const TABS = [
-  { key: 'board', label: '掲示板', icon: MessageSquare },
   { key: 'setlist', label: 'セトリ', icon: Music },
+  { key: 'board', label: '掲示板', icon: MessageSquare },
   { key: 'review', label: 'レビュー', icon: Star },
   { key: 'merch', label: '物販', icon: ShoppingBag },
   { key: 'nearby', label: '周辺', icon: MapPin },
@@ -21,11 +21,19 @@ export default function ConcertTabs({
   activeTab,
   tourId,
   concertTitle,
+  artistName,
+  concertDate,
+  venueName,
+  initialSongCount,
 }: {
   concertId: string
   activeTab: string
   tourId: string | null
   concertTitle?: string
+  artistName?: string
+  concertDate?: string
+  venueName?: string
+  initialSongCount?: number
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -44,7 +52,7 @@ export default function ConcertTabs({
             onClick={() => setTab(t.key)}
             className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               activeTab === t.key
-                ? 'bg-violet-600 text-white'
+                ? 'bg-white text-black'
                 : 'text-[#8888aa] hover:text-white'
             }`}
           >
@@ -56,7 +64,7 @@ export default function ConcertTabs({
 
       {/* コンテンツ */}
       {activeTab === 'board' && <BoardTab concertId={concertId} />}
-      {activeTab === 'setlist' && <SetlistTab concertId={concertId} concertTitle={concertTitle} />}
+      {activeTab === 'setlist' && <SetlistTab concertId={concertId} concertTitle={concertTitle} artistName={artistName} concertDate={concertDate} venueName={venueName} initialSongCount={initialSongCount} />}
       {activeTab === 'review' && <ReviewTab concertId={concertId} />}
       {activeTab === 'merch' && <MerchTab concertId={concertId} tourId={tourId} />}
       {activeTab === 'nearby' && <NearbyTab concertId={concertId} />}

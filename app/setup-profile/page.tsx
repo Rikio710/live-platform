@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { gtagEvent } from '@/lib/gtag'
 
 export default function SetupProfilePage() {
   const supabase = createClient()
@@ -47,6 +48,7 @@ export default function SetupProfilePage() {
       return
     }
 
+    gtagEvent('sign_up_complete')
     router.push('/')
     router.refresh()
   }
@@ -67,7 +69,7 @@ export default function SetupProfilePage() {
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder="例: livebot123"
             maxLength={20}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
           />
           <p className="text-xs text-[#8888aa] text-right">{username.trim().length}/20</p>
 
@@ -78,7 +80,7 @@ export default function SetupProfilePage() {
           <button
             onClick={handleSave}
             disabled={saving || !username.trim()}
-            className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-3 rounded-2xl transition-colors text-sm"
+            className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-3 rounded-2xl transition-colors text-sm"
           >
             {saving ? '保存中...' : 'はじめる'}
           </button>

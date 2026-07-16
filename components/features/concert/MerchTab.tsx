@@ -356,13 +356,13 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
             const pct = totalWaitVotes > 0 ? Math.round((count / totalWaitVotes) * 100) : 0
             return (
               <button key={opt} onClick={() => handleWaitVote(opt)} disabled={votingWait}
-                className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors ${isVoted ? 'bg-violet-600/15 ring-1 ring-violet-500/40' : 'hover:bg-white/5'}`}>
+                className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors ${isVoted ? 'bg-white/5 ring-1 ring-white/20' : 'hover:bg-white/5'}`}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-sm font-medium ${isVoted ? 'text-violet-300' : 'text-white'}`}>{opt}</span>
+                  <span className={`text-sm font-medium ${isVoted ? 'text-[#b3b3b3]' : 'text-white'}`}>{opt}</span>
                   <span className="text-xs text-[#8888aa]">{count > 0 ? `${count}票 (${pct}%)` : '0票'}</span>
                 </div>
                 <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${isVoted ? 'bg-violet-500' : 'bg-white/20'}`} style={{ width: `${pct}%` }} />
+                  <div className={`h-full rounded-full transition-all duration-500 ${isVoted ? 'bg-white' : 'bg-white/20'}`} style={{ width: `${pct}%` }} />
                 </div>
               </button>
             )
@@ -377,7 +377,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
           <h3 className="font-bold text-white text-sm">グッズ一覧</h3>
           {tourId && (
             <button onClick={() => setShowAddForm(!showAddForm)}
-              className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold shrink-0">
+              className="text-sm border border-white/20 text-[#b3b3b3] hover:bg-white/5 px-4 py-2 rounded-full transition-colors font-bold shrink-0">
               ＋ グッズを追加
             </button>
           )}
@@ -396,26 +396,26 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
             <div>
               <label className="text-xs text-[#8888aa] mb-1 block">商品名 *</label>
               <input type="text" value={formName} onChange={e => setFormName(e.target.value)} placeholder="例: ツアーTシャツ"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50" />
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
             </div>
             <div>
               <label className="text-xs text-[#8888aa] mb-1 block">価格（¥）</label>
               <input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="例: 3500"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50" />
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs text-[#8888aa]">画像（任意）</label>
                 <div className="flex bg-white/5 rounded-lg p-0.5">
                   <button type="button" onClick={() => setFormImageMode('url')}
-                    className={`text-xs px-3 py-1 rounded-md transition-colors ${formImageMode === 'url' ? 'bg-violet-600 text-white font-bold' : 'text-[#8888aa] hover:text-white'}`}>URL</button>
+                    className={`text-xs px-3 py-1 rounded-md transition-colors ${formImageMode === 'url' ? 'bg-white text-black font-bold' : 'text-[#8888aa] hover:text-white'}`}>URL</button>
                   <button type="button" onClick={() => setFormImageMode('upload')}
-                    className={`text-xs px-3 py-1 rounded-md transition-colors ${formImageMode === 'upload' ? 'bg-violet-600 text-white font-bold' : 'text-[#8888aa] hover:text-white'}`}>アップロード</button>
+                    className={`text-xs px-3 py-1 rounded-md transition-colors ${formImageMode === 'upload' ? 'bg-white text-black font-bold' : 'text-[#8888aa] hover:text-white'}`}>アップロード</button>
                 </div>
               </div>
               {formImageMode === 'url' ? (
                 <input type="text" value={formImageUrl} onChange={e => setFormImageUrl(e.target.value)} placeholder="https://..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50" />
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
               ) : formImageUrl ? (
                 <div className="space-y-2">
                   <img src={formImageUrl} alt="" className="w-20 h-20 rounded-xl object-cover" />
@@ -431,7 +431,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
               <div className="flex flex-wrap gap-2">
                 {SIZE_PRESETS.map(s => (
                   <button key={s} type="button" onClick={() => toggleFormSize(s)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors ${formSizes.includes(s) ? 'bg-violet-600 text-white border-violet-600' : 'border-white/10 text-[#8888aa] hover:border-white/20'}`}>
+                    className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors ${formSizes.includes(s) ? 'bg-white text-black border-white' : 'border-white/10 text-[#8888aa] hover:border-white/20'}`}>
                     {s}
                   </button>
                 ))}
@@ -443,7 +443,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                 <input type="text" value={formColorInput} onChange={e => setFormColorInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormColor() } }}
                   placeholder="例: ブラック"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50" />
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
                 <button type="button" onClick={addFormColor} className="border border-white/10 text-[#8888aa] hover:text-white px-3 py-2 rounded-xl text-sm transition-colors">追加</button>
               </div>
               {formColors.length > 0 && (
@@ -458,7 +458,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
             </div>
             {addError && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{addError}</p>}
             <button onClick={handleAddCatalog} disabled={submitting || !formName.trim()}
-              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition-colors text-sm">
+              className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold py-2.5 rounded-xl transition-colors text-sm">
               {submitting ? '追加中...' : 'ツアーに追加する'}
             </button>
           </div>
@@ -496,7 +496,7 @@ export default function MerchTab({ concertId, tourId }: MerchTabProps) {
                       <div className="flex-1 min-w-0 space-y-2">
                         <p className="font-bold text-white text-sm">{item.name}</p>
                         {item.price != null && (
-                          <p className="text-sm font-bold text-violet-300">¥{item.price.toLocaleString()}</p>
+                          <p className="text-sm font-bold text-[#b3b3b3]">¥{item.price.toLocaleString()}</p>
                         )}
                         {hasColors && (
                           <div className="flex items-center gap-1.5 flex-wrap">

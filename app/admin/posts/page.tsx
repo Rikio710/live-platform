@@ -38,7 +38,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   merch: 'bg-pink-500/20 text-pink-300',
   question: 'bg-blue-500/20 text-blue-300',
   exchange: 'bg-green-500/20 text-green-300',
-  chat: 'bg-violet-500/20 text-violet-300',
+  chat: 'bg-white/10 text-[#b3b3b3]',
 }
 const TABS = ['全て', '物販', '質問', '交換', '雑談']
 const TAB_KEYS: Record<string, string> = { '物販': 'merch', '質問': 'question', '交換': 'exchange', '雑談': 'chat' }
@@ -147,7 +147,7 @@ export default function AdminPostsPage() {
         value={search}
         onChange={e => setSearch(e.target.value)}
         placeholder="公演名で検索..."
-        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
       />
 
       {/* Category tabs */}
@@ -158,7 +158,7 @@ export default function AdminPostsPage() {
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
               activeTab === tab
-                ? 'bg-violet-600 text-white'
+                ? 'bg-white text-black'
                 : 'border border-white/10 text-[#8888aa] hover:text-white'
             }`}
           >

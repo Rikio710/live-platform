@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ThumbsUp, Trash2, ChevronDown, ChevronUp, Pencil, X, Share2 } from 'lucide-react'
 import ShareModal from './ShareModal'
 import { getGuestIdentity, readGuestId } from '@/lib/guestId'
+import { gtagEvent, dataLayerPush } from '@/lib/gtag'
 
 type Song = {
   id: string
@@ -57,12 +58,13 @@ function placeholderForType(t: 'song' | 'mc' | 'other') {
   return '例: 夜に駆ける'
 }
 
-export default function SetlistTab({ concertId, concertTitle }: { concertId: string; concertTitle?: string }) {
+export default function SetlistTab({ concertId, concertTitle, artistName, concertDate, venueName, initialSongCount }: { concertId: string; concertTitle?: string; artistName?: string; concertDate?: string; venueName?: string; initialSongCount?: number }) {
   const supabase = createClient()
   const router = useRouter()
 
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
+  const setlistViewFired = useRef(false)
   const [loadError, setLoadError] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [guestUserId, setGuestUserId] = useState<string | null>(null)
@@ -80,6 +82,25 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
   const [formSpotify, setFormSpotify] = useState('')
   const [formAppleMusic, setFormAppleMusic] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Song suggestions (datalist)
+  const [songSuggestions, setSongSuggestions] = useState<string[]>([])
+  useEffect(() => {
+    if (!showForm) return
+    fetch(`/api/songs/search?concert_id=${concertId}`)
+      .then(r => r.json())
+      .then(d => setSongSuggestions((d.songs ?? []).map((s: { name: string }) => s.name)))
+      .catch(() => {})
+  }, [showForm, concertId])
+
+  // Fire setlist_view GA4 event when songs become visible
+  useEffect(() => {
+    if (!revealed || setlistViewFired.current) return
+    const hasSongs = submissions.some(s => s.songs.length > 0)
+    if (!hasSongs) return
+    gtagEvent('setlist_view', { artist_name: artistName, concert_date: concertDate, venue_name: venueName })
+    setlistViewFired.current = true
+  }, [revealed, submissions])
 
   // Edit mode
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null)
@@ -154,54 +175,25 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
     if (toInsert.length === 0) return
     setSubmitting(true)
 
-    if (userId) {
-      // 認証ユーザー: 直接supabase
-      const { data: subData, error: subErr } = await supabase
-        .from('setlist_submissions')
-        .upsert({
-          concert_id: concertId,
-          user_id: userId,
-          spotify_url: formSpotify.trim() || null,
-          apple_music_url: formAppleMusic.trim() || null,
-        }, { onConflict: 'concert_id,user_id' })
-        .select('id').single()
+    const { guest_user_id, guest_name } = !userId ? getGuestIdentity() : { guest_user_id: undefined, guest_name: undefined }
+    if (!userId) setGuestUserId(guest_user_id ?? null)
 
-      if (subErr || !subData) {
-        alert(`投稿失敗: ${subErr?.message ?? '不明なエラー'}`)
-        setSubmitting(false)
-        return
-      }
-      const subId = subData.id
-      await supabase.from('setlist_songs').delete().eq('submission_id', subId)
-      const inserts = toInsert.map((r, i) => ({
-        submission_id: subId, concert_id: concertId, user_id: userId,
-        song_name: r.name, song_type: r.type, order_num: i + 1, is_encore: r.encore,
-      }))
-      const { error: songsErr } = await supabase.from('setlist_songs').insert(inserts)
-      if (songsErr) {
-        alert(`曲の保存失敗: ${songsErr.message}`)
-        setSubmitting(false)
-        return
-      }
-    } else {
-      // ゲスト: API経由
-      const { guest_user_id, guest_name } = getGuestIdentity()
-      setGuestUserId(guest_user_id)
-      const res = await fetch('/api/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'setlist_submit', concert_id: concertId,
-          songs: toInsert, spotify_url: formSpotify, apple_music_url: formAppleMusic,
-          guest_user_id, guest_name,
-        }),
-      })
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: '不明なエラー' }))
-        alert(`投稿失敗: ${error}`)
-        setSubmitting(false)
-        return
-      }
+    const res = await fetch('/api/setlist/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        concert_id: concertId,
+        songs: toInsert,
+        spotify_url: formSpotify,
+        apple_music_url: formAppleMusic,
+        ...(guest_user_id ? { guest_user_id, guest_name } : {}),
+      }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: '不明なエラー' }))
+      alert(`投稿失敗: ${error}`)
+      setSubmitting(false)
+      return
     }
 
     setRows(Array.from({ length: 5 }, emptyBulkRow))
@@ -284,30 +276,18 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
       .filter(r => r.name !== '')
     setSavingEdit(true)
 
-    if (userId) {
-      await supabase.from('setlist_submissions').update({
-        spotify_url: editSpotify.trim() || null,
-        apple_music_url: editAppleMusic.trim() || null,
-      }).eq('id', editingSubmissionId)
-      await supabase.from('setlist_songs').delete().eq('submission_id', editingSubmissionId)
-      const inserts = toSave.map((r, i) => ({
-        submission_id: editingSubmissionId, concert_id: concertId, user_id: userId,
-        song_name: r.name, song_type: r.type, order_num: i + 1, is_encore: r.encore,
-      }))
-      if (inserts.length > 0) await supabase.from('setlist_songs').insert(inserts)
-    } else {
-      const { guest_user_id, guest_name } = getGuestIdentity()
-      await fetch('/api/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'setlist_submit', concert_id: concertId,
-          songs: toSave.map((r, i) => ({ name: r.name, type: r.type, encore: r.encore })),
-          spotify_url: editSpotify, apple_music_url: editAppleMusic,
-          guest_user_id, guest_name,
-        }),
-      })
-    }
+    const { guest_user_id, guest_name } = !userId ? getGuestIdentity() : { guest_user_id: undefined, guest_name: undefined }
+    await fetch('/api/setlist/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        concert_id: concertId,
+        songs: toSave.map(r => ({ name: r.name, type: r.type, encore: r.encore })),
+        spotify_url: editSpotify,
+        apple_music_url: editAppleMusic,
+        ...(guest_user_id ? { guest_user_id, guest_name } : {}),
+      }),
+    })
 
     setSavingEdit(false)
     setEditingSubmissionId(null)
@@ -341,10 +321,13 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
         <div className="glass rounded-2xl p-5 text-center space-y-3 border border-yellow-500/20">
           <p className="text-2xl">⚠️</p>
           <p className="font-bold text-white">セットリストにはネタバレが含まれます</p>
+          {initialSongCount != null && initialSongCount > 0 && (
+            <p className="text-sm font-bold text-[#b3b3b3]">全 {initialSongCount} 曲収録</p>
+          )}
           <p className="text-xs text-[#8888aa]">これから参加する公演がある場合は注意してください</p>
           <button
             onClick={() => setRevealed(true)}
-            className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+            className="bg-white hover:bg-[#e0e0e0] text-black font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
           >
             セトリを表示する
           </button>
@@ -367,8 +350,16 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
               <p className="text-[#8888aa] text-sm">セトリがまだ投稿されていません</p>
               <p className="text-xs text-[#8888aa]">ライブ後に投稿してみよう！</p>
               <button
-                onClick={() => setShowForm(true)}
-                className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+                onClick={() => {
+                  dataLayerPush({
+                    event: 'setlist_missing_click',
+                    artist_name: artistName,
+                    concert_date: concertDate,
+                    venue_name: venueName,
+                  })
+                  setShowForm(true)
+                }}
+                className="bg-white hover:bg-[#e0e0e0] text-black font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
               >
                 投稿する
               </button>
@@ -468,7 +459,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
             <div className="flex justify-end">
               <button
                 onClick={() => setShowForm(!showForm)}
-                className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold"
+                className="text-sm border border-white/20 text-[#b3b3b3] hover:bg-white/5 px-4 py-2 rounded-full transition-colors font-bold"
               >
                 ＋ セトリを投稿
               </button>
@@ -485,14 +476,14 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
                   <button
                     type="button"
                     onClick={() => setInputMode('text')}
-                    className={`px-3 py-1.5 transition-colors ${inputMode === 'text' ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}
+                    className={`px-3 py-1.5 transition-colors ${inputMode === 'text' ? 'bg-white text-black' : 'text-[#8888aa] hover:text-white'}`}
                   >
                     テキスト
                   </button>
                   <button
                     type="button"
                     onClick={() => setInputMode('row')}
-                    className={`px-3 py-1.5 transition-colors border-l border-white/10 ${inputMode === 'row' ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}
+                    className={`px-3 py-1.5 transition-colors border-l border-white/10 ${inputMode === 'row' ? 'bg-white text-black' : 'text-[#8888aa] hover:text-white'}`}
                   >
                     詳細入力
                   </button>
@@ -507,7 +498,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
                     onChange={e => setPasteText(e.target.value)}
                     placeholder={'曲名を1行ずつ入力\n例:\n白日\n飛行艇\nFlash!!!'}
                     rows={10}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none font-mono"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30 resize-none font-mono"
                   />
                   <p className="text-xs text-[#8888aa]">1行に1曲ずつ入力。種別・アンコールは投稿後に編集できます。</p>
                 </div>
@@ -516,6 +507,9 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
               {/* 詳細入力モード */}
               {inputMode === 'row' && (
                 <div className="space-y-2">
+                  <datalist id="song-suggestions">
+                    {songSuggestions.map(name => <option key={name} value={name} />)}
+                  </datalist>
                   {rows.map((row, i) => (
                     <div key={i} className="flex items-center gap-2">
                       {/* 種別ボタン (3択) */}
@@ -527,7 +521,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
                             onClick={() => updateRow(i, { type: t })}
                             className={`px-2 py-1.5 transition-colors ${
                               row.type === t
-                                ? t === 'song' ? 'bg-violet-600 text-white'
+                                ? t === 'song' ? 'bg-white text-black'
                                   : t === 'mc' ? 'bg-blue-600 text-white'
                                   : 'bg-white/20 text-white'
                                 : 'text-[#8888aa] hover:text-white'
@@ -539,17 +533,18 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
                       </div>
                       <input
                         type="text"
+                        list={row.type === 'song' ? 'song-suggestions' : undefined}
                         value={row.name}
                         onChange={e => updateRow(i, { name: e.target.value })}
                         placeholder={placeholderForType(row.type)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
                       />
                       <label className="flex items-center gap-1 text-xs text-[#8888aa] shrink-0 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={row.encore}
                           onChange={e => updateRow(i, { encore: e.target.checked })}
-                          className="accent-violet-500"
+                          className="accent-white"
                         />
                         EN
                       </label>
@@ -591,7 +586,7 @@ export default function SetlistTab({ concertId, concertTitle }: { concertId: str
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition-colors text-sm"
+                className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold py-2.5 rounded-xl transition-colors text-sm"
               >
                 {submitting ? '投稿中...' : '投稿する'}
               </button>
@@ -673,7 +668,7 @@ function SubmissionCard({
             <>
               <button
                 onClick={() => onStartEdit(submission)}
-                className="flex items-center gap-1 text-xs text-[#8888aa] hover:text-violet-300 border border-white/10 hover:border-violet-500/40 px-2.5 py-1.5 rounded-full transition-colors"
+                className="flex items-center gap-1 text-xs text-[#8888aa] hover:text-[#b3b3b3] border border-white/10 hover:border-white/20 px-2.5 py-1.5 rounded-full transition-colors"
               >
                 <Pencil size={11} />
                 編集
@@ -690,8 +685,8 @@ function SubmissionCard({
             onClick={() => onVote(submission.id)}
             className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
               voted
-                ? 'bg-violet-600 text-white'
-                : 'border border-white/10 text-[#8888aa] hover:border-violet-500/40 hover:text-violet-300'
+                ? 'bg-white text-black'
+                : 'border border-white/10 text-[#8888aa] hover:border-white/20 hover:text-[#b3b3b3]'
             }`}
           >
             <ThumbsUp size={12} />
@@ -736,7 +731,7 @@ function SubmissionCard({
                   onClick={() => onUpdateEditRow(i, { type: nextType(row.type) })}
                   className={`shrink-0 text-xs font-bold px-3 py-2 rounded-lg border transition-colors min-w-[52px] ${
                     row.type === 'song'
-                      ? 'bg-violet-600/30 border-violet-500/50 text-violet-300'
+                      ? 'bg-white/10 border-white/30 text-[#b3b3b3]'
                       : row.type === 'mc'
                       ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
                       : 'bg-white/5 border-white/10 text-[#8888aa]'
@@ -749,14 +744,14 @@ function SubmissionCard({
                   value={row.name}
                   onChange={e => onUpdateEditRow(i, { name: e.target.value })}
                   placeholder={placeholderForType(row.type)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
                 />
                 <label className="flex items-center gap-1 text-xs text-[#8888aa] shrink-0 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={row.encore}
                     onChange={e => onUpdateEditRow(i, { encore: e.target.checked })}
-                    className="accent-violet-500"
+                    className="accent-white"
                   />
                   EN
                 </label>
@@ -796,7 +791,7 @@ function SubmissionCard({
             <button
               onClick={onSaveEdit}
               disabled={savingEdit}
-              className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-2 rounded-xl transition-colors text-sm"
+              className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold py-2 rounded-xl transition-colors text-sm"
             >
               {savingEdit ? '保存中...' : '保存'}
             </button>
@@ -837,7 +832,7 @@ function SubmissionCard({
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="flex-1 h-px bg-white/10" />
-                    <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Encore</p>
+                    <p className="text-[10px] font-bold text-[#b3b3b3] uppercase tracking-widest">Encore</p>
                     <div className="flex-1 h-px bg-white/10" />
                   </div>
                   <div className="divide-y divide-white/5">
@@ -885,7 +880,7 @@ function SubmissionCard({
             </p>
           ))}
           {submission.songs.length > 3 && (
-            <p className="text-xs text-violet-400/70">… 全{submission.songs.length}曲を見る</p>
+            <p className="text-xs text-[#b3b3b3]/70">… 全{submission.songs.length}曲を見る</p>
           )}
         </button>
       )}

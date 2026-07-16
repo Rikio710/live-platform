@@ -47,7 +47,7 @@ export default function ContactPage() {
   if (success) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
-        <div className="w-16 h-16 rounded-full bg-violet-500/20 flex items-center justify-center mx-auto">
+        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto">
           <span className="text-3xl">✓</span>
         </div>
         <h1 className="text-xl font-black text-white">送信しました</h1>
@@ -57,7 +57,7 @@ export default function ContactPage() {
         </p>
         <button
           onClick={() => { setSuccess(false); setEmail(''); setCategory('feedback'); setMessage('') }}
-          className="text-sm text-violet-400 hover:text-violet-300 transition-colors"
+          className="text-sm text-[#b3b3b3] hover:text-[#b3b3b3] transition-colors"
         >
           続けて送信する
         </button>
@@ -80,7 +80,7 @@ export default function ContactPage() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="返信が必要な場合はご記入ください"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
           />
         </div>
 
@@ -89,7 +89,7 @@ export default function ContactPage() {
           <select
             value={category}
             onChange={e => setCategory(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
           >
             {CATEGORIES.map(c => (
               <option key={c.value} value={c.value}>{c.label}</option>
@@ -111,7 +111,7 @@ export default function ContactPage() {
             required
             rows={6}
             maxLength={MESSAGE_MAX}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30 resize-none"
           />
         </div>
 
@@ -122,7 +122,7 @@ export default function ContactPage() {
         <button
           type="submit"
           disabled={submitting || !message.trim() || message.length > MESSAGE_MAX}
-          className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+          className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold py-3 rounded-xl transition-colors text-sm"
         >
           {submitting ? '送信中...' : '送信する'}
         </button>

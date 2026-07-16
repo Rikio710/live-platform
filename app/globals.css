@@ -1,23 +1,19 @@
 @import "tailwindcss";
 
 body {
-  background-color: #0a0a0f;
+  background-color: #121212;
   color: #f0f0f5;
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 .glass {
-  background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: #181818;
+  border: 1px solid transparent;
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #a78bfa, #ec4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #ffffff;
 }
 
 .spoiler-blur {
@@ -36,4 +32,10 @@ body {
 /* iOSでinput/textareaタップ時の自動ズームを防ぐ */
 input, textarea, select {
   font-size: 16px !important;
+}
+
+/* Windowsでselectのoption文字が白背景に白文字になるのを防ぐ */
+select option {
+  background-color: #1c1c1c;
+  color: #f0f0f5;
 }

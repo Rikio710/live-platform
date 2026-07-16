@@ -30,7 +30,7 @@ type Submission = {
 
 const SONG_TYPE_LABELS: Record<string, string> = { song: '曲', mc: 'MC', other: 'その他' }
 const SONG_TYPE_COLORS: Record<string, string> = {
-  song: 'bg-violet-600/30 border-violet-500/50 text-violet-300',
+  song: 'bg-white/10 border-white/30 text-[#b3b3b3]',
   mc: 'bg-blue-600/20 border-blue-500/40 text-blue-300',
   other: 'bg-white/5 border-white/10 text-[#8888aa]',
 }
@@ -101,7 +101,8 @@ export default function AdminSetlistPage() {
   const [liveFansSongs, setLiveFansSongs] = useState<LiveFansSong[] | null>(null)
   const [liveFansTitle, setLiveFansTitle] = useState('')
   const [liveFansConcertId, setLiveFansConcertId] = useState('')
-  const [liveFansArtistFilter, setLiveFansArtistFilter] = useState('')
+  const [liveFansArtistFilters, setLiveFansArtistFilters] = useState<string[]>([])
+  const [liveFansDetectedPerformers, setLiveFansDetectedPerformers] = useState<string[]>([])
   const [liveFansTourFilter, setLiveFansTourFilter] = useState('')
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -342,6 +343,13 @@ export default function AdminSetlistPage() {
       if (!res.ok) { setFetchError(data.error ?? '取得失敗'); return }
       setLiveFansSongs(data.songs)
       setLiveFansTitle(data.eventTitle ?? '')
+      const allArtistNames = new Set([...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()])
+      const detected: string[] = data.performers ?? []
+      setLiveFansDetectedPerformers(detected)
+      const autoSelect = detected.filter(name => allArtistNames.has(name))
+      setLiveFansArtistFilters(autoSelect)
+      setLiveFansTourFilter('')
+      setLiveFansConcertId('')
     } catch { setFetchError('通信エラーが発生しました') }
     finally { setFetching(false) }
   }
@@ -374,7 +382,8 @@ export default function AdminSetlistPage() {
     setLiveFansUrl('')
     setLiveFansSongs(null)
     setLiveFansConcertId('')
-    setLiveFansArtistFilter('')
+    setLiveFansArtistFilters([])
+    setLiveFansDetectedPerformers([])
     setLiveFansTourFilter('')
     setImporting(false)
     await load()
@@ -395,12 +404,22 @@ export default function AdminSetlistPage() {
       const data = await res.json()
       if (!res.ok) { setTourFetchError(data.error ?? '取得失敗'); return }
 
+      // allConcertsがまだ読み込まれていない場合は再フェッチ
+      let concerts = allConcerts
+      if (concerts.length === 0) {
+        const cRes = await fetch('/api/admin/concerts')
+        if (cRes.ok) {
+          concerts = await cRes.json()
+          setAllConcerts(concerts)
+        }
+      }
+
       // Auto-match: 同日同会場の2回目は別のconcertを割り当てる
       const normalize = (s: string) => s.replace(/[\s　・･]/g, '').toLowerCase()
       const matches: Record<number, string> = {}
       const usedConcertIds = new Set<string>()
       ;(data.events as TourEvent[]).forEach((event, i) => {
-        const sameDate = allConcerts.filter(c => c.date === event.date)
+        const sameDate = concerts.filter(c => c.date === event.date)
         const venueNorm = normalize(event.venue_name)
         const venueMatches = sameDate.filter(c =>
           normalize(c.venue_name).includes(venueNorm) || venueNorm.includes(normalize(c.venue_name))
@@ -570,7 +589,7 @@ export default function AdminSetlistPage() {
           </button>
           <button
             onClick={() => { setShowCreate(v => !v); setShowLiveFans(false); setShowTourImport(false); setShowTourSetlist(false) }}
-            className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold px-4 py-2 rounded-full transition-colors"
+            className="flex items-center gap-1.5 bg-white hover:bg-[#e0e0e0] text-black text-sm font-bold px-4 py-2 rounded-full transition-colors"
           >
             <PlusCircle size={15} />
             セトリを新規作成
@@ -587,7 +606,7 @@ export default function AdminSetlistPage() {
             <select
               value={tourSetlistArtist}
               onChange={e => { setTourSetlistArtist(e.target.value); setTourSetlistTourName(''); setTourSetlistTexts({}) }}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
             >
               <option value="">① アーティスト</option>
               {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort().map(name => (
@@ -598,7 +617,7 @@ export default function AdminSetlistPage() {
               <select
                 value={tourSetlistTourName}
                 onChange={e => { setTourSetlistTourName(e.target.value); setTourSetlistTexts({}) }}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
               >
                 <option value="">② ツアー</option>
                 {[...new Map(
@@ -621,7 +640,7 @@ export default function AdminSetlistPage() {
                   return (
                     <div key={c.id} className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-violet-300">{formatDate(c.date)}</span>
+                        <span className="text-xs font-bold text-[#b3b3b3]">{formatDate(c.date)}</span>
                         <span className="text-xs text-white">{c.venue_name}</span>
                         {songs.length > 0 && (
                           <span className="text-[10px] text-green-400 ml-auto">{songs.length}曲（アンコール{songs.filter(s => s.is_encore).length}曲）</span>
@@ -632,7 +651,7 @@ export default function AdminSetlistPage() {
                         onChange={e => setTourSetlistTexts(prev => ({ ...prev, [c.id]: e.target.value }))}
                         rows={3}
                         placeholder="セトリをここに貼り付け..."
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-y font-mono"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30 resize-y font-mono"
                       />
                     </div>
                   )
@@ -642,7 +661,7 @@ export default function AdminSetlistPage() {
                   <button
                     onClick={handleTourSetlistSave}
                     disabled={tourSetlistSaving || tourConcerts.every(c => !tourSetlistTexts[c.id]?.trim())}
-                    className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+                    className="bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
                   >
                     {tourSetlistSaving ? '保存中...' : `${tourConcerts.filter(c => tourSetlistTexts[c.id]?.trim()).length}公演を一括保存`}
                   </button>
@@ -813,7 +832,7 @@ export default function AdminSetlistPage() {
                 {liveFansSongs.map((s, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs">
                     <span className="text-[#8888aa] w-5 text-right shrink-0">{s.order_num}</span>
-                    {s.is_encore && <span className="text-violet-400 shrink-0">EN</span>}
+                    {s.is_encore && <span className="text-[#b3b3b3] shrink-0">EN</span>}
                     {s.song_type === 'other' && <span className="text-[#8888aa] shrink-0">///</span>}
                     {s.song_type === 'mc' && <span className="text-blue-400 shrink-0">MC</span>}
                     <span className="text-white">{s.song_name}</span>
@@ -824,22 +843,86 @@ export default function AdminSetlistPage() {
               {/* 公演選択（3段階） */}
               <div className="space-y-2">
                 <label className="text-xs text-[#8888aa]">登録する公演を選択</label>
-                {/* Step 1: アーティスト */}
+
+                {/* 検出されたアーティスト（チェックボックス） */}
+                {liveFansDetectedPerformers.length > 0 && (() => {
+                  const knownNames = new Set([...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()])
+                  return (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-[#8888aa]">① 検出されたアーティスト</p>
+                      <div className="flex flex-wrap gap-2">
+                        {liveFansDetectedPerformers.map(name => {
+                          const isRegistered = knownNames.has(name)
+                          const isSelected = liveFansArtistFilters.includes(name)
+                          return (
+                            <label key={name} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-colors text-xs font-bold select-none ${
+                              isSelected ? 'bg-green-600/30 border-green-500/60 text-white' : 'bg-white/5 border-white/10 text-[#8888aa] hover:border-white/20'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                className="hidden"
+                                checked={isSelected}
+                                onChange={e => {
+                                  setLiveFansArtistFilters(prev => e.target.checked ? [...prev, name] : prev.filter(n => n !== name))
+                                  setLiveFansTourFilter('')
+                                  setLiveFansConcertId('')
+                                }}
+                              />
+                              {name}
+                              {!isRegistered && <span className="text-[10px] text-[#8888aa] font-normal ml-0.5">未登録</span>}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Step 1: アーティスト追加（ドロップダウン） */}
                 <select
-                  value={liveFansArtistFilter}
-                  onChange={e => { setLiveFansArtistFilter(e.target.value); setLiveFansTourFilter(''); setLiveFansConcertId('') }}
+                  value=""
+                  onChange={e => {
+                    if (e.target.value && !liveFansArtistFilters.includes(e.target.value)) {
+                      setLiveFansArtistFilters(prev => [...prev, e.target.value])
+                      setLiveFansTourFilter('')
+                      setLiveFansConcertId('')
+                    }
+                  }}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500/50"
                 >
-                  <option value="">① アーティストを選択...</option>
-                  {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort().map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
+                  <option value="">{liveFansArtistFilters.length > 0 ? 'アーティストを追加...' : '① アーティストを選択...'}</option>
+                  {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort()
+                    .filter(name => !liveFansArtistFilters.includes(name))
+                    .map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
                 </select>
-                {/* Step 2: ツアー */}
-                {liveFansArtistFilter && (() => {
+
+                {/* 選択中アーティスト表示 */}
+                {liveFansArtistFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {liveFansArtistFilters.map(name => (
+                      <span key={name} className="flex items-center gap-1 bg-green-600/20 border border-green-500/40 text-green-300 text-xs px-2.5 py-1 rounded-full">
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLiveFansArtistFilters(prev => prev.filter(n => n !== name))
+                            setLiveFansTourFilter('')
+                            setLiveFansConcertId('')
+                          }}
+                          className="hover:text-white ml-0.5"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Step 2: ツアー（単一アーティスト選択時のみ） */}
+                {liveFansArtistFilters.length === 1 && (() => {
                   const tours = [...new Map(
                     allConcerts
-                      .filter(c => c.artists?.name === liveFansArtistFilter && c.tours)
+                      .filter(c => c.artists?.name === liveFansArtistFilters[0] && c.tours)
                       .map(c => [c.tours!.name, c.tours!.name])
                   ).values()].sort()
                   return tours.length > 0 ? (
@@ -855,10 +938,11 @@ export default function AdminSetlistPage() {
                     </select>
                   ) : null
                 })()}
+
                 {/* Step 3: 公演 */}
-                {liveFansArtistFilter && (() => {
+                {liveFansArtistFilters.length > 0 && (() => {
                   const filtered = allConcerts.filter(c =>
-                    c.artists?.name === liveFansArtistFilter &&
+                    liveFansArtistFilters.includes(c.artists?.name ?? '') &&
                     (!liveFansTourFilter || c.tours?.name === liveFansTourFilter)
                   )
                   return filtered.length > 0 ? (
@@ -867,10 +951,10 @@ export default function AdminSetlistPage() {
                       onChange={e => setLiveFansConcertId(e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-green-500/50"
                     >
-                      <option value="">③ 公演を選択...</option>
+                      <option value="">{liveFansArtistFilters.length > 1 ? '③ 公演を選択...' : '③ 公演を選択...'}</option>
                       {filtered.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.venue_name}（{formatDate(c.date)}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
+                          {liveFansArtistFilters.length > 1 ? `[${c.artists?.name}] ` : ''}{c.venue_name}（{formatDate(c.date)}）{c.tours?.name ? ` — ${c.tours.name}` : ''}
                         </option>
                       ))}
                     </select>
@@ -887,7 +971,7 @@ export default function AdminSetlistPage() {
                   {importing ? 'インポート中...' : 'DBに登録する'}
                 </button>
                 <button
-                  onClick={() => { setShowLiveFans(false); setLiveFansUrl(''); setLiveFansSongs(null); setLiveFansConcertId(''); setLiveFansArtistFilter(''); setLiveFansTourFilter('') }}
+                  onClick={() => { setShowLiveFans(false); setLiveFansUrl(''); setLiveFansSongs(null); setLiveFansConcertId(''); setLiveFansArtistFilters([]); setLiveFansDetectedPerformers([]); setLiveFansTourFilter('') }}
                   className="border border-white/10 text-[#8888aa] hover:text-white text-sm px-6 py-2.5 rounded-full transition-colors"
                 >
                   キャンセル
@@ -908,7 +992,7 @@ export default function AdminSetlistPage() {
             <select
               value={createArtistFilter}
               onChange={e => { setCreateArtistFilter(e.target.value); setCreateTourFilter(''); setCreateConcertId('') }}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
             >
               <option value="">① アーティストを選択...</option>
               {[...new Map(allConcerts.filter(c => c.artists).map(c => [c.artists!.name, c.artists!.name])).values()].sort().map(name => (
@@ -923,7 +1007,7 @@ export default function AdminSetlistPage() {
                 <select
                   value={createTourFilter}
                   onChange={e => { setCreateTourFilter(e.target.value); setCreateConcertId('') }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
                 >
                   <option value="">② ツアーを選択...</option>
                   {tours.map(name => <option key={name} value={name}>{name}</option>)}
@@ -939,7 +1023,7 @@ export default function AdminSetlistPage() {
                 <select
                   value={createConcertId}
                   onChange={e => setCreateConcertId(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
                 >
                   <option value="">③ 公演を選択...</option>
                   {filtered.map(c => (
@@ -961,7 +1045,7 @@ export default function AdminSetlistPage() {
               onChange={e => setBulkText(e.target.value)}
               rows={12}
               placeholder={`黒い猫の歌\n添い寝チャンスは突然に\n///MC\nヒロイン;;カラオケ\n\n青い春\none room`}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none font-mono"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30 resize-none font-mono"
             />
             {bulkText.trim() && (() => {
               const parsed = parseBulkText(bulkText)
@@ -977,7 +1061,7 @@ export default function AdminSetlistPage() {
             <button
               onClick={handleCreate}
               disabled={creating || !createConcertId || !bulkText.trim()}
-              className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
+              className="bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold text-sm px-6 py-2.5 rounded-full transition-colors"
             >
               {creating ? '作成中...' : '作成する'}
             </button>
@@ -1046,7 +1130,7 @@ export default function AdminSetlistPage() {
                                 type="number"
                                 value={editSongForm.order_num}
                                 onChange={e => setEditSongForm(f => ({ ...f, order_num: Number(e.target.value) }))}
-                                className="w-12 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500/50 text-center"
+                                className="w-12 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-white/30 text-center"
                               />
                               <select
                                 value={editSongForm.song_type}
@@ -1061,18 +1145,18 @@ export default function AdminSetlistPage() {
                                 type="text"
                                 value={editSongForm.song_name}
                                 onChange={e => setEditSongForm(f => ({ ...f, song_name: e.target.value }))}
-                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
                               />
                               <label className="flex items-center gap-1 text-xs text-[#8888aa] shrink-0 cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={editSongForm.is_encore}
                                   onChange={e => setEditSongForm(f => ({ ...f, is_encore: e.target.checked }))}
-                                  className="accent-violet-500"
+                                  className="accent-white"
                                 />
                                 EN
                               </label>
-                              <button onClick={() => handleSaveSong(sub.id)} disabled={saving} className="text-violet-400 hover:text-violet-300 transition-colors p-1">
+                              <button onClick={() => handleSaveSong(sub.id)} disabled={saving} className="text-[#b3b3b3] hover:text-[#b3b3b3] transition-colors p-1">
                                 <Check size={14} />
                               </button>
                               <button onClick={cancelEditSong} className="text-[#8888aa] hover:text-white transition-colors p-1">
@@ -1088,7 +1172,7 @@ export default function AdminSetlistPage() {
                               </span>
                               <p className="flex-1 text-sm text-white truncate">{song.song_name}</p>
                               {song.is_encore && (
-                                <span className="text-xs text-violet-400 shrink-0">EN</span>
+                                <span className="text-xs text-[#b3b3b3] shrink-0">EN</span>
                               )}
                               <button
                                 onClick={() => startEditSong(song)}
@@ -1126,7 +1210,7 @@ export default function AdminSetlistPage() {
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => handleSaveUrls(sub.id)} disabled={saving}
-                              className="text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold px-4 py-1.5 rounded-full transition-colors">
+                              className="text-xs bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold px-4 py-1.5 rounded-full transition-colors">
                               保存
                             </button>
                             <button onClick={() => setEditingUrlsId(null)}
@@ -1171,18 +1255,18 @@ export default function AdminSetlistPage() {
                           onChange={e => setAddForm(f => ({ ...f, song_name: e.target.value }))}
                           onKeyDown={e => e.key === 'Enter' && handleAddSong(sub.id)}
                           placeholder="曲名を入力"
-                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
                         />
                         <label className="flex items-center gap-1 text-xs text-[#8888aa] shrink-0 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={addForm.is_encore}
                             onChange={e => setAddForm(f => ({ ...f, is_encore: e.target.checked }))}
-                            className="accent-violet-500"
+                            className="accent-white"
                           />
                           EN
                         </label>
-                        <button onClick={() => handleAddSong(sub.id)} disabled={saving} className="text-violet-400 hover:text-violet-300 transition-colors p-1">
+                        <button onClick={() => handleAddSong(sub.id)} disabled={saving} className="text-[#b3b3b3] hover:text-[#b3b3b3] transition-colors p-1">
                           <Check size={14} />
                         </button>
                         <button onClick={() => setAddingToSubmission(null)} className="text-[#8888aa] hover:text-white transition-colors p-1">

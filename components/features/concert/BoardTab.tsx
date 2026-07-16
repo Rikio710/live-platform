@@ -398,7 +398,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {CATEGORIES.map(cat => (
           <button key={cat.value} onClick={() => setActiveCategory(cat.value)}
-            className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors shrink-0 ${activeCategory === cat.value ? 'bg-violet-600 text-white' : 'bg-white/5 text-[#8888aa] hover:text-white'}`}>
+            className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-colors shrink-0 ${activeCategory === cat.value ? 'bg-white text-black' : 'bg-white/5 text-[#8888aa] hover:text-white'}`}>
             {cat.label}
           </button>
         ))}
@@ -426,7 +426,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                     {post.profiles?.avatar_url ? (
                       <img src={post.profiles.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-[#b3b3b3] shrink-0">
                         {(post.guest_name ?? post.profiles?.username ?? '?')[0].toUpperCase()}
                       </div>
                     )}
@@ -490,7 +490,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                     {(post.likes_count ?? 0) > 0 && <span>{post.likes_count}</span>}
                   </button>
                   <button onClick={() => toggleComments(post.id)}
-                    className={`flex items-center gap-1.5 text-sm transition-colors ${expandedPostId === post.id ? 'text-violet-400' : 'text-[#8888aa] hover:text-violet-400'}`}>
+                    className={`flex items-center gap-1.5 text-sm transition-colors ${expandedPostId === post.id ? 'text-[#b3b3b3]' : 'text-[#8888aa] hover:text-[#b3b3b3]'}`}>
                     <MessageCircle size={15} />
                     {(post.comment_count ?? 0) > 0 && <span>{post.comment_count}</span>}
                   </button>
@@ -507,7 +507,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                         {c.profiles?.avatar_url ? (
                           <img src={c.profiles.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
                         ) : (
-                          <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-xs text-violet-300 shrink-0 font-bold">
+                          <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs text-[#b3b3b3] shrink-0 font-bold">
                             {(c.guest_name ?? c.profiles?.username ?? '?')[0].toUpperCase()}
                           </div>
                         )}
@@ -530,9 +530,9 @@ export default function BoardTab({ concertId }: { concertId: string }) {
                       <input value={commentInput} onChange={e => setCommentInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleComment(post.id) } }}
                         placeholder="コメントを入力..."
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50" />
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
                       <button onClick={() => handleComment(post.id)} disabled={submittingComment || !commentInput.trim()}
-                        className="px-3 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-colors">
+                        className="px-3 py-2 bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black text-xs font-bold rounded-xl transition-colors">
                         送信
                       </button>
                     </div>
@@ -546,8 +546,8 @@ export default function BoardTab({ concertId }: { concertId: string }) {
 
       {/* Floating post button */}
       <button onClick={() => setShowModal(true)}
-        className="fixed bottom-20 sm:bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-500/30 flex items-center justify-center transition-all hover:scale-105">
-        <Plus size={24} className="text-white" />
+        className="fixed bottom-20 sm:bottom-6 right-6 z-[60] w-14 h-14 rounded-full bg-white hover:bg-[#e0e0e0] shadow-lg shadow-black/30 flex items-center justify-center transition-all hover:scale-105">
+        <Plus size={24} className="text-black" />
       </button>
 
       {/* Post modal */}
@@ -564,7 +564,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
             <div className="flex gap-2 flex-wrap">
               {POST_CATEGORIES.map(cat => (
                 <button key={cat.value} type="button" onClick={() => setPostCategory(cat.value)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${postCategory === cat.value ? 'bg-violet-600 text-white border-violet-600' : 'border-white/10 text-[#8888aa] hover:border-white/20 hover:text-white'}`}>
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${postCategory === cat.value ? 'bg-white text-black border-white' : 'border-white/10 text-[#8888aa] hover:border-white/20 hover:text-white'}`}>
                   {cat.label}
                 </button>
               ))}
@@ -574,7 +574,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
             <textarea value={postContent} onChange={e => setPostContent(e.target.value)}
               placeholder="今どんな状況？情報を共有しよう..."
               rows={4}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none" />
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30 resize-none" />
 
             {/* Media preview */}
             {postMediaPreview && (
@@ -610,7 +610,7 @@ export default function BoardTab({ concertId }: { concertId: string }) {
               </button>
 
               <button onClick={handlePost} disabled={submitting || !postContent.trim()}
-                className="ml-auto px-5 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-black text-sm rounded-full transition-colors">
+                className="ml-auto px-5 py-2 bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-black text-sm rounded-full transition-colors">
                 {submitting ? '投稿中...' : '投稿'}
               </button>
             </div>

@@ -40,7 +40,7 @@ const CATEGORY_COLORS: Record<Category, string> = {
   restaurant: 'text-orange-400 bg-orange-500/10',
   hotel: 'text-blue-400 bg-blue-500/10',
   convenience: 'text-green-400 bg-green-500/10',
-  other: 'text-violet-400 bg-violet-500/10',
+  other: 'text-[#b3b3b3] bg-white/5',
 }
 
 const ALL_CATEGORIES: Array<Category | 'all'> = ['all', 'restaurant', 'hotel', 'convenience', 'other']
@@ -166,7 +166,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
             onClick={() => setActiveFilter(cat)}
             className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
               activeFilter === cat
-                ? 'bg-violet-600 text-white border-violet-600'
+                ? 'bg-white text-black border-white'
                 : 'border-white/10 text-[#8888aa] hover:border-white/20 hover:text-white'
             }`}
           >
@@ -179,7 +179,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
       <div className="flex justify-end">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold"
+          className="text-sm border border-white/20 text-[#b3b3b3] hover:bg-white/5 px-4 py-2 rounded-full transition-colors font-bold"
         >
           ＋ スポットを追加
         </button>
@@ -199,7 +199,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
                   <button key={cat} type="button" onClick={() => setCategory(cat)}
                     className={`flex items-center gap-2 py-2 px-3 rounded-xl border text-sm font-medium transition-colors ${
                       category === cat
-                        ? 'bg-violet-600/30 border-violet-500/50 text-violet-300'
+                        ? 'bg-white/10 border-white/30 text-[#b3b3b3]'
                         : 'border-white/10 text-[#8888aa] hover:border-white/20'
                     }`}>
                     <Icon size={14} />
@@ -217,7 +217,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
               value={formName}
               onChange={e => setFormName(e.target.value)}
               placeholder="例: 松屋 有明店"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
             />
           </div>
 
@@ -228,7 +228,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
               value={formDesc}
               onChange={e => setFormDesc(e.target.value)}
               placeholder="例: 会場から徒歩5分、24時間営業"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
             />
           </div>
 
@@ -239,7 +239,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
               value={formAddress}
               onChange={e => setFormAddress(e.target.value)}
               placeholder="例: 東京都江東区有明3-1-2"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
             />
           </div>
 
@@ -250,14 +250,14 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
               value={formUrl}
               onChange={e => setFormUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
             />
           </div>
 
           <button
             onClick={handleSubmit}
             disabled={submitting || !formName.trim()}
-            className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition-colors text-sm"
+            className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold py-2.5 rounded-xl transition-colors text-sm"
           >
             {submitting ? '追加中...' : '追加する'}
           </button>
@@ -305,7 +305,7 @@ export default function NearbyTab({ concertId }: { concertId: string }) {
                     )}
                     {spot.url && (
                       <a href={spot.url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 mt-1 transition-colors">
+                        className="inline-flex items-center gap-1 text-xs text-[#b3b3b3] hover:text-[#b3b3b3] mt-1 transition-colors">
                         <ExternalLink size={11} />
                         リンクを開く
                       </a>

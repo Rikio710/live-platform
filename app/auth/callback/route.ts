@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
       if (!profile?.username) {
         return NextResponse.redirect(`${origin}/setup-profile`)
       }
+      // 既存ユーザーのログイン — クライアント側でloginイベントを発火させるためクエリ付きリダイレクト
+      return NextResponse.redirect(`${origin}/mypage?login=google`)
     }
   }
 

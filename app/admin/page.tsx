@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
-import { Mic2, Route, Ticket, Users, MessageSquare, CheckCircle, ShoppingBag, Mail } from 'lucide-react'
+import { Mic2, Route, Ticket, Users, MessageSquare, CheckCircle, ShoppingBag, Mail, Music2, Tent, Rss, ListMusic, ClipboardList, MapPin, Navigation, UserCircle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,9 +48,9 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {stats.map(s => (
           <Link key={s.label} href={s.href}
-            className="glass rounded-2xl p-5 hover:border-violet-500/30 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center mb-3">
-              <s.icon size={16} className="text-violet-400" />
+            className="glass rounded-2xl p-5 hover:border-white/20 transition-colors">
+            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center mb-3">
+              <s.icon size={16} className="text-[#b3b3b3]" />
             </div>
             <p className="text-3xl font-black text-white">{s.value.toLocaleString()}</p>
             <p className="text-xs text-[#8888aa] mt-1">{s.label}</p>
@@ -60,16 +60,24 @@ export default async function AdminDashboard() {
 
       <div className="grid sm:grid-cols-3 gap-4">
         {[
+          { href: '/admin/spotify-import', label: 'Spotifyから一括取込', icon: Music2 },
           { href: '/admin/artists', label: 'アーティストを追加', icon: Mic2 },
           { href: '/admin/tours', label: 'ツアーを追加', icon: Route },
           { href: '/admin/concerts', label: '公演を追加', icon: Ticket },
+          { href: '/admin/festivals', label: 'フェスを管理', icon: Tent },
+          { href: '/admin/livefans-auto', label: 'LiveFans自動取込', icon: Rss },
+          { href: '/admin/setlist', label: 'セトリを管理', icon: ListMusic },
+          { href: '/admin/requests', label: 'リクエストを確認', icon: ClipboardList },
+          { href: '/admin/venues', label: '会場を管理', icon: MapPin },
+          { href: '/admin/nearby', label: '周辺スポットを管理', icon: Navigation },
+          { href: '/admin/avatars', label: 'アバターを管理', icon: UserCircle },
           { href: '/admin/posts', label: '掲示板を管理', icon: MessageSquare },
           { href: '/admin/merch', label: 'グッズを管理', icon: ShoppingBag },
           { href: '/admin/contact', label: 'お問い合わせを確認', icon: Mail },
         ].map(a => (
           <Link key={a.href} href={a.href}
-            className="flex items-center gap-3 glass rounded-2xl p-4 hover:border-violet-500/40 transition-colors text-sm font-bold text-white">
-            <a.icon size={18} className="text-violet-400 shrink-0" />
+            className="flex items-center gap-3 glass rounded-2xl p-4 hover:border-white/20 transition-colors text-sm font-bold text-white">
+            <a.icon size={18} className="text-[#b3b3b3] shrink-0" />
             {a.label} →
           </Link>
         ))}

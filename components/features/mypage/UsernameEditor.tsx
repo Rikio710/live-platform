@@ -55,10 +55,9 @@ export default function UsernameEditor({ initialUsername }: { initialUsername: s
   }
 
   return (
-    <div className="flex-1 min-w-0 glass rounded-2xl px-5 py-4 space-y-2">
-      <p className="text-xs text-[#8888aa]">ニックネーム</p>
+    <div>
       {editing ? (
-        <div className="space-y-2">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -67,26 +66,25 @@ export default function UsernameEditor({ initialUsername }: { initialUsername: s
               onKeyDown={e => e.key === 'Enter' && handleSave()}
               maxLength={20}
               autoFocus
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500/50"
+              className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xl font-black text-white focus:outline-none focus:border-white/30 w-48"
             />
             <button onClick={handleSave} disabled={saving}
-              className="text-violet-400 hover:text-violet-300 transition-colors p-1.5">
+              className="text-[#b3b3b3] hover:text-[#b3b3b3] transition-colors p-1">
               <Check size={16} />
             </button>
             <button onClick={handleCancel}
-              className="text-[#8888aa] hover:text-white transition-colors p-1.5">
+              className="text-[#8888aa] hover:text-white transition-colors p-1">
               <X size={16} />
             </button>
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-bold text-white">{current ?? '未設定'}</p>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-black text-white">{current ?? '名前を設定'}</h2>
           <button onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 text-xs text-[#8888aa] hover:text-white border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">
-            <Pencil size={11} />
-            変更
+            className="text-[#8888aa] hover:text-white transition-colors">
+            <Pencil size={14} />
           </button>
         </div>
       )}

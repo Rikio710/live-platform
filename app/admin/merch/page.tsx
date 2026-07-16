@@ -175,8 +175,8 @@ export default function AdminMerchPage() {
               {item.image_url ? (
                 <img src={item.image_url} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" onError={e => (e.currentTarget.style.display = 'none')} />
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-violet-800/40 flex items-center justify-center shrink-0">
-                  <ShoppingBag size={18} className="text-violet-400" />
+                <div className="w-12 h-12 rounded-xl bg-[#333333] flex items-center justify-center shrink-0">
+                  <ShoppingBag size={18} className="text-[#b3b3b3]" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -237,7 +237,7 @@ export default function AdminMerchPage() {
                 type="text"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
               />
             </div>
 
@@ -249,7 +249,7 @@ export default function AdminMerchPage() {
                 value={form.price}
                 onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
                 placeholder="例: 3000"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
               />
             </div>
 
@@ -261,7 +261,7 @@ export default function AdminMerchPage() {
                 value={form.image_url}
                 onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
                 placeholder="https://..."
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
               />
               {form.image_url && (
                 <img src={form.image_url} alt="" className="w-20 h-20 rounded-xl object-cover mt-2" onError={e => (e.currentTarget.style.display = 'none')} />
@@ -279,7 +279,7 @@ export default function AdminMerchPage() {
                     onClick={() => toggleSize(size)}
                     className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors border ${
                       form.size_options.includes(size)
-                        ? 'bg-violet-600 border-violet-500 text-white'
+                        ? 'bg-white border-violet-500 text-white'
                         : 'border-white/10 text-[#8888aa] hover:text-white'
                     }`}
                   >
@@ -291,7 +291,7 @@ export default function AdminMerchPage() {
                     key={size}
                     type="button"
                     onClick={() => toggleSize(size)}
-                    className="px-3 py-1.5 rounded-full text-xs font-bold border bg-violet-600 border-violet-500 text-white transition-colors"
+                    className="px-3 py-1.5 rounded-full text-xs font-bold border bg-white border-violet-500 text-white transition-colors"
                   >
                     {size}
                   </button>
@@ -304,7 +304,7 @@ export default function AdminMerchPage() {
                   onChange={e => setCustomSize(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addCustomSize()}
                   placeholder="カスタムサイズ"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
                 />
                 <button
                   type="button"
@@ -336,7 +336,7 @@ export default function AdminMerchPage() {
                   onChange={e => setNewColor(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addColor()}
                   placeholder="例: ブラック"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
                 />
                 <button
                   type="button"
@@ -358,7 +358,7 @@ export default function AdminMerchPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors"
               >
                 {saving ? '保存中...' : '保存'}
               </button>

@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
       twitter_url: body.twitter_url || null,
       instagram_url: body.instagram_url || null,
       youtube_url: body.youtube_url || null,
+      tiktok_url: body.tiktok_url || null,
+      livefans_id: body.livefans_id ? parseInt(body.livefans_id) : null,
     }).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)

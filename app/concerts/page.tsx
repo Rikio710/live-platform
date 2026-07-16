@@ -7,7 +7,7 @@ import type { Tables } from '@/types/supabase'
 import ArtistFilter from './ArtistFilter'
 
 type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'slug' | 'date' | 'start_time' | 'venue_name' | 'image_url'> & {
-  artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
   setlist_submissions: { id: string }[]
 }
@@ -36,12 +36,12 @@ export default async function ConcertsPage({
   const [{ data: upcoming }, { data: past }, { data: artists }] = await Promise.all([
     supabase
       .from('concerts')
-      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name), tours(id, name, image_url), setlist_submissions(id)')
+      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name, image_url), tours(id, name, image_url), setlist_submissions(id)')
       .gte('date', today)
       .order('date', { ascending: true }),
     supabase
       .from('concerts')
-      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name), tours(id, name, image_url), setlist_submissions(id)')
+      .select('id, slug, date, start_time, venue_name, image_url, artists(id, name, image_url), tours(id, name, image_url), setlist_submissions(id)')
       .lt('date', today)
       .order('date', { ascending: false })
       .limit(100),
@@ -73,13 +73,13 @@ export default async function ConcertsPage({
         <div className="flex rounded-full border border-white/10 p-1 self-start">
           <Link
             href={`/concerts?tab=upcoming${artist ? `&artist=${encodeURIComponent(artist)}` : ''}`}
-            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${tab !== 'past' ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}
+            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${tab !== 'past' ? 'bg-white text-black' : 'text-[#8888aa] hover:text-white'}`}
           >
             近日公演 {artist ? '' : `(${upcomingRows.length})`}
           </Link>
           <Link
             href={`/concerts?tab=past${artist ? `&artist=${encodeURIComponent(artist)}` : ''}`}
-            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${tab === 'past' ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}
+            className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${tab === 'past' ? 'bg-white text-black' : 'text-[#8888aa] hover:text-white'}`}
           >
             過去の公演 {artist ? '' : `(${pastRows.length})`}
           </Link>
@@ -99,13 +99,13 @@ export default async function ConcertsPage({
             <Link
               key={c.id}
               href={`/concerts/${c.id.slice(0, 8)}`}
-              className="glass rounded-2xl p-4 flex items-center gap-4 hover:border-violet-500/40 transition-colors group"
+              className="glass rounded-2xl p-4 flex items-center gap-4 hover:border-white/20 transition-colors group"
             >
               {/* サムネイル */}
-              <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-violet-800/60 to-pink-800/60">
-                {(c.image_url || c.tours?.image_url) ? (
+              <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-[#333333]/60 to-[#282828]/60">
+                {(c.image_url || c.tours?.image_url || c.artists?.image_url) ? (
                   <img
-                    src={c.image_url ?? c.tours?.image_url ?? ''}
+                    src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url ?? ''}
                     alt=""
                     className="w-full h-full object-cover"
                   />
@@ -129,9 +129,9 @@ export default async function ConcertsPage({
               <div className="w-px h-10 bg-white/10 shrink-0" />
               <div className="flex-1 min-w-0">
                 {c.artists && (
-                  <p className="text-xs text-violet-300 font-bold">{c.artists.name}</p>
+                  <p className="text-xs text-[#b3b3b3] font-bold">{c.artists.name}</p>
                 )}
-                <p className="font-bold text-white group-hover:text-violet-300 transition-colors truncate text-sm">
+                <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate text-sm">
                   {c.tours?.name ?? c.venue_name}
                 </p>
                 <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -146,13 +146,13 @@ export default async function ConcertsPage({
                     </p>
                   )}
                   {c.setlist_submissions.length > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] border border-white/20">
                       セットリスト
                     </span>
                   )}
                 </div>
               </div>
-              <span className="text-[#8888aa] group-hover:text-violet-300 transition-colors shrink-0">›</span>
+              <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
             </Link>
           ))}
         </div>

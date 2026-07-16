@@ -30,7 +30,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   restaurant: 'bg-orange-500/20 text-orange-300',
   hotel: 'bg-blue-500/20 text-blue-300',
   convenience: 'bg-green-500/20 text-green-300',
-  other: 'bg-violet-500/20 text-violet-300',
+  other: 'bg-white/10 text-[#b3b3b3]',
 }
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   restaurant: Utensils,
@@ -152,7 +152,7 @@ export default function AdminNearbyPage() {
                   )}
                   {spot.url && (
                     <a href={spot.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                      className="inline-flex items-center gap-1 text-xs text-[#b3b3b3] hover:text-[#b3b3b3] transition-colors">
                       <ExternalLink size={11} />
                       {spot.url}
                     </a>

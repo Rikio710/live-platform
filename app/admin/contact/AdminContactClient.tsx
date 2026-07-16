@@ -71,7 +71,7 @@ export default function AdminContactClient({ initialMessages }: { initialMessage
             onClick={() => setFilter(f)}
             className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
               filter === f
-                ? 'bg-violet-600 text-white'
+                ? 'bg-white text-black'
                 : 'border border-white/10 text-[#8888aa] hover:text-white'
             }`}
           >

@@ -179,7 +179,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
           ) : (
             <button
               onClick={() => setShowForm(true)}
-              className="text-sm border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 px-4 py-2 rounded-full transition-colors font-bold"
+              className="text-sm border border-white/20 text-[#b3b3b3] hover:bg-white/5 px-4 py-2 rounded-full transition-colors font-bold"
             >
               ＋ レビューを投稿
             </button>
@@ -202,12 +202,12 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
               onChange={e => setComment(e.target.value)}
               rows={3}
               placeholder="ライブの感想を一言どうぞ"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50 resize-none"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30 resize-none"
             />
           </div>
           <div className="flex gap-2">
             <button onClick={handleSubmit} disabled={submitting || rating === 0}
-              className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition-colors text-sm">
+              className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-40 text-black font-bold py-2.5 rounded-xl transition-colors text-sm">
               {submitting ? '送信中...' : '投稿する'}
             </button>
             <button onClick={() => setShowForm(false)}
@@ -232,7 +232,7 @@ export default function ReviewTab({ concertId }: { concertId: string }) {
                   {r.profiles?.avatar_url ? (
                     <img src={r.profiles.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-violet-500/30 flex items-center justify-center text-[10px] font-bold text-violet-300 shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-[#b3b3b3] shrink-0">
                       {(r.guest_name ?? r.profiles?.username ?? '?')[0].toUpperCase()}
                     </div>
                   )}

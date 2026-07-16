@@ -7,11 +7,11 @@ import { Calendar, MapPin } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
 
 type RecentConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
-  artists: Pick<Tables<'artists'>, 'id' | 'name'> | null
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
 
-const PAGE_SIZE = 6
+const PAGE_SIZE = 8
 
 export default function RecentConcerts({ initialConcerts }: { initialConcerts: RecentConcert[] }) {
   const supabase = createClient()
@@ -24,7 +24,7 @@ export default function RecentConcerts({ initialConcerts }: { initialConcerts: R
     const today = new Date().toISOString().split('T')[0]
     const { data } = await supabase
       .from('concerts')
-      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name), tours(id, name, image_url)')
+      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url), tours(id, name, image_url)')
       .lt('date', today)
       .order('date', { ascending: false })
       .range(concerts.length, concerts.length + PAGE_SIZE - 1)
@@ -45,32 +45,26 @@ export default function RecentConcerts({ initialConcerts }: { initialConcerts: R
 
   return (
     <div className="space-y-4">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {concerts.map(c => (
           <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-            className="glass rounded-2xl overflow-hidden hover:border-violet-500/40 transition-all group">
-            <div className="h-36 bg-gradient-to-br from-violet-900/50 to-pink-900/30 relative">
-              {(c.image_url || c.tours?.image_url) && (
-                <img src={c.image_url ?? c.tours?.image_url ?? undefined} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity" />
-              )}
-              <div className="absolute inset-0 flex items-end p-3">
-                <div>
-                  <p className="text-xs text-violet-300 font-bold">{c.artists?.name}</p>
-                  <p className="text-sm font-bold text-white leading-tight">{c.tours?.name}</p>
+            className="group rounded-lg p-3 hover:bg-[#282828] transition-colors">
+            <div className="aspect-square rounded-md overflow-hidden bg-[#282828] mb-3">
+              {(c.image_url || c.tours?.image_url || c.artists?.image_url) ? (
+                <img src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url ?? undefined} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <MapPin size={32} className="text-[#535353]" />
                 </div>
-              </div>
+              )}
             </div>
-            <div className="p-4 space-y-1">
-              <p className="text-xs text-[#8888aa] flex items-center gap-1">
-                <Calendar size={11} className="shrink-0" />
-                {new Date(c.date).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
-                {c.start_time && ` ${c.start_time.slice(0, 5)}〜`}
-              </p>
-              <p className="text-sm font-medium text-white truncate flex items-center gap-1">
-                <MapPin size={11} className="shrink-0 text-[#8888aa]" />
-                {c.venue_name}
-              </p>
-            </div>
+            <p className="text-sm font-bold text-white truncate leading-tight">
+              {c.tours?.name ?? c.venue_name}
+            </p>
+            <p className="text-xs text-[#b3b3b3] truncate mt-0.5">{c.artists?.name}</p>
+            <p className="text-xs text-[#b3b3b3] mt-0.5">
+              {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+            </p>
           </Link>
         ))}
       </div>

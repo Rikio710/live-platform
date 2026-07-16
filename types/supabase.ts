@@ -50,11 +50,16 @@ export type Database = {
           id: string
           image_url: string | null
           instagram_url: string | null
+          livefans_crawl_page: number | null
+          livefans_id: number | null
+          livefans_last_crawled_at: string | null
           name: string
           slug: string | null
+          spotify_id: string | null
           twitter_url: string | null
           website_url: string | null
           youtube_url: string | null
+          tiktok_url: string | null
         }
         Insert: {
           created_at?: string | null
@@ -62,11 +67,16 @@ export type Database = {
           id?: string
           image_url?: string | null
           instagram_url?: string | null
+          livefans_crawl_page?: number | null
+          livefans_id?: number | null
+          livefans_last_crawled_at?: string | null
           name: string
           slug?: string | null
+          spotify_id?: string | null
           twitter_url?: string | null
           website_url?: string | null
           youtube_url?: string | null
+          tiktok_url?: string | null
         }
         Update: {
           created_at?: string | null
@@ -74,13 +84,59 @@ export type Database = {
           id?: string
           image_url?: string | null
           instagram_url?: string | null
+          livefans_crawl_page?: number | null
+          livefans_id?: number | null
+          livefans_last_crawled_at?: string | null
           name?: string
           slug?: string | null
+          spotify_id?: string | null
           twitter_url?: string | null
           website_url?: string | null
           youtube_url?: string | null
+          tiktok_url?: string | null
         }
         Relationships: []
+      }
+      crawl_queue: {
+        Row: {
+          id: string
+          artist_id: string
+          livefans_event_id: number | null
+          event_name: string | null
+          event_date: string
+          venue_name: string | null
+          status: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          artist_id: string
+          livefans_event_id?: number | null
+          event_name?: string | null
+          event_date: string
+          venue_name?: string | null
+          status?: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          artist_id?: string
+          livefans_event_id?: number | null
+          event_name?: string | null
+          event_date?: string
+          venue_name?: string | null
+          status?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crawl_queue_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       concert_reviews: {
         Row: {
@@ -197,10 +253,13 @@ export type Database = {
           artist_id: string
           created_at: string | null
           date: string
+          festival_event_id: string | null
           id: string
           image_url: string | null
+          livefans_event_id: number | null
           slug: string | null
           spotify_url: string | null
+          stage_name: string | null
           start_time: string | null
           tour_id: string | null
           venue_address: string | null
@@ -211,10 +270,13 @@ export type Database = {
           artist_id: string
           created_at?: string | null
           date: string
+          festival_event_id?: string | null
           id?: string
           image_url?: string | null
+          livefans_event_id?: number | null
           slug?: string | null
           spotify_url?: string | null
+          stage_name?: string | null
           start_time?: string | null
           tour_id?: string | null
           venue_address?: string | null
@@ -225,10 +287,13 @@ export type Database = {
           artist_id?: string
           created_at?: string | null
           date?: string
+          festival_event_id?: string | null
           id?: string
           image_url?: string | null
+          livefans_event_id?: number | null
           slug?: string | null
           spotify_url?: string | null
+          stage_name?: string | null
           start_time?: string | null
           tour_id?: string | null
           venue_address?: string | null
@@ -247,6 +312,113 @@ export type Database = {
             columns: ["tour_id"]
             isOneToOne: false
             referencedRelation: "tours"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concerts_festival_event_id_fkey"
+            columns: ["festival_event_id"]
+            isOneToOne: false
+            referencedRelation: "festival_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      festival_groups: {
+        Row: {
+          id: string
+          name: string
+          slug: string | null
+          image_url: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug?: string | null
+          image_url?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string | null
+          image_url?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      festival_events: {
+        Row: {
+          id: string
+          group_id: string | null
+          name: string
+          slug: string | null
+          start_date: string
+          end_date: string | null
+          venue_name: string | null
+          venue_address: string | null
+          image_url: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          group_id?: string | null
+          name: string
+          slug?: string | null
+          start_date: string
+          end_date?: string | null
+          venue_name?: string | null
+          venue_address?: string | null
+          image_url?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          group_id?: string | null
+          name?: string
+          slug?: string | null
+          start_date?: string
+          end_date?: string | null
+          venue_name?: string | null
+          venue_address?: string | null
+          image_url?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festival_events_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "festival_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      festival_event_attendances: {
+        Row: {
+          id: string
+          festival_event_id: string
+          user_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          festival_event_id: string
+          user_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          festival_event_id?: string
+          user_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "festival_event_attendances_festival_event_id_fkey"
+            columns: ["festival_event_id"]
+            isOneToOne: false
+            referencedRelation: "festival_events"
             referencedColumns: ["id"]
           },
         ]
@@ -721,6 +893,47 @@ export type Database = {
         }
         Relationships: []
       }
+      songs: {
+        Row: {
+          id: string
+          artist_id: string
+          name: string
+          spotify_track_id: string | null
+          spotify_preview_url: string | null
+          album_name: string | null
+          release_year: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          artist_id: string
+          name: string
+          spotify_track_id?: string | null
+          spotify_preview_url?: string | null
+          album_name?: string | null
+          release_year?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          artist_id?: string
+          name?: string
+          spotify_track_id?: string | null
+          spotify_preview_url?: string | null
+          album_name?: string | null
+          release_year?: number | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "songs_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       setlist_songs: {
         Row: {
           concert_id: string
@@ -728,6 +941,7 @@ export type Database = {
           id: string
           is_encore: boolean | null
           order_num: number | null
+          song_id: string | null
           song_name: string
           song_type: string
           submission_id: string | null
@@ -740,6 +954,7 @@ export type Database = {
           id?: string
           is_encore?: boolean | null
           order_num?: number | null
+          song_id?: string | null
           song_name: string
           song_type?: string
           submission_id?: string | null
@@ -752,6 +967,7 @@ export type Database = {
           id?: string
           is_encore?: boolean | null
           order_num?: number | null
+          song_id?: string | null
           song_name?: string
           song_type?: string
           submission_id?: string | null
@@ -771,6 +987,13 @@ export type Database = {
             columns: ["submission_id"]
             isOneToOne: false
             referencedRelation: "setlist_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_songs_song_id_fkey"
+            columns: ["song_id"]
+            isOneToOne: false
+            referencedRelation: "songs"
             referencedColumns: ["id"]
           },
         ]
@@ -878,6 +1101,7 @@ export type Database = {
           end_date: string | null
           id: string
           image_url: string | null
+          livefans_group_id: number | null
           name: string
           slug: string | null
           start_date: string | null
@@ -888,6 +1112,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           image_url?: string | null
+          livefans_group_id?: number | null
           name: string
           slug?: string | null
           start_date?: string | null
@@ -898,6 +1123,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           image_url?: string | null
+          livefans_group_id?: number | null
           name?: string
           slug?: string | null
           start_date?: string | null

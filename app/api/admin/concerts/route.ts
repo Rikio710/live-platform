@@ -40,12 +40,14 @@ export async function POST(req: NextRequest) {
     const { data, error } = await admin.from('concerts').insert({
       artist_id: body.artist_id,
       tour_id: body.tour_id || null,
+      festival_event_id: body.festival_event_id || null,
+      stage_name: body.stage_name || null,
       venue_name: body.venue_name,
       venue_address: body.venue_address || null,
       date: body.date,
       start_time: body.start_time || null,
       image_url: body.image_url || null,
-    }).select('*, artists(id, name), tours(id, name)').single()
+    }).select('*, artists(id, name), tours(id, name), festival_events(id, name, festival_groups(name))').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)
   } catch {

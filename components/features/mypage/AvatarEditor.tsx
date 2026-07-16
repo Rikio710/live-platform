@@ -107,13 +107,13 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
       {/* アバター表示 + 変更ボタン */}
       <button onClick={() => setOpen(true)} className="relative group shrink-0">
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="w-20 h-20 rounded-2xl object-cover" />
+          <img src={avatarUrl} alt="" className="w-24 h-24 rounded-full object-cover" />
         ) : (
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-800 to-pink-800 flex items-center justify-center">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#333333] to-[#282828] flex items-center justify-center">
             <span className="text-2xl font-black text-white">?</span>
           </div>
         )}
-        <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <Camera size={20} className="text-white" />
         </div>
       </button>
@@ -133,7 +133,7 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
             <div className="flex rounded-xl bg-white/5 p-1 gap-1">
               {(['preset', 'upload'] as const).map(t => (
                 <button key={t} onClick={() => setTab(t)}
-                  className={`flex-1 text-sm font-bold py-1.5 rounded-lg transition-colors ${tab === t ? 'bg-violet-600 text-white' : 'text-[#8888aa] hover:text-white'}`}>
+                  className={`flex-1 text-sm font-bold py-1.5 rounded-lg transition-colors ${tab === t ? 'bg-white text-black' : 'text-[#8888aa] hover:text-white'}`}>
                   {t === 'preset' ? 'プリセットから選ぶ' : 'ライブラリから選ぶ'}
                 </button>
               ))}
@@ -147,10 +147,10 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
                   <div className="grid grid-cols-4 gap-2">
                     {presets.map(p => (
                       <button key={p.id} onClick={() => handleSelectPreset(p.url)} disabled={saving}
-                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-colors hover:border-violet-500 ${avatarUrl === p.url ? 'border-violet-500' : 'border-transparent'}`}>
+                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-colors hover:border-white ${avatarUrl === p.url ? 'border-white' : 'border-transparent'}`}>
                         <img src={p.url} alt="" className="w-full h-full object-cover" />
                         {avatarUrl === p.url && (
-                          <div className="absolute inset-0 bg-violet-600/40 flex items-center justify-center">
+                          <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
                             <Check size={16} className="text-white" />
                           </div>
                         )}
@@ -168,7 +168,7 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
               <div className="space-y-3">
                 {!imageSrc ? (
                   <button onClick={() => fileRef.current?.click()}
-                    className="w-full border-2 border-dashed border-white/15 rounded-xl py-8 flex flex-col items-center gap-2 text-[#8888aa] hover:border-violet-500/40 hover:text-white transition-colors">
+                    className="w-full border-2 border-dashed border-white/15 rounded-xl py-8 flex flex-col items-center gap-2 text-[#8888aa] hover:border-white/20 hover:text-white transition-colors">
                     <Upload size={20} />
                     <span className="text-sm">画像を選択</span>
                     <span className="text-xs opacity-60">JPG / PNG / WebP</span>
@@ -190,7 +190,7 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-[#8888aa]">ズーム</span>
                       <input type="range" min={1} max={3} step={0.05} value={zoom}
-                        onChange={e => setZoom(Number(e.target.value))} className="flex-1 accent-violet-500" />
+                        onChange={e => setZoom(Number(e.target.value))} className="flex-1 accent-white" />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => setImageSrc(null)}
@@ -198,7 +198,7 @@ export default function AvatarEditor({ userId, initialAvatarUrl }: Props) {
                         やり直す
                       </button>
                       <button onClick={handleUpload} disabled={saving}
-                        className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm transition-colors">
+                        className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2 rounded-xl text-sm transition-colors">
                         {saving ? '保存中...' : '保存'}
                       </button>
                     </div>

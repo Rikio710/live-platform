@@ -79,7 +79,7 @@ export default function AdminAvatarsPage() {
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-sm px-4 py-2.5 rounded-full transition-colors">
+          className="flex items-center gap-2 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold text-sm px-4 py-2.5 rounded-full transition-colors">
           <Upload size={15} />
           {uploading ? 'アップロード中...' : '画像を追加'}
         </button>
@@ -102,11 +102,11 @@ export default function AdminAvatarsPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {presets.map(p => (
-            <div key={p.id} className={`glass rounded-2xl p-3 space-y-3 ${p.is_default ? 'border-violet-500/50' : ''}`}>
+            <div key={p.id} className={`glass rounded-2xl p-3 space-y-3 ${p.is_default ? 'border-white/30' : ''}`}>
               <div className="relative">
                 <img src={p.url} alt="" className="w-full aspect-square object-cover rounded-xl" />
                 {p.is_default && (
-                  <span className="absolute top-2 left-2 bg-violet-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="absolute top-2 left-2 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                     <Star size={9} fill="currentColor" /> デフォルト
                   </span>
                 )}
@@ -115,7 +115,7 @@ export default function AdminAvatarsPage() {
                 {!p.is_default && (
                   <button
                     onClick={() => handleSetDefault(p.id)}
-                    className="flex-1 flex items-center justify-center gap-1 text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-violet-500/40 py-1.5 rounded-lg transition-colors">
+                    className="flex-1 flex items-center justify-center gap-1 text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 py-1.5 rounded-lg transition-colors">
                     <Star size={11} /> デフォルト
                   </button>
                 )}

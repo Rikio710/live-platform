@@ -36,11 +36,14 @@ export async function POST(req: NextRequest) {
   const $ = cheerio.load(html)
   $('script, style').remove()
 
-  // Find schedule table
+  // Find schedule table: ヘッダーありの場合もなしの場合も対応
   let scheduleSelector = ''
   $('table').each((_, table) => {
     const firstRowText = $(table).find('tr').first().text()
-    if (firstRowText.includes('公演日') || firstRowText.includes('開演')) {
+    const hasHeader = firstRowText.includes('公演日') || firstRowText.includes('開演')
+    const hasDatePattern = /\d{4}\/\d{2}\/\d{2}/.test($(table).text())
+    const hasEventLink = $(table).find('a[href*="/events/"]').length > 0
+    if (hasHeader || (hasDatePattern && hasEventLink)) {
       const tableId = `lt-${Math.random().toString(36).slice(2)}`
       $(table).attr('id', tableId)
       scheduleSelector = `#${tableId} tr`
@@ -56,36 +59,49 @@ export async function POST(req: NextRequest) {
 
   $(scheduleSelector).each((_, row) => {
     const tds = $(row).find('td').toArray()
-    if (tds.length < 3) return
+    if (tds.length < 2) return
 
     const dateText = $(tds[0]).text().trim()
     const dm = dateText.match(/(\d{4})\/(\d{2})\/(\d{2})/)
     if (!dm) return
     const date = `${dm[1]}-${dm[2]}-${dm[3]}`
 
-    // 全 td から時刻パターンを探す（列構成がページによって異なるため）
+    // 対バン形式の検出
+    const rowText = tds.map(td => $(td).text()).join(' ')
+    const isTaiban = /出演[：:]/.test(rowText)
+
     let start_time = ''
-    for (const td of tds) {
-      const txt = $(td).text().trim()
-      const tm = txt.match(/(\d{1,2}):(\d{2})/)
-      if (tm) {
-        start_time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
+    let venue_name = ''
+
+    if (isTaiban) {
+      for (let j = 1; j < tds.length; j++) {
+        const tdEl = $(tds[j])
+        if (!/出演[：:]/.test(tdEl.text())) continue
+        const tm = $(tds[1]).text().trim().match(/(\d{1,2}):(\d{2})/) ?? tdEl.text().match(/(\d{1,2}):(\d{2})/)
+        if (tm) start_time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`
+        // Venue: remove eventname and listArtName spans, leaving only the venue text node
+        const clone = tdEl.clone()
+        clone.find('span.eventname, span.listArtName').remove()
+        venue_name = clone.text().trim()
+          .replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '')
+          .trim()
         break
       }
+    } else {
+      if (tds.length < 3) return
+      for (const td of tds) {
+        const txt = $(td).text().trim()
+        const tm = txt.match(/(\d{1,2}):(\d{2})/)
+        if (tm) { start_time = `${tm[1].padStart(2, '0')}:${tm[2]}:00`; break }
+      }
+      let venueRaw = ''
+      for (let j = 1; j < tds.length; j++) {
+        const txt = $(tds[j]).text().trim()
+        if (/^[\d:]+$/.test(txt)) continue
+        if (txt.length >= 3) { venueRaw = txt; break }
+      }
+      venue_name = venueRaw.replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '').trim()
     }
-
-    // 日付セルの次のセルから会場名を探す（時刻セルをスキップ）
-    let venueRaw = ''
-    for (let j = 1; j < tds.length; j++) {
-      const txt = $(tds[j]).text().trim()
-      // 時刻っぽいもの・数字のみはスキップ
-      if (/^[\d:]+$/.test(txt)) continue
-      // 十分な長さがあれば会場名と判断
-      if (txt.length >= 3) { venueRaw = txt; break }
-    }
-    const venue_name = venueRaw
-      .replace(/\s*[（(][^)）]*[都道府県][^)）]*[)）]/g, '')
-      .trim()
 
     // Look for /events/ link anywhere in the row
     let event_url = ''

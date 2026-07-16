@@ -95,7 +95,7 @@ export default function RequestPage() {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-5">
         <div className="flex justify-center">
-          <CheckCircle size={52} className="text-violet-400" />
+          <CheckCircle size={52} className="text-[#b3b3b3]" />
         </div>
         <div>
           <p className="text-white font-black text-xl">リクエストを送信しました！</p>
@@ -107,7 +107,7 @@ export default function RequestPage() {
             続けてリクエスト
           </button>
           <button onClick={() => router.push('/')}
-            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-5 py-2.5 rounded-full text-sm transition-colors">
+            className="bg-white hover:bg-[#e0e0e0] text-black font-bold px-5 py-2.5 rounded-full text-sm transition-colors">
             トップへ戻る
           </button>
         </div>
@@ -127,7 +127,7 @@ export default function RequestPage() {
         {TABS.map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setError(null) }}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-colors ${
-              tab === t.id ? 'bg-violet-600 text-white' : 'border border-white/10 text-[#8888aa] hover:text-white'
+              tab === t.id ? 'bg-white text-black' : 'border border-white/10 text-[#8888aa] hover:text-white'
             }`}>
             <t.icon size={14} />
             {t.label}
@@ -158,7 +158,7 @@ export default function RequestPage() {
           <div>
             <label className="text-xs text-[#8888aa] mb-1 block">アーティスト *</label>
             <select value={tArtistId} onChange={e => setTArtistId(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50">
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30">
               <option value="">選択してください</option>
               {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               <option value="__new__">リストにない（下に入力）</option>
@@ -183,7 +183,7 @@ export default function RequestPage() {
           <div>
             <label className="text-xs text-[#8888aa] mb-1 block">アーティスト *</label>
             <select value={cArtistId} onChange={e => { setCArtistId(e.target.value); setCTourId('') }}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50">
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30">
               <option value="">選択してください</option>
               {artists.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
@@ -191,7 +191,7 @@ export default function RequestPage() {
           <div>
             <label className="text-xs text-[#8888aa] mb-1 block">ツアー（任意）</label>
             <select value={cTourId} onChange={e => setCTourId(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50">
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30">
               <option value="">ツアーなし / 不明</option>
               {filteredTours.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
@@ -207,7 +207,7 @@ export default function RequestPage() {
       {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
 
       <button onClick={handleSubmit} disabled={submitting}
-        className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+        className="w-full bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-3 rounded-xl text-sm transition-colors">
         {submitting ? '送信中...' : 'リクエストを送信する'}
       </button>
     </div>
@@ -218,7 +218,7 @@ function Field({ label, value, onChange, placeholder, textarea, type = 'text' }:
   label: string; value: string; onChange: (v: string) => void
   placeholder?: string; textarea?: boolean; type?: string
 }) {
-  const cls = 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-violet-500/50'
+  const cls = 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30'
   return (
     <div>
       <label className="text-xs text-[#8888aa] mb-1 block">{label}</label>

@@ -27,15 +27,33 @@ export async function GET() {
   }
 }
 
-// PATCH: update all concerts matching old_name with new_name and new_address
+// PATCH: 1件リネーム or 複数→1件マージ
 export async function PATCH(req: NextRequest) {
   try {
     await requireAdmin()
-    const { old_name, new_name, new_address } = await req.json()
+    const body = await req.json()
+    const admin = createAdminClient()
+
+    // マージモード: aliases[] → canonical
+    if (body.aliases && body.canonical) {
+      const { aliases, canonical, canonical_address } = body as {
+        aliases: string[]; canonical: string; canonical_address?: string
+      }
+      if (!canonical?.trim()) return NextResponse.json({ error: '正規名は必須です' }, { status: 400 })
+      const patch: Record<string, string | null> = { venue_name: canonical.trim() }
+      if (canonical_address !== undefined) patch.venue_address = canonical_address?.trim() || null
+      for (const alias of aliases) {
+        const { error } = await admin.from('concerts').update(patch).eq('venue_name', alias)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      return NextResponse.json({ ok: true, merged: aliases.length })
+    }
+
+    // 1件リネームモード
+    const { old_name, new_name, new_address } = body
     if (!old_name || !new_name?.trim()) {
       return NextResponse.json({ error: '会場名は必須です' }, { status: 400 })
     }
-    const admin = createAdminClient()
     const { error } = await admin
       .from('concerts')
       .update({ venue_name: new_name.trim(), venue_address: new_address?.trim() || null })

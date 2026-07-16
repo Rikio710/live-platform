@@ -30,7 +30,7 @@ export default function Error({
         </div>
         <button
           onClick={reset}
-          className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors"
+          className="bg-white hover:bg-[#e0e0e0] text-black font-bold px-6 py-2.5 rounded-full text-sm transition-colors"
         >
           再試行
         </button>

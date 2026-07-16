@@ -16,6 +16,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       twitter_url: body.twitter_url || null,
       instagram_url: body.instagram_url || null,
       youtube_url: body.youtube_url || null,
+      tiktok_url: body.tiktok_url || null,
+      image_crop_x: body.image_crop_x ?? 50,
+      image_crop_y: body.image_crop_y ?? 50,
+      image_crop_scale: body.image_crop_scale ?? 1,
+      livefans_id: body.livefans_id ? parseInt(body.livefans_id) : null,
     }).eq('id', id).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)

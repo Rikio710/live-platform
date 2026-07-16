@@ -15,19 +15,19 @@ export default function ArtistsSection({ artists }: { artists: any[] }) {
     <section className="max-w-5xl mx-auto px-4 py-8 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-white">アーティスト</h2>
-        <Link href="/artists" className="text-sm text-violet-400 hover:text-violet-300 transition-colors font-medium">
+        <Link href="/artists" className="text-sm text-[#b3b3b3] hover:text-[#b3b3b3] transition-colors font-medium">
           すべて見る →
         </Link>
       </div>
       <div className="flex flex-wrap gap-2">
         {displayed.map((a: any) => (
           <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
-            className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-violet-500/40 transition-colors text-sm font-medium">
+            className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-white/20 transition-colors text-sm font-medium">
             {a.image_url ? (
               <img src={a.image_url} alt="" className="w-6 h-6 rounded-full object-cover" />
             ) : (
-              <span className="w-6 h-6 rounded-full bg-violet-800/60 flex items-center justify-center">
-                <Mic2 size={11} className="text-violet-400" />
+              <span className="w-6 h-6 rounded-full bg-[#333333] flex items-center justify-center">
+                <Mic2 size={11} className="text-[#b3b3b3]" />
               </span>
             )}
             {a.name}

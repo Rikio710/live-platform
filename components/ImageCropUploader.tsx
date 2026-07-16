@@ -78,7 +78,7 @@ export default function ImageCropUploader({ onUpload, onCancel }: Props) {
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="w-full border-2 border-dashed border-white/15 rounded-xl py-6 flex flex-col items-center gap-2 text-[#8888aa] hover:border-violet-500/40 hover:text-white transition-colors"
+          className="w-full border-2 border-dashed border-white/15 rounded-xl py-6 flex flex-col items-center gap-2 text-[#8888aa] hover:border-white/20 hover:text-white transition-colors"
         >
           <Upload size={20} />
           <span className="text-sm">画像ファイルを選択</span>
@@ -109,7 +109,7 @@ export default function ImageCropUploader({ onUpload, onCancel }: Props) {
         <input
           type="range" min={1} max={3} step={0.05}
           value={zoom} onChange={e => setZoom(Number(e.target.value))}
-          className="flex-1 accent-violet-500"
+          className="flex-1 accent-white"
         />
       </div>
       <p className="text-xs text-[#8888aa]">切り取りたい範囲をドラッグで調整</p>
@@ -120,7 +120,7 @@ export default function ImageCropUploader({ onUpload, onCancel }: Props) {
           <X size={14} /> キャンセル
         </button>
         <button type="button" onClick={handleUpload} disabled={uploading}
-          className="flex-1 flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm transition-colors">
+          className="flex-1 flex items-center justify-center gap-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2 rounded-xl text-sm transition-colors">
           <Check size={14} /> {uploading ? 'アップロード中...' : 'この範囲で確定'}
         </button>
       </div>
