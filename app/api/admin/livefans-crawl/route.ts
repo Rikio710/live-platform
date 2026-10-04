@@ -74,13 +74,22 @@ async function scrapeArtistEvents(livefansId: number): Promise<ScrapedEvent[]> {
 async function runCrawl(artistIds?: string[]): Promise<NextResponse> {
   const admin = createAdminClient()
 
-  let query = admin.from('artists').select('id, name, livefans_id').not('livefans_id', 'is', null)
-  if (artistIds?.length) query = query.in('id', artistIds)
-  const { data: artists, error } = await query.limit(BATCH)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lfQuery = (admin as any)
+    .from('artist_livefans_ids')
+    .select('artist_id, livefans_id')
+  if (artistIds?.length) lfQuery = lfQuery.in('artist_id', artistIds)
+  const { data: lfEntries, error } = await lfQuery.limit(BATCH)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!artists?.length) return NextResponse.json({ added: 0, crawled: 0, message: '対象アーティストなし' })
+  if (!lfEntries?.length) return NextResponse.json({ added: 0, crawled: 0, message: '対象アーティストなし' })
 
-  const allArtistIds = artists.map(a => a.id)
+  // artist_id → livefans_ids マップ（1アーティストに複数IDあり得る）
+  const artistLivefansMap = new Map<string, number[]>()
+  for (const e of lfEntries as { artist_id: string; livefans_id: number }[]) {
+    if (!artistLivefansMap.has(e.artist_id)) artistLivefansMap.set(e.artist_id, [])
+    artistLivefansMap.get(e.artist_id)!.push(e.livefans_id)
+  }
+  const allArtistIds = [...artistLivefansMap.keys()]
 
   const { data: existingConcerts } = await admin
     .from('concerts')
@@ -102,31 +111,33 @@ async function runCrawl(artistIds?: string[]): Promise<NextResponse> {
 
   const queueItems: object[] = []
 
-  for (const artist of artists) {
-    if (!artist.livefans_id) continue
-    const events = await scrapeArtistEvents(artist.livefans_id)
+  for (const [artistId, livefansIds] of artistLivefansMap) {
+    for (const livefansId of livefansIds) {
+      const events = await scrapeArtistEvents(livefansId)
 
-    for (const ev of events) {
-      if (seenLivefansIds.has(ev.livefans_event_id)) continue
-      const key = `${artist.id}:${ev.event_date}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      seenLivefansIds.add(ev.livefans_event_id)
+      for (const ev of events) {
+        if (seenLivefansIds.has(ev.livefans_event_id)) continue
+        const key = `${artistId}:${ev.event_date}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        seenLivefansIds.add(ev.livefans_event_id)
 
-      queueItems.push({
-        artist_id: artist.id,
-        livefans_event_id: ev.livefans_event_id,
-        event_name: ev.event_name,
-        event_date: ev.event_date,
-        venue_name: ev.venue_name,
-        status: 'pending',
-      })
+        queueItems.push({
+          artist_id: artistId,
+          livefans_event_id: ev.livefans_event_id,
+          event_name: ev.event_name,
+          event_date: ev.event_date,
+          venue_name: ev.venue_name,
+          status: 'pending',
+        })
+      }
+
+      await new Promise(r => setTimeout(r, 400))
     }
-
-    await new Promise(r => setTimeout(r, 400))
   }
 
   if (queueItems.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await admin.from('crawl_queue').upsert(queueItems as any, {
       onConflict: 'livefans_event_id',
       ignoreDuplicates: true,
@@ -135,8 +146,8 @@ async function runCrawl(artistIds?: string[]): Promise<NextResponse> {
 
   return NextResponse.json({
     added: queueItems.length,
-    crawled: artists.length,
-    message: `${artists.length}アーティストをクロール。${queueItems.length}件の新着を発見。`,
+    crawled: allArtistIds.length,
+    message: `${allArtistIds.length}アーティストをクロール。${queueItems.length}件の新着を発見。`,
   })
 }
 

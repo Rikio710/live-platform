@@ -42,7 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1 pb-16 sm:pb-0">{children}</main>
         <footer className="border-t border-white/5 mt-16 pb-16 sm:pb-0">
           <div className="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-[#8888aa] space-y-3">
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center flex-wrap gap-x-4 gap-y-2">
+              <Link href="/articles" className="hover:text-white transition-colors">記事・特集</Link>
+              <Link href="/articles/category/standard-songs" className="hover:text-white transition-colors">ライブ定番曲ランキング</Link>
               <Link href="/contact" className="hover:text-white transition-colors">お問い合わせ</Link>
             </div>
             <p>© 2026 LiveVault — ライブ参戦体験のOS</p>

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/supabase/guards'
 import * as cheerio from 'cheerio'
+import { findSameConcert } from '@/lib/concertDedupe'
 
 export const maxDuration = 60
 
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest) {
       name: tourData.name,
       image_url: tourData.image_url || null,
       livefans_group_id: tourData.livefans_group_id || null,
-    }).select('*, artists(id, name)').single()
+    }).select('*, artists!tours_artist_id_fkey(id, name)').single()
     if (error) {
       if (error.code === '23505' && error.message.includes('livefans_group_id')) {
         const { data: existing } = await admin
@@ -146,8 +147,12 @@ export async function POST(req: NextRequest) {
     if (concerts.length > 0) {
       const MAX_SETLISTS = 10
 
-      const insertRows = concerts.map((c: { venue_name: string; date: string; start_time: string; event_url?: string; additional_artists?: string[] }) => {
+      const insertRows = concerts.map((c: { venue_name: string; date: string; start_time: string; event_url?: string; additional_artists?: string[]; artist_livefans_ids?: number[] }) => {
         const eventIdMatch = (c.event_url ?? '').match(/\/events\/(\d+)/)
+        const artistLivefansIds = c.artist_livefans_ids ?? []
+        const additionalArtists = c.additional_artists ?? []
+        const event_type: 'solo' | 'taiban' | 'festival' =
+          artistLivefansIds.length >= 2 || additionalArtists.length >= 1 ? 'taiban' : 'solo'
         return {
           artist_id: tourData.artist_id,
           tour_id: tour.id,
@@ -155,7 +160,9 @@ export async function POST(req: NextRequest) {
           date: c.date,
           start_time: c.start_time || null,
           livefans_event_id: eventIdMatch ? parseInt(eventIdMatch[1]) : null,
-          _additional_artists: c.additional_artists ?? [],
+          event_type,
+          _additional_artists: additionalArtists,
+          _artist_livefans_ids: artistLivefansIds,
         }
       })
 
@@ -175,40 +182,76 @@ export async function POST(req: NextRequest) {
             .is('tour_id', null)
         }
       }
-      const rowsToInsert = insertRows.filter((r: { livefans_event_id: number | null }) => !r.livefans_event_id || !existingEventIds.has(r.livefans_event_id))
+      const notLinked = insertRows.filter((r: { livefans_event_id: number | null }) => !r.livefans_event_id || !existingEventIds.has(r.livefans_event_id))
+      // 同アーティスト・同日・同会場・同開演時刻の既存公演（手動登録など）があれば新規作成せず紐付ける（二重登録防止）
+      const rowsToInsert: typeof notLinked = []
+      for (const r of notLinked as { artist_id: string; date: string; venue_name: string; start_time: string | null; livefans_event_id: number | null }[]) {
+        const same = await findSameConcert(admin, r)
+        if (!same) { rowsToInsert.push(r); continue }
+        if (r.livefans_event_id && !same.livefans_event_id) {
+          await admin.from('concerts').update({ livefans_event_id: r.livefans_event_id }).eq('id', same.id)
+        }
+        await admin.from('concerts').update({ tour_id: tour.id }).eq('id', same.id).is('tour_id', null)
+      }
       if (rowsToInsert.length > 0) {
-        await admin.from('concerts').insert(rowsToInsert.map(({ _additional_artists: _a, ...r }: { _additional_artists: string[]; [k: string]: unknown }) => r))
+        await admin.from('concerts').insert(rowsToInsert.map(({ _additional_artists: _a, _artist_livefans_ids: _b, ...r }: { _additional_artists: string[]; _artist_livefans_ids: number[]; [k: string]: unknown }) => r))
       }
 
       // concert_artists への登録
+      // 対象公演の concert_id を livefans_event_id で取得
+      const allEventIds: number[] = insertRows.map((r: { livefans_event_id: number | null }) => r.livefans_event_id).filter((id: number | null): id is number => id !== null)
+      const { data: targetConcertsForArtists } = allEventIds.length > 0
+        ? await admin.from('concerts').select('id, livefans_event_id').in('livefans_event_id', allEventIds)
+        : { data: [] }
+      const eventIdToConcertId: Record<number, string> = Object.fromEntries((targetConcertsForArtists ?? []).map((c: { id: string; livefans_event_id: number | null }) => [c.livefans_event_id, c.id]))
+
+      const concertArtistRows: { concert_id: string; artist_id: string; order_num: number }[] = []
+
+      // 方法1: artist_livefans_ids テーブルから DB アーティストを引く
+      const allLivefansIds = [...new Set(insertRows.flatMap((r: { _artist_livefans_ids: number[] }) => r._artist_livefans_ids))]
+      const livefansIdToArtistId = new Map<number, string>()
+      if (allLivefansIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: foundByLivefansId } = await (admin as any).from('artist_livefans_ids').select('artist_id, livefans_id').in('livefans_id', allLivefansIds as number[])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const a of foundByLivefansId ?? []) livefansIdToArtistId.set(a.livefans_id, a.artist_id)
+      }
+
+      // 方法2: _additional_artists (名前ベース) から DB アーティストを引く
       const allAdditionalNames = [...new Set(insertRows.flatMap((r: { _additional_artists: string[] }) => r._additional_artists))]
+      const nameToArtistId = new Map<string, string>()
       if (allAdditionalNames.length > 0) {
-        const { data: foundArtists } = await admin.from('artists').select('id, name').in('name', allAdditionalNames as string[])
-        const nameToId: Record<string, string> = Object.fromEntries((foundArtists ?? []).map((a: { id: string; name: string }) => [a.name, a.id]))
+        const { data: foundByName } = await admin.from('artists').select('id, name').in('name', allAdditionalNames as string[])
+        for (const a of foundByName ?? []) nameToArtistId.set(a.name, a.id)
+      }
 
-        // 対象公演のIDを livefans_event_id で取得
-        const allEventIds: number[] = insertRows.map((r: { livefans_event_id: number | null }) => r.livefans_event_id).filter((id: number | null): id is number => id !== null)
-        const { data: targetConcertsForArtists } = allEventIds.length > 0
-          ? await admin.from('concerts').select('id, livefans_event_id').in('livefans_event_id', allEventIds)
-          : { data: [] }
-        const eventIdToConcertId: Record<number, string> = Object.fromEntries((targetConcertsForArtists ?? []).map((c: { id: string; livefans_event_id: number | null }) => [c.livefans_event_id, c.id]))
+      for (const row of insertRows as { livefans_event_id: number | null; _additional_artists: string[]; _artist_livefans_ids: number[] }[]) {
+        if (!row.livefans_event_id) continue
+        const concertId = eventIdToConcertId[row.livefans_event_id]
+        if (!concertId) continue
 
-        const concertArtistRows: { concert_id: string; artist_id: string; order_num: number }[] = []
-        for (const row of insertRows as { livefans_event_id: number | null; _additional_artists: string[] }[]) {
-          if (!row._additional_artists.length || !row.livefans_event_id) continue
-          const concertId = eventIdToConcertId[row.livefans_event_id]
-          if (!concertId) continue
-          row._additional_artists.forEach((name, i) => {
-            const artistId = nameToId[name]
-            if (artistId && artistId !== tourData.artist_id) {
-              concertArtistRows.push({ concert_id: concertId, artist_id: artistId, order_num: i + 1 })
-            }
+        const artistIds = new Set<string>()
+        // livefans_ids ベースを優先
+        if (row._artist_livefans_ids.length > 0) {
+          row._artist_livefans_ids.forEach(lid => {
+            const aId = livefansIdToArtistId.get(lid)
+            if (aId) artistIds.add(aId)
           })
         }
-        if (concertArtistRows.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (admin as any).from('concert_artists').upsert(concertArtistRows, { onConflict: 'concert_id,artist_id', ignoreDuplicates: true })
-        }
+        // 名前ベースで補完
+        row._additional_artists.forEach(name => {
+          const aId = nameToArtistId.get(name)
+          if (aId) artistIds.add(aId)
+        })
+
+        Array.from(artistIds).forEach((artistId, i) => {
+          concertArtistRows.push({ concert_id: concertId, artist_id: artistId, order_num: i })
+        })
+      }
+
+      if (concertArtistRows.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (admin as any).from('concert_artists').upsert(concertArtistRows, { onConflict: 'concert_id,artist_id', ignoreDuplicates: true })
       }
 
     if (import_setlists && user) {

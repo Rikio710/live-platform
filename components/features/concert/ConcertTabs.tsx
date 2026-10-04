@@ -1,6 +1,7 @@
 'use client'
 
-import { useRouter, usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { MessageSquare, ShoppingBag, Music, MapPin, Star } from 'lucide-react'
 import BoardTab from './BoardTab'
 import MerchTab from './MerchTab'
@@ -16,9 +17,15 @@ const TABS = [
   { key: 'nearby', label: '周辺', icon: MapPin },
 ]
 
+const TAB_KEYS = TABS.map(t => t.key)
+
+/**
+ * タブはブラウザ側で切り替える（URL の ?tab= も維持）。
+ * ページ側（サーバー）で searchParams を読むとページがキャッシュされなくなるため。
+ * useSearchParams を使うので、呼び出し側で <Suspense> で囲むこと。
+ */
 export default function ConcertTabs({
   concertId,
-  activeTab,
   tourId,
   concertTitle,
   artistName,
@@ -27,7 +34,6 @@ export default function ConcertTabs({
   initialSongCount,
 }: {
   concertId: string
-  activeTab: string
   tourId: string | null
   concertTitle?: string
   artistName?: string
@@ -35,11 +41,20 @@ export default function ConcertTabs({
   venueName?: string
   initialSongCount?: number
 }) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const fromUrl = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(fromUrl && TAB_KEYS.includes(fromUrl) ? fromUrl : 'setlist')
+
+  // ブラウザの戻る・進むで ?tab= が変わったら追従
+  useEffect(() => {
+    if (fromUrl && TAB_KEYS.includes(fromUrl)) setActiveTab(fromUrl)
+    else if (!fromUrl) setActiveTab('setlist')
+  }, [fromUrl])
 
   const setTab = (tab: string) => {
-    router.push(`${pathname}?tab=${tab}`, { scroll: false })
+    setActiveTab(tab)
+    // サーバーへの再リクエストなしで URL だけ更新（Next.js は history API と useSearchParams を同期する）
+    window.history.pushState(null, '', tab === 'setlist' ? window.location.pathname : `?tab=${tab}`)
   }
 
   return (

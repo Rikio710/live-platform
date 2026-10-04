@@ -102,3 +102,11 @@ export async function adminDeleteContact(id: string) {
   const { error } = await admin.from('contact_messages').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
+
+// ---- キャッシュ ----
+/** 全ページのキャッシュ（ISR）を破棄して、管理画面での変更をすぐサイトに反映する */
+export async function adminRevalidateAll() {
+  await requireAdmin()
+  const { revalidatePath } = await import('next/cache')
+  revalidatePath('/', 'layout')
+}

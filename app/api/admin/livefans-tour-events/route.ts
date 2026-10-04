@@ -9,6 +9,12 @@ export type TourEvent = {
   venue_name: string
   start_time: string
   event_url: string
+  artist_livefans_ids: number[]
+}
+
+export type GroupArtist = {
+  name: string
+  livefans_id: number
 }
 
 export async function POST(req: NextRequest) {
@@ -35,6 +41,20 @@ export async function POST(req: NextRequest) {
 
   const $ = cheerio.load(html)
   $('script, style').remove()
+
+  // グループ全体のアーティスト: p.mainArtist の /artists/{id} リンクから name→livefans_id マップを構築
+  const groupArtists: GroupArtist[] = []
+  const nameToLivefansId = new Map<string, number>()
+  $('p.mainArtist a[href*="/artists/"]').each((_, el) => {
+    const href = $(el).attr('href') ?? ''
+    const m = href.match(/\/artists\/(\d+)/)
+    const name = $(el).text().trim()
+    if (m && name) {
+      const id = parseInt(m[1])
+      groupArtists.push({ name, livefans_id: id })
+      nameToLivefansId.set(name, id)
+    }
+  })
 
   // Find schedule table: ヘッダーありの場合もなしの場合も対応
   let scheduleSelector = ''
@@ -113,8 +133,20 @@ export async function POST(req: NextRequest) {
       }
     })
 
+    // span.listArtName から出演者名を取得し、nameToLivefansId でIDに変換
+    const artist_livefans_ids: number[] = []
+    const listArtText = $(row).find('span.listArtName').text()
+    const artistNamesRaw = listArtText.replace(/^出演[：:]\s*/, '').trim()
+    if (artistNamesRaw) {
+      artistNamesRaw.split(/[,、]/).forEach(name => {
+        const trimmed = name.trim()
+        const id = nameToLivefansId.get(trimmed)
+        if (id !== undefined) artist_livefans_ids.push(id)
+      })
+    }
+
     if (venue_name && venue_name.length <= 60) {
-      events.push({ date, venue_name, start_time, event_url })
+      events.push({ date, venue_name, start_time, event_url, artist_livefans_ids })
     }
   })
 
@@ -122,5 +154,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '公演情報が見つかりませんでした' }, { status: 422 })
   }
 
-  return NextResponse.json({ events })
+  return NextResponse.json({ events, groupArtists })
 }

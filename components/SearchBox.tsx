@@ -2,12 +2,13 @@
 
 import { useRouter } from 'next/navigation'
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { Search, Mic2, Route } from 'lucide-react'
+import { Search, Mic2, Route, Music } from 'lucide-react'
 import Link from 'next/link'
 
 type SuggestResult = {
-  artists: { id: string; name: string; image_url: string | null }[]
+  artists: { id: string; name: string; image_url: string | null; image_crop_x: number | null; image_crop_y: number | null }[]
   tours: { id: string; name: string; artists: { name: string } | null }[]
+  songs: { id: string; name: string; image_url: string | null; spotify_artist_name: string | null; artists: { name: string } | null }[]
 }
 
 export default function SearchBox({ defaultValue = '' }: { defaultValue?: string }) {
@@ -26,7 +27,7 @@ export default function SearchBox({ defaultValue = '' }: { defaultValue?: string
       const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`)
       if (!res.ok) return
       const data: SuggestResult = await res.json()
-      const hasResults = data.artists.length > 0 || data.tours.length > 0
+      const hasResults = data.artists.length > 0 || data.tours.length > 0 || data.songs.length > 0
       setResults(data)
       setOpen(hasResults)
     } finally {
@@ -58,7 +59,7 @@ export default function SearchBox({ defaultValue = '' }: { defaultValue?: string
     }
   }
 
-  const totalResults = (results?.artists.length ?? 0) + (results?.tours.length ?? 0)
+  const totalResults = (results?.artists.length ?? 0) + (results?.tours.length ?? 0) + (results?.songs.length ?? 0)
 
   return (
     <div ref={containerRef} className="relative">
@@ -74,7 +75,7 @@ export default function SearchBox({ defaultValue = '' }: { defaultValue?: string
             onChange={e => setValue(e.target.value)}
             onFocus={() => { if (results && totalResults > 0) setOpen(true) }}
             onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
-            placeholder="アーティスト・ライブ・会場を検索"
+            placeholder="アーティスト・曲名・ライブ・会場を検索"
             autoComplete="off"
             className="w-full bg-white/5 border border-white/10 hover:border-white/20 focus:border-white/30 rounded-2xl pl-11 pr-4 py-4 text-white placeholder-[#8888aa] text-sm focus:outline-none transition-colors"
           />
@@ -96,7 +97,7 @@ export default function SearchBox({ defaultValue = '' }: { defaultValue?: string
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors"
                 >
                   {a.image_url
-                    ? <img src={a.image_url} alt={a.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
+                    ? <img src={a.image_url} alt={a.name} className="w-7 h-7 rounded-full object-cover shrink-0" style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }} />
                     : <div className="w-7 h-7 rounded-full bg-white/10 shrink-0 flex items-center justify-center"><Mic2 size={12} className="text-white/40" /></div>
                   }
                   <span className="text-sm text-white truncate">{a.name}</span>
@@ -124,6 +125,34 @@ export default function SearchBox({ defaultValue = '' }: { defaultValue?: string
                   </div>
                 </Link>
               ))}
+            </div>
+          )}
+
+          {results.songs.length > 0 && (
+            <div>
+              <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-[#8888aa] flex items-center gap-1.5">
+                <Music size={10} /> 曲名
+              </p>
+              {results.songs.map(s => {
+                const artistName = s.spotify_artist_name ?? s.artists?.name ?? ''
+                return (
+                  <Link
+                    key={s.id}
+                    href={`/songs/${s.id.slice(0, 8)}`}
+                    onClick={() => { setOpen(false); setValue('') }}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors"
+                  >
+                    {s.image_url
+                      ? <img src={s.image_url} alt={s.name} className="w-7 h-7 rounded object-cover shrink-0" />
+                      : <div className="w-7 h-7 rounded bg-white/10 shrink-0 flex items-center justify-center"><Music size={12} className="text-white/40" /></div>
+                    }
+                    <div className="min-w-0">
+                      {artistName && <p className="text-[10px] text-[#8888aa] truncate">{artistName}</p>}
+                      <p className="text-sm text-white truncate">{s.name}</p>
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           )}
 

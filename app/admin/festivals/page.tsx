@@ -16,6 +16,8 @@ type FestivalGroup = {
 
 type GroupForm = { name: string; slug: string; image_url: string }
 type EventForm = { group_id: string; name: string; slug: string; start_date: string; end_date: string; venue_name: string; venue_address: string; image_url: string }
+type CrawlResult = { concerts_added: number; total_slots: number; matched_artists: number; unmatched_artists: string[]; errors: string[]; message: string }
+type PendingFestivalGroup = { id: string; livefans_group_id: number; name: string | null; crawl_status: string | null; detected_at: string | null; livefans_pending_event_ids: number[] | null }
 
 const EMPTY_GROUP: GroupForm = { name: '', slug: '', image_url: '' }
 const EMPTY_EVENT: EventForm = { group_id: '', name: '', slug: '', start_date: '', end_date: '', venue_name: '', venue_address: '', image_url: '' }
@@ -25,7 +27,7 @@ export default function AdminFestivalsPage() {
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const [modal, setModal] = useState<'group-create' | 'group-edit' | 'event-create' | 'event-edit' | null>(null)
+  const [modal, setModal] = useState<'group-create' | 'group-edit' | 'event-create' | 'event-edit' | 'crawl' | null>(null)
   const [editingGroup, setEditingGroup] = useState<FestivalGroup | null>(null)
   const [editingEvent, setEditingEvent] = useState<FestivalEvent | null>(null)
   const [groupForm, setGroupForm] = useState<GroupForm>(EMPTY_GROUP)
@@ -33,11 +35,26 @@ export default function AdminFestivalsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [pendingGroups, setPendingGroups] = useState<PendingFestivalGroup[]>([])
+
+  const [crawlTargetEvent, setCrawlTargetEvent] = useState<FestivalEvent | null>(null)
+  const [crawlUrl, setCrawlUrl] = useState('')
+  const [crawling, setCrawling] = useState(false)
+  const [crawlResult, setCrawlResult] = useState<CrawlResult | null>(null)
+
+  const [queueProcessing, setQueueProcessing] = useState(false)
+  const [queueResult, setQueueResult] = useState<{ total_events: number; total_concerts: number; log: string[]; message: string; phase?: number; remaining?: number; queued?: number } | null>(null)
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null)
+  const [crawlingGroupId, setCrawlingGroupId] = useState<string | null>(null)
+
   const load = async () => {
     try {
-      const res = await fetch('/api/admin/festivals')
-      if (!res.ok) throw new Error()
-      setGroups(await res.json())
+      const [festRes, pgRes] = await Promise.all([
+        fetch('/api/admin/festivals'),
+        fetch('/api/admin/festival-groups'),
+      ])
+      if (festRes.ok) setGroups(await festRes.json())
+      if (pgRes.ok) setPendingGroups(await pgRes.json())
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }
@@ -54,6 +71,7 @@ export default function AdminFestivalsPage() {
   const openGroupCreate = () => { setGroupForm(EMPTY_GROUP); setEditingGroup(null); setError(null); setModal('group-create') }
   const openGroupEdit = (g: FestivalGroup) => { setGroupForm({ name: g.name, slug: g.slug ?? '', image_url: g.image_url ?? '' }); setEditingGroup(g); setError(null); setModal('group-edit') }
   const openEventCreate = (groupId: string) => { setEventForm({ ...EMPTY_EVENT, group_id: groupId }); setEditingEvent(null); setError(null); setModal('event-create') }
+  const openCrawl = (e: FestivalEvent) => { setCrawlTargetEvent(e); setCrawlUrl(''); setCrawlResult(null); setError(null); setModal('crawl') }
   const openEventEdit = (e: FestivalEvent, groupId: string) => {
     setEventForm({
       group_id: groupId,
@@ -123,6 +141,60 @@ export default function AdminFestivalsPage() {
     else alert('削除に失敗しました')
   }
 
+  const reprocess = async (id: string) => {
+    setReprocessingId(id)
+    try {
+      const res = await fetch('/api/admin/festival-groups', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) await load()
+    } catch { /* ignore */ }
+    finally { setReprocessingId(null) }
+  }
+
+  const processQueue = async (groupId?: string) => {
+    if (groupId) setCrawlingGroupId(groupId)
+    else setQueueProcessing(true)
+    setQueueResult(null)
+    try {
+      const res = await fetch('/api/admin/livefans-festival-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(groupId ? { group_id: groupId } : { limit: 1 }),
+        signal: AbortSignal.timeout(70000),
+      })
+      const text = await res.text()
+      let data: typeof queueResult
+      try { data = JSON.parse(text) } catch {
+        data = { total_events: 0, total_concerts: 0, log: [`サーバーエラー (HTTP ${res.status}): ${text.slice(0, 200)}`], message: 'サーバータイムアウト — 再実行してください' }
+      }
+      setQueueResult(data)
+      if (res.ok) await load()
+    } catch (e) {
+      setQueueResult({ total_events: 0, total_concerts: 0, log: [`ネットワークエラー: ${e}`], message: 'リクエスト失敗 — 再実行してください' })
+    } finally { setCrawlingGroupId(null); setQueueProcessing(false) }
+  }
+
+  const runCrawl = async () => {
+    if (!crawlTargetEvent) return
+    const m = crawlUrl.match(/\/events\/(\d+)/)
+    if (!m) { setError('LiveFans のイベントURL（/events/xxxxx）を入力してください'); return }
+    setCrawling(true); setError(null); setCrawlResult(null)
+    try {
+      const res = await fetch('/api/admin/livefans-festival-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ festival_event_id: crawlTargetEvent.id, livefans_event_id: parseInt(m[1]) }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'クロールに失敗しました'); return }
+      setCrawlResult(data)
+    } catch { setError('ネットワークエラー') }
+    finally { setCrawling(false) }
+  }
+
   const cls = 'w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30'
 
   return (
@@ -136,6 +208,104 @@ export default function AdminFestivalsPage() {
           ＋ フェスシリーズ追加
         </button>
       </div>
+
+      {pendingGroups.filter(g => g.crawl_status === 'pending').length > 0 && (
+        <div className="glass rounded-2xl p-4 space-y-3 border border-yellow-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-white">クロールキュー</p>
+              <p className="text-xs text-[#8888aa] mt-0.5">
+                過去クロールで検出されたフェス（未処理）— {pendingGroups.filter(g => g.crawl_status === 'pending').length}件
+              </p>
+            </div>
+            <button
+              onClick={() => processQueue()}
+              disabled={queueProcessing}
+              className="bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-black font-bold text-sm px-4 py-2 rounded-full transition-colors shrink-0"
+            >
+              {queueProcessing ? '処理中...' : 'キュー処理'}
+            </button>
+
+          </div>
+          {(queueProcessing || queueResult) && (
+            <div className="bg-black/30 rounded-xl px-4 py-3 space-y-1">
+              {queueProcessing ? (
+                <p className="text-xs text-yellow-400 font-mono">処理中...</p>
+              ) : queueResult && (
+                <>
+                  <p className="text-sm text-white font-bold">{queueResult.message}</p>
+                  {(queueResult.remaining ?? 0) > 0 && (
+                    <p className="text-xs text-yellow-400">残り {queueResult.remaining} 件 — 続けてクロールしてください</p>
+                  )}
+                  {queueResult.log.length === 0 && (
+                    <p className="text-xs text-[#8888aa] font-mono">（ログなし）</p>
+                  )}
+                  {queueResult.log.map((line, i) => (
+                    <p key={i} className="text-xs text-[#b3b3b3] font-mono">{line}</p>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {pendingGroups.filter(g => g.crawl_status === 'pending').map(g => {
+              const pendingCount = g.livefans_pending_event_ids?.length ?? 0
+              const phase = pendingCount > 0 ? 2 : 1
+              return (
+                <div key={g.id} className="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white">{g.name ?? `group:${g.livefans_group_id}`}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <a href={`https://www.livefans.jp/groups/${g.livefans_group_id}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-[#8888aa] hover:text-white transition-colors">
+                        livefans.jp/groups/{g.livefans_group_id}
+                      </a>
+                      <span className="text-[10px] text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded-full">
+                        {phase === 1 ? 'リスト未取得' : `残り${pendingCount}件`}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => processQueue(g.id)}
+                    disabled={crawlingGroupId === g.id || queueProcessing}
+                    className="text-xs bg-yellow-500/20 hover:bg-yellow-500/30 disabled:opacity-50 text-yellow-400 border border-yellow-500/30 px-3 py-1.5 rounded-full transition-colors shrink-0"
+                  >
+                    {crawlingGroupId === g.id ? '処理中...' : phase === 1 ? 'リスト取得' : 'イベント処理'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {pendingGroups.filter(g => g.crawl_status === 'done').length > 0 && (
+        <div className="glass rounded-2xl p-4 space-y-2 border border-white/10">
+          <p className="text-sm font-bold text-white">処理済みグループ（再処理可能）</p>
+          <div className="space-y-1.5">
+            {pendingGroups.filter(g => g.crawl_status === 'done').map(g => (
+              <div key={g.id} className="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white truncate">{g.name ?? `group:${g.livefans_group_id}`}</p>
+                  <a href={`https://www.livefans.jp/groups/${g.livefans_group_id}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-[#8888aa] hover:text-white transition-colors">
+                    livefans.jp/groups/{g.livefans_group_id}
+                  </a>
+                </div>
+                <button
+                  onClick={() => reprocess(g.id)}
+                  disabled={reprocessingId === g.id}
+                  className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors shrink-0"
+                >
+                  {reprocessingId === g.id ? '...' : '再処理'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-[#8888aa] text-sm">読み込み中...</p>
@@ -188,6 +358,9 @@ export default function AdminFestivalsPage() {
                           </div>
                           <p className="text-xs text-[#8888aa] font-mono shrink-0">{e.id.slice(0, 8)}</p>
                           <div className="flex items-center gap-2 shrink-0">
+                            <button onClick={() => openCrawl(e)} className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">
+                              クロール
+                            </button>
                             <button onClick={() => openEventEdit(e, g.id)} className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">
                               編集
                             </button>
@@ -229,6 +402,50 @@ export default function AdminFestivalsPage() {
               <button onClick={() => setModal(null)} className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">キャンセル</button>
               <button onClick={saveGroup} disabled={saving} className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
                 {saving ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </AdminModal>
+      )}
+
+      {/* クロール モーダル */}
+      {modal === 'crawl' && crawlTargetEvent && (
+        <AdminModal title={`クロール: ${crawlTargetEvent.name}`} onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-[#8888aa] mb-1 block">LiveFans イベントURL</label>
+              <input
+                type="text"
+                value={crawlUrl}
+                onChange={e => setCrawlUrl(e.target.value)}
+                placeholder="https://www.livefans.jp/events/1649621"
+                className={cls}
+              />
+              <p className="text-xs text-[#8888aa] mt-1">フェスのイベントページURL（/events/xxxxx）を入力してください</p>
+            </div>
+            {error && <p className="text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3">{error}</p>}
+            {crawlResult && (
+              <div className="bg-white/5 rounded-xl px-4 py-3 space-y-1.5 text-sm">
+                <p className="text-white font-bold">{crawlResult.message}</p>
+                <p className="text-[#8888aa]">スロット: {crawlResult.total_slots}件 / マッチ: {crawlResult.matched_artists}件 / 追加: {crawlResult.concerts_added}件</p>
+                {crawlResult.unmatched_artists.length > 0 && (
+                  <div>
+                    <p className="text-yellow-400 text-xs mt-2">未マッチのアーティスト（DB に存在しない）:</p>
+                    <p className="text-[#8888aa] text-xs">{crawlResult.unmatched_artists.join('、')}</p>
+                  </div>
+                )}
+                {crawlResult.errors.length > 0 && (
+                  <div>
+                    <p className="text-red-400 text-xs mt-2">エラー:</p>
+                    {crawlResult.errors.map((e, i) => <p key={i} className="text-red-300 text-xs">{e}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setModal(null)} className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">閉じる</button>
+              <button onClick={runCrawl} disabled={crawling || !crawlUrl} className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
+                {crawling ? 'クロール中...' : 'クロール実行'}
               </button>
             </div>
           </div>

@@ -4,12 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Calendar, Mic2, Route } from 'lucide-react'
 
+type ArtistImageInfo = { id: string; name: string; image_url: string | null; image_crop_x?: number | null; image_crop_y?: number | null }
+
 export type RankingConcert = {
   id: string
   venue_name: string
   date: string
   image_url: string | null
-  artists: { id: string; name: string; image_url: string | null } | null
+  artists: ArtistImageInfo | null
   tours: { id: string; name: string; image_url: string | null } | null
 }
 
@@ -19,13 +21,15 @@ export type RankingTour = {
   image_url: string | null
   start_date: string | null
   end_date: string | null
-  artists: { id: string; name: string; image_url: string | null } | null
+  artists: ArtistImageInfo | null
 }
 
 export type RankingArtist = {
   id: string
   name: string
   image_url: string | null
+  image_crop_x?: number | null
+  image_crop_y?: number | null
 }
 
 type Props = {
@@ -45,10 +49,10 @@ function RankNum({ n }: { n: number }) {
   )
 }
 
-function Thumb({ src, fallback }: { src: string | null | undefined; fallback: React.ReactNode }) {
+function Thumb({ src, fallback, objectPosition }: { src: string | null | undefined; fallback: React.ReactNode; objectPosition?: string }) {
   return (
     <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-[#282828] flex items-center justify-center">
-      {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : fallback}
+      {src ? <img src={src} alt="" className="w-full h-full object-cover" style={objectPosition ? { objectPosition } : undefined} /> : fallback}
     </div>
   )
 }
@@ -72,6 +76,7 @@ function ConcertList({ concerts }: { concerts: RankingConcert[] }) {
           <Thumb
             src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url}
             fallback={<Calendar size={18} className="text-[#535353]" />}
+            objectPosition={!c.image_url && !c.tours?.image_url && c.artists ? `${c.artists.image_crop_x ?? 50}% ${c.artists.image_crop_y ?? 50}%` : undefined}
           />
           <div className="flex-1 min-w-0">
             {c.artists?.name && <p className="text-xs text-[#b3b3b3] truncate">{c.artists.name}</p>}
@@ -100,6 +105,7 @@ function TourList({ tours }: { tours: RankingTour[] }) {
           <Thumb
             src={t.image_url ?? t.artists?.image_url}
             fallback={<Route size={18} className="text-[#535353]" />}
+            objectPosition={!t.image_url && t.artists ? `${t.artists.image_crop_x ?? 50}% ${t.artists.image_crop_y ?? 50}%` : undefined}
           />
           <div className="flex-1 min-w-0">
             {t.artists?.name && <p className="text-xs text-[#b3b3b3] truncate">{t.artists.name}</p>}
@@ -130,6 +136,7 @@ function ArtistList({ artists }: { artists: RankingArtist[] }) {
           <Thumb
             src={a.image_url}
             fallback={<Mic2 size={18} className="text-[#535353]" />}
+            objectPosition={`${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%`}
           />
           <p className="flex-1 text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{a.name}</p>
         </Link>

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { Calendar, MapPin, Music2 } from 'lucide-react'
 import { siteUrl } from '@/lib/site'
@@ -14,10 +14,15 @@ type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'slug' | 'date' | 'start_time'
 
 export const revalidate = 3600
 
+/** 初回アクセス時に生成してキャッシュ（ISR） */
+export function generateStaticParams() {
+  return []
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const venueName = decodeURIComponent(slug)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const { data: metaConcerts } = await supabase
     .from('concerts')
@@ -58,7 +63,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function VenuePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const venueName = decodeURIComponent(slug)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const { data: concerts } = await supabase
     .from('concerts')
@@ -140,12 +145,12 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
 
       {/* パンくず */}
-      <nav className="text-xs text-[#8888aa] flex items-center gap-1">
-        <Link href="/" className="hover:text-white transition-colors">ホーム</Link>
-        <span>/</span>
-        <Link href="/venues" className="hover:text-white transition-colors">会場一覧</Link>
-        <span>/</span>
-        <span className="text-white">{venueName}</span>
+      <nav className="text-xs text-[#8888aa] flex items-center gap-1 min-w-0 overflow-hidden">
+        <Link href="/" className="hover:text-white transition-colors shrink-0">ホーム</Link>
+        <span className="shrink-0">/</span>
+        <Link href="/venues" className="hover:text-white transition-colors shrink-0">会場一覧</Link>
+        <span className="shrink-0">/</span>
+        <span className="text-white min-w-0 truncate shrink">{venueName}</span>
       </nav>
 
       {/* ヘッダー */}

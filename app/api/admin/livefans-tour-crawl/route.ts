@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/supabase/guards'
 import * as cheerio from 'cheerio'
+import { findSameConcert } from '@/lib/concertDedupe'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -101,7 +102,7 @@ async function scrapeSetlist(
 }
 
 type PageStat = { page: number; found: number; newCount: number; error: boolean }
-type ScrapeResult = { eventIds: number[]; lastPage: number; pageStats: PageStat[] }
+type ScrapeResult = { eventIds: number[]; lastPage: number; pageStats: PageStat[]; isExhausted: boolean; totalPages: number | null }
 
 /**
  * アーティストの公演ページからイベントIDを収集
@@ -118,6 +119,8 @@ async function scrapeEventIds(
   const seen = new Set<number>()
   let lastPage = startPage - 1
   const pageStats: PageStat[] = []
+  let isExhausted = false
+  let totalPages: number | null = null
 
   for (let page = startPage; page < startPage + maxPages; page++) {
     if (budget?.exceeded()) { pageStats.push({ page, found: 0, newCount: 0, error: true }); break }
@@ -132,6 +135,15 @@ async function scrapeEventIds(
       if (!res.ok) { pageStats.push({ page, found: 0, newCount: 0, error: true }); break }
 
       const $ = cheerio.load(await res.text())
+
+      // rel="last" から合計ページ数を取得（初回フェッチで判明）
+      if (totalPages == null) {
+        const lastLink = $('a[rel="last"]').first().attr('href') ?? ''
+        const lm = lastLink.match(/\/page:(\d+)/)
+        if (lm) totalPages = parseInt(lm[1])
+        else if ($('a[rel="last"]').length === 0 && page === startPage) totalPages = startPage // 1ページのみ
+      }
+
       let foundAny = false
       let pageNew = 0
 
@@ -149,7 +161,7 @@ async function scrapeEventIds(
       })
 
       pageStats.push({ page, found: seen.size, newCount: pageNew, error: false })
-      if (!foundAny) break // ページが存在しない（終端に到達）
+      if (!foundAny) { isExhausted = true; break } // ページが存在しない（終端に到達）
       lastPage = page
       if (earlyExit && pageNew === 0) break // 全て既知 → 以降も不要
       await new Promise(r => setTimeout(r, 250))
@@ -159,21 +171,125 @@ async function scrapeEventIds(
     }
   }
 
-  return { eventIds: result, lastPage, pageStats }
+  return { eventIds: result, lastPage, pageStats, isExhausted, totalPages }
 }
 
-// イベントページからグループIDとグループ名、出演者数を取得
+type EventMeta = {
+  groupId: number | null
+  groupName: string | null
+  performerCount: number
+  isFestival: boolean
+  festivalGroupId: number | null
+  performerLivefansIds: number[]
+  festivalDate: string | null
+  festivalTime: string | null
+  festivalStage: string | null
+  eventDate: string | null
+  venueName: string | null
+  startTime: string | null
+}
+
+// イベントページからメタ情報（グループID・出演者数・フェス判定等）を取得
 async function scrapeEventGroupId(
   eventId: number,
-): Promise<{ groupId: number | null; groupName: string | null; performerCount: number }> {
+  artistName?: string,
+): Promise<EventMeta> {
+  const empty: EventMeta = {
+    groupId: null, groupName: null, performerCount: 1,
+    isFestival: false, festivalGroupId: null, performerLivefansIds: [],
+    festivalDate: null, festivalTime: null, festivalStage: null,
+    eventDate: null, venueName: null, startTime: null,
+  }
   try {
     const res = await fetch(`${BASE}/events/${eventId}`, {
       headers: HEADERS,
       signal: AbortSignal.timeout(12000),
     })
-    if (!res.ok) return { groupId: null, groupName: null, performerCount: 1 }
+    if (!res.ok) return empty
     const html = await res.text()
     const $ = cheerio.load(html)
+
+    // フェスイベント判定（hidden input 構造で識別）
+    const isFestival = $('input[name^="data[artist_name_"]').length > 0
+    if (isFestival) {
+      const stageMap = new Map<string, string>()
+      $('input[name]').each((_, el) => {
+        const nameAttr = $(el).attr('name') ?? ''
+        const m = nameAttr.match(/\[event\]\[stage_id_(\d+)\]/)
+        if (!m) return
+        const n = m[1]
+        const stageId = ($(el).val() as string) ?? ''
+        const stageName = ($(`input[name="data[event][stage_name_${n}]"]`).val() as string) ?? ''
+        if (stageId && stageName) stageMap.set(stageId, stageName)
+      })
+
+      let festivalDate: string | null = null
+      let festivalTime: string | null = null
+      let festivalStage: string | null = null
+      let matched = false
+
+      $('input[name^="data[artist_name_"]').each((_, el) => {
+        if (matched) return
+        const nameAttr = $(el).attr('name') ?? ''
+        const m = nameAttr.match(/\[artist_name_(\d+)\]/)
+        if (!m) return
+        const n = m[1]
+        const slotName = (($(el).val() as string) ?? '').trim()
+        const isMatch = !artistName ||
+          slotName === artistName ||
+          slotName.includes(artistName) ||
+          artistName.includes(slotName)
+        if (!isMatch) return
+
+        const rawDate = ($(`input[name="data[artist_date_${n}]"]`).val() as string ?? '').trim()
+        const rawTime = ($(`input[name="data[artist_time_${n}]"]`).val() as string ?? '').trim()
+        const stgId = ($(`input[name="data[artist_stg_id_${n}]"]`).val() as string ?? '').trim()
+        const dateM = rawDate.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+        if (!dateM) return
+        festivalDate = `${dateM[1]}-${dateM[2].padStart(2, '0')}-${dateM[3].padStart(2, '0')}`
+        const timeM = rawTime.match(/(\d{1,2}):(\d{2})/)
+        festivalTime = timeM ? `${timeM[1].padStart(2, '0')}:${timeM[2]}:00` : null
+        festivalStage = stgId ? (stageMap.get(stgId) ?? null) : null
+        matched = true
+      })
+
+      // マッチしなかった場合は最初のスロットを使用
+      if (!festivalDate) {
+        const firstEl = $('input[name^="data[artist_name_"]').first()
+        const firstAttr = firstEl.attr('name') ?? ''
+        const fm = firstAttr.match(/\[artist_name_(\d+)\]/)
+        if (fm) {
+          const n = fm[1]
+          const rawDate = ($(`input[name="data[artist_date_${n}]"]`).val() as string ?? '').trim()
+          const dateM = rawDate.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+          if (dateM) festivalDate = `${dateM[1]}-${dateM[2].padStart(2, '0')}-${dateM[3].padStart(2, '0')}`
+        }
+      }
+
+      let venueName: string | null = null
+      $('dt, th').each((_, el) => {
+        const label = $(el).text().trim()
+        const val = $(el).next('dd, td').text().trim()
+        if (/会場|場所/.test(label) && !venueName) {
+          venueName = val.replace(/\s*[（(][^)）]*[)）].*$/, '').trim() || null
+        }
+      })
+
+      // umbrella ページの h1 に /groups/XXX リンクがある
+      let festivalGroupId: number | null = null
+      const groupsHref = $('h1 a[href*="/groups/"]').first().attr('href') ?? $('a[href*="/groups/"]').first().attr('href') ?? ''
+      const groupsM = groupsHref.match(/\/groups\/(\d+)/)
+      if (groupsM) festivalGroupId = parseInt(groupsM[1])
+
+      return {
+        groupId: null, groupName: null, performerCount: 999,
+        isFestival: true, festivalGroupId, performerLivefansIds: [],
+        festivalDate, festivalTime, festivalStage,
+        eventDate: festivalDate, venueName, startTime: festivalTime,
+      }
+    }
+
+    // 非フェス: グループID
     let groupId: number | null = null
     let groupName: string | null = null
     $('a[href]').each((_, el) => {
@@ -186,7 +302,7 @@ async function scrapeEventGroupId(
       }
     })
 
-    // [出演] セクション内のアーティストリンクを数えて出演者数を把握
+    // 出演者数
     let performerCount = 1
     const outEnIdx = html.indexOf('[出演]')
     if (outEnIdx !== -1) {
@@ -195,9 +311,74 @@ async function scrapeEventGroupId(
       if (uniqueIds.size > 0) performerCount = uniqueIds.size
     }
 
-    return { groupId, groupName, performerCount }
+    // 出演者 livefans_id（concert_artists 用）
+    const performerLivefansIds: number[] = []
+    const seenPerfIds = new Set<number>()
+    $('td.icons.even a[href*="/artists/"]').each((_, el) => {
+      const href = $(el).attr('href') ?? ''
+      const m = href.match(/\/artists\/(\d+)/)
+      if (m) {
+        const id = parseInt(m[1])
+        if (!seenPerfIds.has(id)) { seenPerfIds.add(id); performerLivefansIds.push(id) }
+      }
+    })
+
+    // 単発公演用: 日付・会場・開演時刻
+    let eventDate: string | null = null
+    let venueName: string | null = null
+    let startTime: string | null = null
+    $('dt, th').each((_, el) => {
+      const label = $(el).text().trim()
+      const val = $(el).next('dd, td').text().trim()
+      if (!val) return
+      if (/日時|開催日|公演日/.test(label) && !eventDate) {
+        const dm = val.match(/(\d{4})[\/年](\d{1,2})[\/月](\d{1,2})/)
+        if (dm) eventDate = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`
+        const tm = val.match(/(?:START|開演)[^\d]*(\d{1,2}):(\d{2})/i)
+        if (tm) startTime = `${tm[1].padStart(2,'0')}:${tm[2]}:00`
+      }
+      if (/会場|場所/.test(label) && !venueName) {
+        venueName = val.replace(/\s*[（(][^)）]*[)）].*$/, '').trim() || null
+      }
+    })
+
+    // グループなし → 別イベントへのリンクがあればフェスサブイベントの可能性
+    if (!groupId) {
+      let linkedEventId: number | null = null
+      $('a[href*="/events/"]').each((_, el) => {
+        if (linkedEventId) return
+        const m = ($(el).attr('href') ?? '').match(/\/events\/(\d+)/)
+        if (m && parseInt(m[1]) !== eventId) linkedEventId = parseInt(m[1])
+      })
+      if (linkedEventId) {
+        // 年ページをフェッチして groups リンクを取得
+        let festivalGroupId: number | null = null
+        try {
+          const yearRes = await fetch(`${BASE}/events/${linkedEventId}`, {
+            headers: HEADERS, signal: AbortSignal.timeout(10000),
+          })
+          if (yearRes.ok) {
+            const $year = cheerio.load(await yearRes.text())
+            const gh = $year('h1 a[href*="/groups/"]').first().attr('href') ?? $year('a[href*="/groups/"]').first().attr('href') ?? ''
+            const gm = gh.match(/\/groups\/(\d+)/)
+            if (gm) festivalGroupId = parseInt(gm[1])
+          }
+        } catch { /* ignore */ }
+        // groups リンクが見つかった場合のみフェスとして扱う
+        if (festivalGroupId) {
+          return {
+            groupId: null, groupName: null, performerCount,
+            isFestival: true, festivalGroupId, performerLivefansIds,
+            festivalDate: eventDate, festivalTime: startTime, festivalStage: null,
+            eventDate, venueName, startTime,
+          }
+        }
+      }
+    }
+
+    return { groupId, groupName, performerCount, isFestival: false, festivalGroupId: null, performerLivefansIds, festivalDate: null, festivalTime: null, festivalStage: null, eventDate, venueName, startTime }
   } catch {
-    return { groupId: null, groupName: null, performerCount: 1 }
+    return empty
   }
 }
 
@@ -306,26 +487,89 @@ async function processNewEvents(
 
   for (const eventId of newEventIds) {
     if (processedEventIds.has(eventId)) continue
-    if (newToursThisArtist >= MAX_NEW_TOURS) break
     if (budget.exceeded()) { log.push(`  時間制限により残りイベントをスキップ`); break }
 
-    const { groupId, groupName, performerCount } = await scrapeEventGroupId(eventId)
+    const meta = await scrapeEventGroupId(eventId, artist.name)
+    const { groupId, groupName, performerCount, isFestival } = meta
     processedEventIds.add(eventId)
     await new Promise(r => setTimeout(r, 250))
     if (budget.exceeded()) { log.push(`  時間制限により残りイベントをスキップ`); break }
 
-    // 対バン・フェス（出演者2名以上）はスキップ
-    if (performerCount > 1) {
-      log.push(`  event:${eventId} → performers=${performerCount} → スキップ（対バン/フェス）`)
+    // フェス → festival_groups キューに蓄積して後で処理
+    if (isFestival) {
+      knownEventIds.add(eventId)
+      if (meta.festivalGroupId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // 新規挿入 or crawl_status が null のものだけ pending に更新
+        const { data: existing } = await (admin as any).from('festival_groups')
+          .select('id, crawl_status')
+          .eq('livefans_group_id', meta.festivalGroupId)
+          .maybeSingle()
+        if (!existing) {
+          const { error: insErr } = await (admin as any).from('festival_groups').insert(
+            { livefans_group_id: meta.festivalGroupId, crawl_status: 'pending' }
+          )
+          if (insErr) {
+            log.push(`  event:${eventId} → フェス → group:${meta.festivalGroupId} insert失敗: ${insErr.message}`)
+          } else {
+            log.push(`  event:${eventId} → フェス → group:${meta.festivalGroupId} をキューに追加`)
+          }
+        } else if (existing.crawl_status === null) {
+          await (admin as any).from('festival_groups').update({ crawl_status: 'pending' }).eq('id', existing.id)
+          log.push(`  event:${eventId} → フェス → group:${meta.festivalGroupId} をキューに追加（既存レコードを pending に更新）`)
+        } else {
+          log.push(`  event:${eventId} → フェス → group:${meta.festivalGroupId} は既にキュー済み（${existing.crawl_status}）`)
+        }
+      } else {
+        log.push(`  event:${eventId} → フェス（グループIDなし）→ スキップ`)
+      }
       continue
     }
 
+    // 単発対バン（グループなし）
+    if (performerCount > 1 && !groupId) {
+      if (!meta.eventDate || knownEventIds.has(eventId)) {
+        if (!meta.eventDate) log.push(`  event:${eventId} → 対バン（日付不明）→ スキップ`)
+        continue
+      }
+      const { data: taibanConcert } = await admin.from('concerts').insert({
+        artist_id: artist.id,
+        venue_name: meta.venueName || '未定',
+        date: meta.eventDate,
+        start_time: meta.startTime,
+        event_type: 'taiban' as const,
+        livefans_event_id: eventId,
+      }).select('id').single()
+      if (taibanConcert) {
+        concerts_added++
+        knownEventIds.add(eventId)
+        log.push(`  event:${eventId} → 対バン (${meta.eventDate} ${meta.venueName ?? ''}) → 新規登録`)
+        if (meta.performerLivefansIds.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: perfLfRows } = await (admin as any).from('artist_livefans_ids').select('artist_id').in('livefans_id', meta.performerLivefansIds)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const perfArtistIds = [...new Set((perfLfRows ?? []).map((r: any) => r.artist_id))]
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (perfArtistIds.length) await (admin as any).from('concert_artists').upsert(
+            perfArtistIds.map((aid: unknown, i: number) => ({ concert_id: taibanConcert.id, artist_id: aid, order_num: i })),
+            { onConflict: 'concert_id,artist_id', ignoreDuplicates: true }
+          )
+        }
+      }
+      continue
+    }
+
+    // 単発ソロ
     if (!groupId) {
       log.push(`  event:${eventId} → groupId なし → スキップ（単発公演）`)
       continue
     }
+
+    if (newToursThisArtist >= MAX_NEW_TOURS) break
     if (processedGroupIds.has(groupId)) continue
     processedGroupIds.add(groupId)
+
+    const event_type_for_group: 'solo' | 'taiban' = performerCount > 1 ? 'taiban' : 'solo'
 
     if (budget.exceeded()) { log.push(`  時間制限によりグループ取得をスキップ`); break }
 
@@ -404,6 +648,24 @@ async function processNewEvents(
         continue
       }
 
+      // 同アーティスト・同日・同会場・同開演時刻の既存公演があれば新規作成しない（二重登録防止）
+      const sameConcert = await findSameConcert(admin, {
+        artist_id: artist.id, date: ev.date, venue_name: ev.venueName, start_time: ev.startTime, livefans_event_id: ev.eventId,
+      })
+      if (sameConcert) {
+        await admin
+          .from('concerts')
+          .update({
+            ...(sameConcert.livefans_event_id ? {} : { livefans_event_id: ev.eventId }),
+            ...(ev.startTime ? { start_time: ev.startTime } : {}),
+          })
+          .eq('id', sameConcert.id)
+        await admin.from('concerts').update({ tour_id: tourId }).eq('id', sameConcert.id).is('tour_id', null)
+        knownEventIds.add(ev.eventId)
+        log.push(`    ${ev.date} ${ev.venueName || '?'} → 既存公演に紐付け（同日・同会場）`)
+        continue
+      }
+
       // livefans_event_id なしで同日付の既存公演を確認（CSV手動インポート分との重複防止）
       const { data: existingByDate } = await admin
         .from('concerts')
@@ -435,6 +697,7 @@ async function processNewEvents(
         date: ev.date,
         start_time: ev.startTime,
         livefans_event_id: ev.eventId,
+        event_type: event_type_for_group,
       }).select('id').single()
 
       if (cErr || !newConcert) {
@@ -445,6 +708,19 @@ async function processNewEvents(
         tourConcerts++
         knownEventIds.add(ev.eventId)
         log.push(`    ${ev.date} ${ev.venueName || '?'} → 新規登録`)
+
+        // 対バンの場合は concert_artists を登録
+        if (event_type_for_group === 'taiban' && meta.performerLivefansIds.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: perfLfRows2 } = await (admin as any).from('artist_livefans_ids').select('artist_id').in('livefans_id', meta.performerLivefansIds)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const perfArtistIds2 = [...new Set((perfLfRows2 ?? []).map((r: any) => r.artist_id))]
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (perfArtistIds2.length) await (admin as any).from('concert_artists').upsert(
+            perfArtistIds2.map((aid: unknown, i: number) => ({ concert_id: newConcert.id, artist_id: aid, order_num: i })),
+            { onConflict: 'concert_id,artist_id', ignoreDuplicates: true }
+          )
+        }
 
         // 過去の公演 & userId あり & 上限内 & 時間内 → セトリ取得
         if (userId && ev.date < today && setlistFetches < MAX_SETLISTS_PER_TOUR && !budget.exceeded()) {
@@ -492,17 +768,33 @@ async function runTourCrawl(
 ): Promise<NextResponse> {
   const admin = createAdminClient()
 
-  // livefans_last_crawled_at の古い順（未クロール優先）でアーティストを選択
-  let query = admin
-    .from('artists')
-    .select('id, name, livefans_id, livefans_crawl_page')
-    .not('livefans_id', 'is', null)
-    .order('livefans_last_crawled_at', { ascending: true, nullsFirst: true })
-  if (artistIds?.length) query = query.in('id', artistIds)
-  const { data: artists, error } = await query.limit(batch)
+  // artist_livefans_ids から last_crawled_at の古い順（未クロール優先）でエントリを選択
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let lfQuery = (admin as any)
+    .from('artist_livefans_ids')
+    .select('id, artist_id, livefans_id, crawl_page, total_pages, last_crawled_at')
+    .order('last_crawled_at', { ascending: true, nullsFirst: true })
+  if (artistIds?.length) lfQuery = lfQuery.in('artist_id', artistIds)
+  const { data: allEntries, error } = await lfQuery.limit(batch * 5)
+
+  type LfEntry = { id: number; artist_id: string; livefans_id: number; crawl_page: number; total_pages: number | null; last_crawled_at: string | null }
+
+  // 過去モードでは完了済みエントリをスキップ
+  const entries: LfEntry[] = ((allEntries ?? []) as LfEntry[])
+    .filter(e => {
+      if (mode !== 'past') return true
+      if (e.total_pages != null && (e.crawl_page ?? 0) >= e.total_pages) return false
+      return true
+    })
+    .slice(0, batch)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!artists?.length) return NextResponse.json({ message: '対象アーティストなし', tours_added: 0, concerts_added: 0 })
+  if (!entries.length) return NextResponse.json({ message: '対象アーティストなし', tours_added: 0, concerts_added: 0 })
+
+  // アーティスト名を一括取得
+  const uniqueArtistIds = [...new Set(entries.map(e => e.artist_id))]
+  const { data: artistRows } = await admin.from('artists').select('id, name').in('id', uniqueArtistIds)
+  const artistNameMap = new Map((artistRows ?? []).map(a => [a.id, a.name]))
 
   let total_tours = 0
   let total_concerts = 0
@@ -511,9 +803,12 @@ async function runTourCrawl(
   const all_tour_results: TourResult[] = []
   const budget = makeBudget()
 
-  for (const artist of artists) {
+  for (const entry of entries) {
     if (budget.exceeded()) { log.push('時間制限により残りアーティストをスキップ'); break }
-    if (!artist.livefans_id) continue
+    const artistName = artistNameMap.get(entry.artist_id)
+    if (!artistName) continue
+
+    const artist = { id: entry.artist_id, livefans_id: entry.livefans_id, name: artistName }
 
     // 既存公演の livefans_event_id を全取得
     const { data: existingConcerts } = await admin
@@ -547,7 +842,7 @@ async function runTourCrawl(
     )
 
     let allNewIds: number[] = []
-    let newCursorPage = artist.livefans_crawl_page ?? 0
+    let newCursorPage = entry.crawl_page ?? 0
     let backfillStart = newCursorPage + 1
 
     log.push(`${artist.name} (livefans:${artist.livefans_id})`)
@@ -566,8 +861,10 @@ async function runTourCrawl(
     }
 
     // 過去の公演モード（year=before, sort=e1 新しい順, カーソルから進める）
+    let pastExhausted = false
+    let pastTotalPages: number | null = null
     if (mode === 'past' || mode === 'both') {
-      const { eventIds: pastIds, lastPage, pageStats } = await scrapeEventIds(
+      const { eventIds: pastIds, lastPage, pageStats, isExhausted, totalPages } = await scrapeEventIds(
         artist.livefans_id, knownEventIds,
         { startPage: backfillStart, sort: 'e1', maxPages: BACKFILL_PAGES, earlyExit: false, year: 'before', budget },
       )
@@ -576,6 +873,8 @@ async function runTourCrawl(
       }
       allNewIds.push(...pastIds)
       newCursorPage = lastPage
+      pastExhausted = isExhausted
+      pastTotalPages = totalPages
       await new Promise(r => setTimeout(r, 250))
     }
 
@@ -585,7 +884,7 @@ async function runTourCrawl(
     if (allNewIds.length === 0) log.push(`  新規イベントなし`)
 
     const { tours_added, concerts_added, setlists_added, tour_results } = await processNewEvents(
-      admin, { id: artist.id, livefans_id: artist.livefans_id!, name: artist.name }, allNewIds, knownEventIds, tourByGroupId, tourByNormalizedName, userId, log, budget,
+      admin, artist, allNewIds, knownEventIds, tourByGroupId, tourByNormalizedName, userId, log, budget,
     )
 
     total_tours += tours_added
@@ -593,14 +892,18 @@ async function runTourCrawl(
     total_setlists += setlists_added
     all_tour_results.push(...tour_results)
 
-    // カーソルと最終クロール日時を更新
+    // カーソルと最終クロール日時を artist_livefans_ids テーブルに更新
     const updatePayload: Record<string, unknown> = {
-      livefans_last_crawled_at: new Date().toISOString(),
+      last_crawled_at: new Date().toISOString(),
     }
     if ((mode === 'past' || mode === 'both') && newCursorPage >= backfillStart) {
-      updatePayload.livefans_crawl_page = newCursorPage
+      updatePayload.crawl_page = newCursorPage
+      // rel="last" で判明した合計ページ数を保存（初回から確定可能）
+      if (pastTotalPages != null) updatePayload.total_pages = pastTotalPages
+      if (pastExhausted) log.push(`  バックフィル完了 → 総ページ数: ${pastTotalPages ?? newCursorPage}`)
     }
-    await admin.from('artists').update(updatePayload).eq('id', artist.id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from('artist_livefans_ids').update(updatePayload).eq('id', entry.id)
 
     const modeLabel = mode === 'future' ? '今後' : mode === 'past' ? `過去[p${backfillStart}→${newCursorPage}]` : `両方[p${backfillStart}→${newCursorPage}]`
     log.push(`  [${modeLabel}] 完了 → ツアー+${tours_added} 公演+${concerts_added} セトリ+${setlists_added}`)
@@ -612,10 +915,10 @@ async function runTourCrawl(
     tours_added: total_tours,
     concerts_added: total_concerts,
     setlists_added: total_setlists,
-    crawled: artists.length,
+    crawled: entries.length,
     log,
     new_tours: all_tour_results.filter(t => t.is_new),
-    message: `${artists.length}アーティストをクロール。ツアー ${total_tours}件、公演 ${total_concerts}件、セトリ ${total_setlists}件を追加。`,
+    message: `${entries.length}アーティストをクロール。ツアー ${total_tours}件、公演 ${total_concerts}件、セトリ ${total_setlists}件を追加。`,
   })
 }
 

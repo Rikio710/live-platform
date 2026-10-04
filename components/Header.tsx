@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Home, Music2, User, CalendarDays } from 'lucide-react'
+import { Home, Music2, User, CalendarDays, Tent, BookOpen } from 'lucide-react'
+import AdminHamburger from './admin/AdminHamburger'
 
 export default function Header() {
   const pathname = usePathname()
@@ -19,14 +20,19 @@ export default function Header() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const mypageHref = loggedIn ? '/mypage' : '/login'
+  const loginHref = loggedIn ? '/mypage' : '/login'
+  const isAdmin = pathname.startsWith('/admin')
 
   const NAV = [
     { href: '/', label: 'ホーム', icon: Home, active: pathname === '/' },
     { href: '/artists', label: 'アーティスト', icon: Music2, active: pathname.startsWith('/artists') },
     { href: '/concerts', label: '公演', icon: CalendarDays, active: pathname.startsWith('/concerts') },
-    { href: '/venues', label: '会場', icon: Home, active: pathname.startsWith('/venues') },
-    { href: mypageHref, label: 'マイページ', icon: User, active: pathname === '/mypage' },
+    { href: '/festivals', label: 'フェス', icon: Tent, active: pathname.startsWith('/festivals') },
+    { href: '/mypage', label: 'マイページ', icon: User, active: pathname === '/mypage' },
+  ]
+  // PCの上部ナビだけに出す項目（スマホの下部ナビは5項目で埋まっているため）
+  const DESKTOP_ONLY_NAV = [
+    { href: '/articles', label: '記事', icon: BookOpen, active: pathname.startsWith('/articles') },
   ]
 
   return (
@@ -38,19 +44,27 @@ export default function Header() {
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <span className="text-lg font-black tracking-tight text-white">LiveVault</span>
             </Link>
-            <Link
-              href={mypageHref}
-              className="text-sm font-bold px-4 py-2 rounded-full bg-white hover:bg-[#e0e0e0] text-black transition-colors shrink-0"
-            >
-              {loggedIn ? 'マイページ' : 'ログイン'}
-            </Link>
+            {/* SP+adminではハンバーガー、それ以外はマイページ/ログイン */}
+            <div className={isAdmin ? 'hidden sm:block' : ''}>
+              <Link
+                href={loginHref}
+                className="text-sm font-bold px-4 py-2 rounded-full bg-white hover:bg-[#e0e0e0] text-black transition-colors"
+              >
+                {loggedIn ? 'マイページ' : 'ログイン'}
+              </Link>
+            </div>
+            {isAdmin && (
+              <div className="sm:hidden">
+                <AdminHamburger />
+              </div>
+            )}
           </div>
         </div>
 
         {/* 2段目: ナビゲーションバー */}
         <div className="hidden sm:block border-b border-white/5 overflow-x-auto scrollbar-none">
           <nav className="flex items-center max-w-5xl mx-auto px-4">
-            {NAV.map(n => (
+            {[...NAV.slice(0, 4), ...DESKTOP_ONLY_NAV, ...NAV.slice(4)].map(n => (
               <Link key={n.href} href={n.href}
                 className={`shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   n.active
@@ -64,8 +78,8 @@ export default function Header() {
         </div>
       </header>
 
-      {/* スマホ ボトムナビ */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 flex border-t border-white/10 bg-[#121212]">
+      {/* スマホ ボトムナビ（adminページでは非表示） */}
+      <nav className={`sm:hidden fixed bottom-0 left-0 right-0 z-50 flex border-t border-white/10 bg-[#121212] ${isAdmin ? 'hidden' : ''}`}>
         {NAV.map(n => {
           const Icon = n.icon
           return (

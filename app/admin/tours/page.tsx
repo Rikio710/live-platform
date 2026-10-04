@@ -10,6 +10,7 @@ type Form = { artist_id: string; name: string; image_url: string }
 type ConcertRow = { _id: string; venue_name: string; date: string; start_time: string; event_url?: string; additional_artists?: string[] }
 type CsvTourRow = { group_url: string; tour_name: string; concert_count: number; date_from: string; date_to: string; group_id: number }
 type ConcertNeed = { id: string; date: string; venue_name: string; artist_name: string; tour_name: string }
+type TourConcert = { id: string; artist_id: string; tour_id: string | null; date: string; venue_name: string; start_time: string | null; setlist_submissions?: { count: number }[] }
 
 const EMPTY: Form = { artist_id: '', name: '', image_url: '' }
 let _rowId = 0
@@ -87,6 +88,14 @@ export default function AdminToursPage() {
   const [selectedArtistIds, setSelectedArtistIds] = useState<string[]>([])
   const [artistSearch, setArtistSearch] = useState('')
   const [artistDropdownOpen, setArtistDropdownOpen] = useState(false)
+
+  // 公演一覧モーダル
+  const [concertsModal, setConcertsModal] = useState<Tour | null>(null)
+  const [tourConcerts, setTourConcerts] = useState<TourConcert[]>([])
+  const [tourConcertsLoading, setTourConcertsLoading] = useState(false)
+  const [editingConcert, setEditingConcert] = useState<TourConcert | null>(null)
+  const [concertEditForm, setConcertEditForm] = useState({ date: '', venue_name: '', start_time: '' })
+  const [concertSaving, setConcertSaving] = useState(false)
 
   // CSV一括取込
   const [csvModal, setCsvModal] = useState(false)
@@ -281,6 +290,64 @@ export default function AdminToursPage() {
     }
   }
 
+  const openConcertsModal = async (t: Tour) => {
+    setConcertsModal(t)
+    setEditingConcert(null)
+    setTourConcertsLoading(true)
+    setTourConcerts([])
+    try {
+      const res = await fetch(`/api/admin/concerts?tour_id=${t.id}`)
+      if (res.ok) setTourConcerts(await res.json())
+    } finally {
+      setTourConcertsLoading(false)
+    }
+  }
+
+  const openEditConcert = (c: TourConcert) => {
+    setEditingConcert(c)
+    setConcertEditForm({ date: c.date, venue_name: c.venue_name, start_time: c.start_time ?? '' })
+  }
+
+  const saveConcert = async () => {
+    if (!editingConcert) return
+    setConcertSaving(true)
+    try {
+      const res = await fetch(`/api/admin/concerts/${editingConcert.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artist_id: editingConcert.artist_id,
+          tour_id: editingConcert.tour_id,
+          venue_name: concertEditForm.venue_name,
+          date: concertEditForm.date,
+          start_time: concertEditForm.start_time || null,
+        }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setTourConcerts(prev => prev.map(c => c.id === editingConcert.id ? updated : c))
+        setEditingConcert(null)
+      }
+    } finally {
+      setConcertSaving(false)
+    }
+  }
+
+  const deleteConcert = async (c: TourConcert) => {
+    if (!confirm(`${c.date} ${c.venue_name} を削除しますか？`)) return
+    const res = await fetch(`/api/admin/concerts/${c.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setTourConcerts(prev => prev.filter(x => x.id !== c.id))
+      if (concertsModal) {
+        setTours(prev => prev.map(t => t.id === concertsModal.id
+          ? { ...t, concerts: t.concerts.filter(x => x.id !== c.id) }
+          : t))
+      }
+    } else {
+      alert('削除に失敗しました')
+    }
+  }
+
   const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -358,6 +425,8 @@ export default function AdminToursPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => openConcertsModal(t)}
+            className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">公演</button>
           <button onClick={() => openEdit(t)}
             className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">編集</button>
           <button onClick={() => handleDelete(t)}
@@ -476,6 +545,72 @@ export default function AdminToursPage() {
         <div className="space-y-2">
           {filteredTours.map(t => renderTourRow(t, !filterArtistId))}
         </div>
+      )}
+
+      {concertsModal && (
+        <AdminModal title={`${concertsModal.name} — 公演一覧`} onClose={() => { setConcertsModal(null); setEditingConcert(null) }}>
+          {editingConcert ? (
+            <div className="space-y-4">
+              <button onClick={() => setEditingConcert(null)} className="text-xs text-[#8888aa] hover:text-white transition-colors">← 戻る</button>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-[#8888aa] mb-1 block">日付</label>
+                  <input type="date" value={concertEditForm.date} onChange={e => setConcertEditForm(f => ({ ...f, date: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8888aa] mb-1 block">会場</label>
+                  <input type="text" value={concertEditForm.venue_name} onChange={e => setConcertEditForm(f => ({ ...f, venue_name: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8888aa] mb-1 block">開始時刻</label>
+                  <input type="time" value={concertEditForm.start_time} onChange={e => setConcertEditForm(f => ({ ...f, start_time: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingConcert(null)}
+                  className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">
+                  キャンセル
+                </button>
+                <button onClick={saveConcert} disabled={concertSaving || !concertEditForm.venue_name || !concertEditForm.date}
+                  className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
+                  {concertSaving ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tourConcertsLoading ? (
+                <p className="text-[#8888aa] text-sm text-center py-6">読み込み中...</p>
+              ) : tourConcerts.length === 0 ? (
+                <p className="text-[#8888aa] text-sm text-center py-6">公演が登録されていません</p>
+              ) : (
+                tourConcerts.map(c => (
+                  <div key={c.id} className="glass rounded-xl px-4 py-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-mono">{c.date}</p>
+                      <p className="text-xs text-[#8888aa] mt-0.5 truncate">{c.venue_name}{c.start_time && ` · ${c.start_time}`}</p>
+                    </div>
+                    {(c.setlist_submissions?.[0]?.count ?? 0) > 0 && (
+                      <span className="flex items-center gap-1 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                        <span className="text-[11px] text-green-400">セトリあり</span>
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => openEditConcert(c)}
+                        className="text-xs border border-white/10 text-[#8888aa] hover:text-white px-2.5 py-1.5 rounded-full transition-colors">編集</button>
+                      <button onClick={() => deleteConcert(c)}
+                        className="text-xs border border-red-500/20 text-red-400 hover:bg-red-500/10 px-2.5 py-1.5 rounded-full transition-colors">削除</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </AdminModal>
       )}
 
       {(modal === 'create' || modal === 'edit') && (

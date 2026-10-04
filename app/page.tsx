@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { PlusCircle } from 'lucide-react'
 import ArtistsSection from '@/components/ArtistsSection'
@@ -9,9 +9,11 @@ import SearchBox from '@/components/SearchBox'
 import RankingSection from '@/components/RankingSection'
 import type { RankingConcert, RankingTour, RankingArtist } from '@/components/RankingSection'
 import type { Tables } from '@/types/supabase'
+import ArticleCard from '@/components/features/article/ArticleCard'
+import { listPublishedArticles } from '@/lib/articles'
 
 type ConcertCard = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
-  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
 
@@ -34,7 +36,7 @@ export const metadata: Metadata = {
 }
 
 export default async function TopPage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -42,22 +44,24 @@ export default async function TopPage() {
   twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2)
   const twoMonthsAgoStr = twoMonthsAgo.toISOString().split('T')[0]
 
+  const { articles: latestArticles } = await listPublishedArticles(supabase, { limit: 4 })
+
   const [{ data: upcomingConcerts }, { data: recentConcerts }, { data: popularArtists }, { data: recentSetlistSubmissions }, { data: rankingRaw }] = await Promise.all([
     supabase
       .from('concerts')
-      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url), tours(id, name, image_url)')
+      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url, image_crop_x, image_crop_y), tours(id, name, image_url)')
       .gte('date', today)
       .order('date', { ascending: true })
       .limit(8),
     supabase
       .from('concerts')
-      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url), tours(id, name, image_url)')
+      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url, image_crop_x, image_crop_y), tours(id, name, image_url)')
       .lt('date', today)
       .order('date', { ascending: false })
       .limit(8),
     supabase
       .from('artists')
-      .select('id, slug, name, image_url')
+      .select('id, slug, name, image_url, image_crop_x, image_crop_y')
       .limit(50),
     supabase
       .from('concerts')
@@ -67,7 +71,7 @@ export default async function TopPage() {
       .limit(60),
     supabase
       .from('concerts')
-      .select('id, venue_name, date, image_url, tour_id, artist_id, artists(id, name, image_url), tours(id, name, image_url, start_date, end_date), setlist_submissions!inner(id)')
+      .select('id, venue_name, date, image_url, tour_id, artist_id, artists(id, name, image_url, image_crop_x, image_crop_y), tours(id, name, image_url, start_date, end_date), setlist_submissions!inner(id)')
       .gte('date', twoMonthsAgoStr)
       .lt('date', today)
       .order('date', { ascending: false })
@@ -180,6 +184,22 @@ export default async function TopPage() {
       {/* アーティスト */}
       {(popularArtists ?? []).length > 0 && (
         <ArtistsSection artists={popularArtists ?? []} />
+      )}
+
+      {/* 記事・特集 */}
+      {latestArticles.length > 0 && (
+        <section className="max-w-5xl mx-auto px-4 py-8 space-y-5">
+          <div className="flex items-end justify-between gap-3">
+            <div className="space-y-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-widest text-[#b3b3b3]">Articles</p>
+              <h2 className="text-2xl font-black text-white">記事・特集</h2>
+            </div>
+            <Link href="/articles" className="text-sm text-[#8888aa] hover:text-white transition-colors shrink-0">すべて見る</Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {latestArticles.map(a => <ArticleCard key={a.id} article={a} />)}
+          </div>
+        </section>
       )}
     </div>
   )

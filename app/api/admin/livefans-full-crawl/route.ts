@@ -87,11 +87,12 @@ type EventDetail = {
   livefans_group_id: number | null
   group_name: string | null
   songs: { song_name: string; is_encore: boolean; order_num: number }[]
+  performer_livefans_ids: number[]
 }
 
 // イベントページから日付・会場・ツアーリンク・セトリを取得
 async function scrapeEventPage(eventId: number): Promise<EventDetail> {
-  const empty: EventDetail = { event_date: null, venue_name: null, start_time: null, livefans_group_id: null, group_name: null, songs: [] }
+  const empty: EventDetail = { event_date: null, venue_name: null, start_time: null, livefans_group_id: null, group_name: null, songs: [], performer_livefans_ids: [] }
   const url = `${BASE}/events/${eventId}`
   try {
     const mainRes = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(12000) })
@@ -208,7 +209,22 @@ async function scrapeEventPage(eventId: number): Promise<EventDetail> {
       .sort((a, b) => a.sort_key - b.sort_key)
       .map((e, i) => ({ song_name: e.song_name, is_encore: e.is_encore, order_num: i + 1 }))
 
-    return { event_date, venue_name, start_time, livefans_group_id, group_name, songs }
+    // 出演アーティストの livefans_id を td.icons.even から取得
+    const performer_livefans_ids: number[] = []
+    const seenPerfIds = new Set<number>()
+    $('td.icons.even a[href*="/artists/"]').each((_, el) => {
+      const href = $(el).attr('href') ?? ''
+      const m = href.match(/\/artists\/(\d+)/)
+      if (m) {
+        const id = parseInt(m[1])
+        if (!seenPerfIds.has(id)) {
+          seenPerfIds.add(id)
+          performer_livefans_ids.push(id)
+        }
+      }
+    })
+
+    return { event_date, venue_name, start_time, livefans_group_id, group_name, songs, performer_livefans_ids }
   } catch {
     return empty
   }
@@ -242,13 +258,23 @@ export async function POST(req: NextRequest) {
 
     const { data: artist } = await admin
       .from('artists')
-      .select('id, name, livefans_id')
+      .select('id, name')
       .eq('id', artist_id)
       .single()
-    if (!artist?.livefans_id) return NextResponse.json({ error: 'livefans_id が未設定です' }, { status: 400 })
+    if (!artist) return NextResponse.json({ error: 'アーティストが見つかりません' }, { status: 400 })
 
-    // アーティスト検索ページからイベントIDを収集
-    const allEventIds = await scrapeArtistEventIds(artist.livefans_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: lfEntries } = await (admin as any).from('artist_livefans_ids').select('livefans_id').eq('artist_id', artist_id)
+    if (!lfEntries?.length) return NextResponse.json({ error: 'livefans_id が未設定です' }, { status: 400 })
+
+    // 全 livefans_id のイベントIDを収集（重複除去）
+    const allEventIds: number[] = []
+    const seenEids = new Set<number>()
+    for (const e of lfEntries as { livefans_id: number }[]) {
+      for (const id of await scrapeArtistEventIds(e.livefans_id)) {
+        if (!seenEids.has(id)) { seenEids.add(id); allEventIds.push(id) }
+      }
+    }
     if (!allEventIds.length) {
       return NextResponse.json({ concerts_added: 0, setlists_added: 0, tours_added: 0, total_found: 0, message: '公演が見つかりませんでした' })
     }
@@ -317,6 +343,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // event_type を判定
+      const event_type: 'solo' | 'taiban' | 'festival' =
+        detail.performer_livefans_ids.length >= 2 ? 'taiban' : 'solo'
+
       // 公演を挿入
       const { data: newConcert, error: concertError } = await admin
         .from('concerts')
@@ -327,6 +357,7 @@ export async function POST(req: NextRequest) {
           date: detail.event_date,
           start_time: detail.start_time,
           livefans_event_id: eventId,
+          event_type,
         })
         .select('id')
         .single()
@@ -336,6 +367,25 @@ export async function POST(req: NextRequest) {
         continue
       }
       concerts_added++
+
+      // concert_artists を挿入（出演者が取得できた場合）
+      if (detail.performer_livefans_ids.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: perfLfRows } = await (admin as any).from('artist_livefans_ids').select('artist_id').in('livefans_id', detail.performer_livefans_ids)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const perfArtistIds = [...new Set((perfLfRows ?? []).map((r: any) => r.artist_id))]
+        if (perfArtistIds.length) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin as any).from('concert_artists').upsert(
+            perfArtistIds.map((aid: unknown, i: number) => ({
+              concert_id: newConcert.id,
+              artist_id: aid,
+              order_num: i,
+            })),
+            { onConflict: 'concert_id,artist_id', ignoreDuplicates: true }
+          )
+        }
+      }
 
       // セトリを挿入（曲がある場合のみ）
       if (detail.songs.length > 0) {

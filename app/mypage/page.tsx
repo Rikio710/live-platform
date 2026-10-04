@@ -68,7 +68,7 @@ export default async function MyPage() {
         {/* プレビュー：統計カード */}
         <div className="space-y-3">
           <p className="text-xs text-[#8888aa] font-bold uppercase tracking-wider">プレビュー</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 opacity-40 pointer-events-none select-none">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 opacity-60 pointer-events-none select-none">
             {[
               { label: '総参戦回数', value: '??回', icon: Ticket },
               { label: '2026年', value: '??回', icon: Calendar },
@@ -89,7 +89,7 @@ export default async function MyPage() {
         </div>
 
         {/* プレビュー：フォロー */}
-        <div className="space-y-3 opacity-40 pointer-events-none select-none">
+        <div className="space-y-3 opacity-60 pointer-events-none select-none">
           <div className="flex items-center gap-2">
             <Heart size={16} className="text-pink-400" />
             <p className="text-base font-bold text-white">フォロー中のアーティスト</p>
@@ -100,7 +100,7 @@ export default async function MyPage() {
         </div>
 
         {/* プレビュー：参戦履歴 */}
-        <div className="space-y-3 opacity-40 pointer-events-none select-none">
+        <div className="space-y-3 opacity-60 pointer-events-none select-none">
           <p className="text-base font-bold text-white">参戦履歴</p>
           <div className="glass rounded-2xl p-6 text-center text-sm text-[#8888aa]">
             ログインすると参戦したライブの記録が残せます
@@ -116,7 +116,7 @@ export default async function MyPage() {
       id, created_at,
       concerts(
         id, slug, venue_name, date, image_url, stage_name, festival_event_id,
-        artists(id, name, image_url),
+        artists(id, name, image_url, image_crop_x, image_crop_y),
         tours(id, name, image_url),
         festival_events(id, name, image_url, festival_groups(id, name))
       )

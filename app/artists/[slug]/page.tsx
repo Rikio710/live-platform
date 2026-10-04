@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { Mic2, Route, Globe, Tent } from 'lucide-react'
 import FollowButton from '@/components/features/artist/FollowButton'
@@ -8,6 +8,9 @@ import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
 import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
+import UrlTabs from '@/components/ui/UrlTabs'
+import ArticlePromoCard from '@/components/features/article/ArticlePromoCard'
+import { articlePath, computeStandardSongs, displayTitle, getArtistArticle } from '@/lib/articles'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i
@@ -27,7 +30,7 @@ export const revalidate = 3600
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
   const slug = decodeURIComponent(rawSlug)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const baseQuery = supabase.from('artists').select('id, name, description, image_url, website_url, twitter_url, instagram_url, youtube_url')
   let metaQuery = UUID_RE.test(slug) ? baseQuery.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return baseQuery.gte('id', lo).lt('id', hi) })() : baseQuery.eq('slug', slug)
@@ -86,22 +89,27 @@ type SongStat = { name: string; count: number; isEncore: boolean; pct: number }
 type AnalysisData = {
   songs: SongStat[]
   totalWithData: number
+  /** 集計単位（'tour' ならツアー単位） */
+  unit: 'tour' | 'concert'
+  totalUnits: number
   totalConcerts: number
   uniqueSongs: number
   avgSongs: number
 }
 
+/** 初回アクセス時に生成してキャッシュ（ISR） */
+export function generateStaticParams() {
+  return []
+}
+
 export default async function ArtistPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ tab?: string }>
 }) {
   const { slug: rawSlug } = await params
-  const { tab = 'info' } = await searchParams
   const slug = decodeURIComponent(rawSlug)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   if (UUID_RE.test(slug)) {
     permanentRedirect(`/artists/${slug.slice(0, 8)}`)
@@ -133,7 +141,7 @@ export default async function ArtistPage({
       .order('date', { ascending: false }).limit(1),
     supabase
       .from('concerts')
-      .select('id, date, stage_name, festival_events(id, name, start_date, end_date, image_url, festival_groups(id, name))')
+      .select('id, date, stage_name, festival_events(id, name, start_date, end_date, image_url, festival_groups(id, name, slug, image_url))')
       .eq('artist_id', artist.id)
       .not('festival_event_id', 'is', null)
       .order('date', { ascending: false }),
@@ -147,61 +155,29 @@ export default async function ArtistPage({
   ])
 
 
-  // セトリ分析データ（tabがanalysisのときのみ取得）
+  // セトリ分析データ（タブはブラウザ側で切り替えるので常に取得。ページごと1時間キャッシュされる）。
+  // 定番曲記事と同じ集計: ツアーが3つ以上あればツアー単位で数える（同じツアーの公演はセトリがほぼ同じで、
+  // 公演数で数えると公演数の多いツアーに結果が偏るため）。曲は正規化した曲名でまとめる
   let analysisData: AnalysisData | null = null
-  if (tab === 'analysis') {
-    const { data: artistConcerts } = await supabase
-      .from('concerts')
-      .select('id')
-      .eq('artist_id', artist.id)
-      .lt('date', today)
-
-    const concertIds = (artistConcerts ?? []).map(c => c.id)
-    if (concertIds.length > 0) {
-      const { data: submissions } = await supabase
-        .from('setlist_submissions')
-        .select('id, concert_id, votes_count, setlist_songs(song_id, song_name, song_type, is_encore)')
-        .in('concert_id', concertIds)
-        .order('votes_count', { ascending: false })
-
-      const topPerConcert = new Map<string, { setlist_songs: { song_id: string | null; song_name: string; song_type: string; is_encore: boolean | null }[] }>()
-      for (const sub of submissions ?? []) {
-        if (!topPerConcert.has(sub.concert_id)) topPerConcert.set(sub.concert_id, sub)
-      }
-
-      const totalWithData = topPerConcert.size
-      const songMap = new Map<string, { count: number; isEncore: boolean; name: string }>()
-      let totalSongCount = 0
-
-      for (const sub of topPerConcert.values()) {
-        const tracks = (sub.setlist_songs ?? []).filter(s => s.song_type === 'song')
-        totalSongCount += tracks.length
-        for (const song of tracks) {
-          const key = song.song_id ?? song.song_name.trim().toLowerCase()
-          const existing = songMap.get(key)
-          if (existing) {
-            existing.count++
-          } else {
-            songMap.set(key, { count: 1, isEncore: song.is_encore ?? false, name: song.song_name.trim() })
-          }
-        }
-      }
-
-      const songs: SongStat[] = [...songMap.values()]
-        .map(({ count, isEncore, name }) => ({
-          name, count, isEncore, pct: totalWithData > 0 ? Math.round(count / totalWithData * 100) : 0,
-        }))
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-
+  {
+    const [stats, { count: pastConcerts }] = await Promise.all([
+      computeStandardSongs(supabase, artist.id),
+      supabase.from('concerts').select('id', { count: 'exact', head: true }).eq('artist_id', artist.id).lt('date', today),
+    ])
+    if (stats) {
       analysisData = {
-        songs,
-        totalWithData,
-        totalConcerts: concertIds.length,
-        uniqueSongs: songs.length,
-        avgSongs: totalWithData > 0 ? Math.round(totalSongCount / totalWithData * 10) / 10 : 0,
+        songs: stats.allSongs.map(s => ({ name: s.name, count: s.count, isEncore: s.isEncore, pct: s.pct })),
+        totalWithData: stats.totalWithData,
+        totalConcerts: pastConcerts ?? stats.totalWithData,
+        uniqueSongs: stats.uniqueSongs,
+        avgSongs: stats.avgSongs,
+        unit: stats.unit,
+        totalUnits: stats.totalUnits,
       }
     }
   }
+
+  const standardSongsArticle = await getArtistArticle(supabase, artist.id)
 
   const faqItems: { question: string; answer: string }[] = []
 
@@ -284,10 +260,10 @@ export default async function ArtistPage({
       <div className="space-y-4">
         <div className="flex items-start gap-4">
           {artist.image_url ? (
-            <img src={artist.image_url} alt={artist.name} className="w-20 h-20 rounded-2xl object-cover shrink-0" />
+            <img src={artist.image_url} alt={artist.name} className="w-32 h-32 rounded-2xl object-cover shrink-0" style={{ objectPosition: `${artist.image_crop_x ?? 50}% ${artist.image_crop_y ?? 50}%` }} />
           ) : (
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#333333] to-[#282828] flex items-center justify-center shrink-0">
-              <Mic2 size={32} className="text-white/70" />
+            <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-[#333333] to-[#282828] flex items-center justify-center shrink-0">
+              <Mic2 size={40} className="text-white/70" />
             </div>
           )}
           <div className="flex-1 min-w-0">
@@ -382,7 +358,7 @@ export default async function ArtistPage({
       )}
 
       {/* 対バン出演 */}
-      {tab !== 'analysis' && (taibanConcerts ?? []).length > 0 && (
+      {(taibanConcerts ?? []).length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-bold text-white">対バン・共演</h2>
           <div className="space-y-2">
@@ -409,25 +385,127 @@ export default async function ArtistPage({
         </section>
       )}
 
-      {/* タブ */}
-      <div className="flex gap-0 border-b border-white/10">
-        <Link
-          href={`/artists/${artist.id.slice(0, 8)}`}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab !== 'analysis' ? 'text-white border-white' : 'text-[#8888aa] border-transparent hover:text-[#b3b3b3]'}`}
-        >
-          ライブ情報
-        </Link>
-        <Link
-          href={`/artists/${artist.id.slice(0, 8)}?tab=analysis`}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === 'analysis' ? 'text-white border-white' : 'text-[#8888aa] border-transparent hover:text-[#b3b3b3]'}`}
-        >
-          セトリ分析
-        </Link>
-      </div>
+      {/* 記事への導線（定番曲ランキング） */}
+      {standardSongsArticle && (
+        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} label="セトリの傾向をチェック" />
+      )}
 
-      {/* セトリ分析 */}
-      {tab === 'analysis' && (
-        <section className="space-y-6">
+      {/* タブ（ライブ情報 / セトリ分析） */}
+      <UrlTabs
+        defaultKey="info"
+        tabs={[
+          {
+            key: 'info',
+            label: 'ライブ情報',
+            panel: (() => {
+        type FestConcert = {
+          id: string; date: string; stage_name: string | null
+          festival_events: { id: string; name: string; start_date: string; end_date: string | null; image_url: string | null; festival_groups: { id: string; name: string; slug: string | null; image_url: string | null } | null } | null
+        }
+        const festTyped = (festivalConcerts ?? []) as unknown as FestConcert[]
+        const festGrouped = new Map<string, { event: NonNullable<FestConcert['festival_events']>; concerts: FestConcert[] }>()
+        for (const c of festTyped) {
+          if (!c.festival_events) continue
+          const key = c.festival_events.id
+          if (!festGrouped.has(key)) festGrouped.set(key, { event: c.festival_events, concerts: [] })
+          festGrouped.get(key)!.concerts.push(c)
+        }
+
+        type ListItem =
+          | { kind: 'tour'; tour: ArtistTour; sortDate: string }
+          | { kind: 'festival'; event: NonNullable<FestConcert['festival_events']>; concerts: FestConcert[]; sortDate: string }
+
+        const items: ListItem[] = [
+          ...(tours ?? []).map(t => ({ kind: 'tour' as const, tour: t, sortDate: t.start_date ?? '0000' })),
+          ...[...festGrouped.values()].map(({ event, concerts }) => ({ kind: 'festival' as const, event, concerts, sortDate: event.start_date })),
+        ].sort((a, b) => b.sortDate.localeCompare(a.sortDate))
+
+        const isEmpty = items.length === 0
+
+        return (
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-white">ツアー・ライブ情報</h2>
+            {isEmpty ? (
+              <p className="text-sm text-[#8888aa]">ツアー情報がありません</p>
+            ) : (
+              <div className="space-y-3">
+                {items.map(item => {
+                  if (item.kind === 'tour') {
+                    const t = item.tour
+                    const concertCount = t.concerts.length
+                    const setlistCount = t.concerts.filter(c => c.setlist_submissions.length > 0).length
+                    return (
+                      <Link key={t.id} href={`/tours/${t.id.slice(0, 8)}`}
+                        className="glass rounded-2xl p-5 flex items-center gap-4 hover:border-white/20 transition-colors group">
+                        {(t.image_url || artist.image_url) ? (
+                          <img src={t.image_url ?? artist.image_url ?? undefined} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0" style={!t.image_url ? { objectPosition: `${artist.image_crop_x ?? 50}% ${artist.image_crop_y ?? 50}%` } : undefined} />
+                        ) : (
+                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#333333]/60 to-[#282828]/60 shrink-0 flex items-center justify-center">
+                            <Route size={22} className="text-white/60" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{t.name}</p>
+                          {(t.start_date || t.end_date) && (
+                            <p className="text-xs text-[#8888aa] mt-0.5">
+                              {t.start_date && new Date(t.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              {t.start_date && t.end_date && ' 〜 '}
+                              {t.end_date && new Date(t.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </p>
+                          )}
+                          {concertCount > 0 && (
+                            <p className="text-xs text-[#8888aa] mt-0.5">
+                              {concertCount}公演
+                              {setlistCount > 0 && <span className="ml-2 text-[#b3b3b3]">セトリ {setlistCount}公演分</span>}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors">›</span>
+                      </Link>
+                    )
+                  } else {
+                    const { event, concerts: cs } = item
+                    const group = event.festival_groups
+                    const groupSlug = group?.slug ?? group?.id.slice(0, 8) ?? ''
+                    const href = `/festivals/${groupSlug}/${event.id.slice(0, 8)}`
+                    const img = event.image_url ?? group?.image_url ?? null
+                    return (
+                      <Link key={event.id} href={href}
+                        className="glass rounded-2xl p-5 flex items-center gap-4 hover:border-white/20 transition-colors group">
+                        {img ? (
+                          <img src={img} alt={event.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                        ) : (
+                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#333333]/60 to-[#282828]/60 shrink-0 flex items-center justify-center">
+                            <Tent size={22} className="text-white/60" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{event.name}</p>
+                            <span className="shrink-0 text-[10px] font-bold text-[#8888aa] border border-white/15 rounded px-1.5 py-0.5">フェス</span>
+                          </div>
+                          <p className="text-xs text-[#8888aa] mt-0.5">
+                            {new Date(event.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            {event.end_date && event.end_date !== event.start_date && ` 〜 ${new Date(event.end_date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}`}
+                          </p>
+                          <p className="text-xs text-[#8888aa] mt-0.5">{cs.length}日出演</p>
+                        </div>
+                        <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors">›</span>
+                      </Link>
+                    )
+                  }
+                })}
+              </div>
+            )}
+          </section>
+        )
+      })(),
+          },
+          {
+            key: 'analysis',
+            label: 'セトリ分析',
+            panel: (
+              <section className="space-y-6">
           {!analysisData || analysisData.totalWithData === 0 ? (
             <div className="glass rounded-2xl p-10 text-center space-y-2">
               <p className="text-white font-medium">セトリデータがまだありません</p>
@@ -437,7 +515,7 @@ export default async function ArtistPage({
             <>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'セトリあり', value: `${analysisData.totalWithData}/${analysisData.totalConcerts}公演` },
+                  { label: 'セトリあり公演', value: `${analysisData.totalWithData}/${analysisData.totalConcerts}` },
                   { label: 'ユニーク曲数', value: `${analysisData.uniqueSongs}曲` },
                   { label: '平均曲数', value: `${analysisData.avgSongs}曲` },
                 ].map(({ label, value }) => (
@@ -449,9 +527,12 @@ export default async function ArtistPage({
               </div>
 
               {(() => {
+                const u = analysisData.unit === 'tour' ? 'ツアー' : '公演'
                 const all = analysisData.songs.filter(s => s.pct === 100)
-                const regular = analysisData.songs.filter(s => s.pct >= 30 && s.pct < 100)
-                const rare = analysisData.songs.filter(s => s.pct < 30)
+                // ツアー単位では「1つのツアー・ライブでしか演奏されていない曲」をレア曲とする
+                const isRare = (x: SongStat) => analysisData!.unit === 'tour' ? x.count <= 1 : x.pct < 30
+                const regular = analysisData.songs.filter(s => s.pct < 100 && !isRare(s))
+                const rare = analysisData.songs.filter(s => s.pct < 100 && isRare(s))
 
                 const SongRow = ({ song, tier }: { song: SongStat; tier: 'all' | 'regular' | 'rare' }) => (
                   <div className="flex items-center gap-3 py-3 border-b border-white/5 last:border-0">
@@ -466,7 +547,7 @@ export default async function ArtistPage({
                     )}
                     {tier === 'all' && (
                       <span className="text-[10px] text-white/40 uppercase tracking-[0.12em] border border-white/15 rounded px-1.5 py-0.5 shrink-0">
-                        全公演
+                        全{u}
                       </span>
                     )}
                     {tier === 'rare' && (
@@ -475,7 +556,7 @@ export default async function ArtistPage({
                       </span>
                     )}
                     <span className="text-xs text-[#8888aa] font-mono tabular-nums shrink-0 w-12 text-right">
-                      {song.count}/{analysisData!.totalWithData}
+                      {song.count}/{analysisData!.totalUnits}
                     </span>
                   </div>
                 )
@@ -495,119 +576,24 @@ export default async function ArtistPage({
 
                 return (
                   <div className="space-y-3">
-                    <Section title="全公演で演奏" songs={all} tier="all" />
-                    <Section title="常連曲" songs={regular} tier="regular" />
-                    <Section title="レア曲" songs={rare} tier="rare" />
+                    {analysisData.unit === 'tour' && (
+                      <p className="text-xs text-[#8888aa] leading-relaxed">
+                        {analysisData.totalUnits}のツアー・ライブのうち、いくつで演奏されたかで集計しています（同じツアーの公演はセトリがほぼ同じなので1つとして数えます）。
+                      </p>
+                    )}
+                    <Section title={`全${u}で演奏`} songs={all} tier="all" />
+                    <Section title={analysisData.unit === 'tour' ? '複数のツアーで演奏' : '常連曲'} songs={regular} tier="regular" />
+                    <Section title={analysisData.unit === 'tour' ? 'レア曲（1つのツアー・ライブだけで演奏）' : 'レア曲'} songs={rare} tier="rare" />
                   </div>
                 )
               })()}
             </>
           )}
         </section>
-      )}
-
-      {/* フェス出演 */}
-      {tab !== 'analysis' && (festivalConcerts ?? []).length > 0 && (() => {
-        type FestConcert = {
-          id: string; date: string; stage_name: string | null
-          festival_events: { id: string; name: string; start_date: string; end_date: string | null; image_url: string | null; festival_groups: { id: string; name: string } | null } | null
-        }
-        const typed = (festivalConcerts ?? []) as unknown as FestConcert[]
-        // festival_event ごとにグループ化
-        const grouped = new Map<string, { event: FestConcert['festival_events'] & {}; concerts: FestConcert[] }>()
-        for (const c of typed) {
-          if (!c.festival_events) continue
-          const key = c.festival_events.id
-          if (!grouped.has(key)) grouped.set(key, { event: c.festival_events, concerts: [] })
-          grouped.get(key)!.concerts.push(c)
-        }
-        return (
-          <section className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2"><Tent size={18} />フェス出演</h2>
-            <div className="space-y-3">
-              {[...grouped.values()].map(({ event, concerts: cs }) => (
-                <div key={event.id} className="glass rounded-2xl p-5 space-y-3">
-                  <div className="flex items-center gap-3">
-                    {event.image_url ? (
-                      <img src={event.image_url} alt={event.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-xl bg-[#282828] flex items-center justify-center shrink-0">
-                        <Tent size={20} className="text-[#8888aa]" />
-                      </div>
-                    )}
-                    <div>
-                      {event.festival_groups && <p className="text-xs text-[#8888aa]">{event.festival_groups.name}</p>}
-                      <p className="font-bold text-white">{event.name}</p>
-                      <p className="text-xs text-[#8888aa]">
-                        {new Date(event.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        {event.end_date && ` 〜 ${new Date(event.end_date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {cs.sort((a, b) => a.date.localeCompare(b.date)).map(c => (
-                      <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-3 py-2 rounded-xl transition-colors group">
-                        <span className="text-sm font-bold text-white">
-                          {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                        </span>
-                        {c.stage_name && <span className="text-xs text-[#8888aa] group-hover:text-white transition-colors">{c.stage_name}</span>}
-                        <span className="text-[#8888aa] group-hover:text-white transition-colors text-xs">›</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )
-      })()}
-
-      {/* ツアー一覧 */}
-      {tab !== 'analysis' && <section className="space-y-4">
-        <h2 className="text-lg font-bold text-white">ツアー・ライブ情報</h2>
-        {(tours ?? []).length === 0 ? (
-          <p className="text-sm text-[#8888aa]">ツアー情報がありません</p>
-        ) : (
-          <div className="space-y-3">
-            {(tours ?? [] as ArtistTour[]).map((t) => (
-              <Link key={t.id} href={`/tours/${t.id.slice(0, 8)}`}
-                className="glass rounded-2xl p-5 flex items-center gap-4 hover:border-white/20 transition-colors group">
-                {(t.image_url || artist.image_url) ? (
-                  <img src={t.image_url ?? artist.image_url ?? undefined} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                ) : (
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#333333]/60 to-[#282828]/60 shrink-0 flex items-center justify-center">
-                    <Route size={22} className="text-white/60" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{t.name}</p>
-                  {(t.start_date || t.end_date) && (
-                    <p className="text-xs text-[#8888aa] mt-0.5">
-                      {t.start_date && new Date(t.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
-                      {t.start_date && t.end_date && ' 〜 '}
-                      {t.end_date && new Date(t.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
-                    </p>
-                  )}
-                  {t.concerts && t.concerts.length > 0 && (() => {
-                    const concertCount = t.concerts.length
-                    const setlistCount = t.concerts.filter(c => c.setlist_submissions.length > 0).length
-                    return (
-                      <p className="text-xs text-[#8888aa] mt-0.5">
-                        {concertCount}公演
-                        {setlistCount > 0 && (
-                          <span className="ml-2 text-[#b3b3b3]">セトリ {setlistCount}公演分</span>
-                        )}
-                      </p>
-                    )
-                  })()}
-                </div>
-                <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors">›</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>}
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

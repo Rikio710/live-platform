@@ -20,8 +20,33 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       image_crop_x: body.image_crop_x ?? 50,
       image_crop_y: body.image_crop_y ?? 50,
       image_crop_scale: body.image_crop_scale ?? 1,
-      livefans_id: body.livefans_id ? parseInt(body.livefans_id) : null,
     }).eq('id', id).select().single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // livefans_id が指定された場合は artist_livefans_ids に upsert
+    if (data && body.livefans_id) {
+      const lfId = parseInt(body.livefans_id)
+      if (!isNaN(lfId)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (admin as any).from('artist_livefans_ids').upsert({ artist_id: id, livefans_id: lfId, crawl_page: 0 }, { onConflict: 'livefans_id' })
+      }
+    }
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireAdmin()
+    const { id } = await params
+    const body = await req.json()
+    const admin = createAdminClient()
+    const { data, error } = await admin.from('artists').update({
+      image_crop_x: body.image_crop_x,
+      image_crop_y: body.image_crop_y,
+      image_crop_scale: body.image_crop_scale,
+    }).eq('id', id).select('id, image_crop_x, image_crop_y, image_crop_scale').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)
   } catch {

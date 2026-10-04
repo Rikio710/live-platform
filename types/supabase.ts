@@ -14,6 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      articles: {
+        Row: {
+          artist_id: string | null
+          body: string | null
+          category: string
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          faq: Json
+          id: string
+          is_featured: boolean
+          lead: string | null
+          number: number
+          published_at: string | null
+          slug: string
+          song_notes: Json
+          sources: Json
+          status: string
+          title: string
+          tour_id: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          artist_id?: string | null
+          body?: string | null
+          category?: string
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          faq?: Json
+          id?: string
+          is_featured?: boolean
+          lead?: string | null
+          number?: number
+          published_at?: string | null
+          slug: string
+          song_notes?: Json
+          sources?: Json
+          status?: string
+          title: string
+          tour_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          artist_id?: string | null
+          body?: string | null
+          category?: string
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          faq?: Json
+          id?: string
+          is_featured?: boolean
+          lead?: string | null
+          number?: number
+          published_at?: string | null
+          slug?: string
+          song_notes?: Json
+          sources?: Json
+          status?: string
+          title?: string
+          tour_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articles_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articles_tour_id_fkey"
+            columns: ["tour_id"]
+            isOneToOne: false
+            referencedRelation: "tours"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artist_follows: {
         Row: {
           artist_id: string
@@ -49,10 +133,14 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          image_crop_x: number | null
+          image_crop_y: number | null
+          image_crop_scale: number | null
           instagram_url: string | null
           livefans_crawl_page: number | null
           livefans_id: number | null
           livefans_last_crawled_at: string | null
+          livefans_total_pages: number | null
           name: string
           slug: string | null
           spotify_id: string | null
@@ -66,10 +154,14 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          image_crop_x?: number | null
+          image_crop_y?: number | null
+          image_crop_scale?: number | null
           instagram_url?: string | null
           livefans_crawl_page?: number | null
           livefans_id?: number | null
           livefans_last_crawled_at?: string | null
+          livefans_total_pages?: number | null
           name: string
           slug?: string | null
           spotify_id?: string | null
@@ -83,10 +175,14 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          image_crop_x?: number | null
+          image_crop_y?: number | null
+          image_crop_scale?: number | null
           instagram_url?: string | null
           livefans_crawl_page?: number | null
           livefans_id?: number | null
           livefans_last_crawled_at?: string | null
+          livefans_total_pages?: number | null
           name?: string
           slug?: string | null
           spotify_id?: string | null
@@ -253,6 +349,7 @@ export type Database = {
           artist_id: string
           created_at: string | null
           date: string
+          event_type: 'solo' | 'taiban' | 'festival'
           festival_event_id: string | null
           id: string
           image_url: string | null
@@ -270,6 +367,7 @@ export type Database = {
           artist_id: string
           created_at?: string | null
           date: string
+          event_type?: 'solo' | 'taiban' | 'festival'
           festival_event_id?: string | null
           id?: string
           image_url?: string | null
@@ -287,6 +385,7 @@ export type Database = {
           artist_id?: string
           created_at?: string | null
           date?: string
+          event_type?: 'solo' | 'taiban' | 'festival'
           festival_event_id?: string | null
           id?: string
           image_url?: string | null
@@ -326,24 +425,33 @@ export type Database = {
       festival_groups: {
         Row: {
           id: string
-          name: string
+          name: string | null
           slug: string | null
           image_url: string | null
           created_at: string | null
+          livefans_group_id: number | null
+          crawl_status: string | null
+          detected_at: string | null
         }
         Insert: {
           id?: string
-          name: string
+          name?: string | null
           slug?: string | null
           image_url?: string | null
           created_at?: string | null
+          livefans_group_id?: number | null
+          crawl_status?: string | null
+          detected_at?: string | null
         }
         Update: {
           id?: string
-          name?: string
+          name?: string | null
           slug?: string | null
           image_url?: string | null
           created_at?: string | null
+          livefans_group_id?: number | null
+          crawl_status?: string | null
+          detected_at?: string | null
         }
         Relationships: []
       }

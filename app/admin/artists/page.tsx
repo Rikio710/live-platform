@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AdminModal from '@/components/admin/AdminModal'
 import { ArtistCircleImage } from '@/components/ArtistCircleImage'
-import { Mic2, SlidersHorizontal } from 'lucide-react'
+import { Mic2, SlidersHorizontal, Merge } from 'lucide-react'
 
 type WikidataCandidate = {
   wikidataId: string
@@ -50,6 +50,33 @@ export default function AdminArtistsPage() {
   const [cropScale, setCropScale] = useState(1)
   const [cropSaving, setCropSaving] = useState(false)
 
+  // マージ（1件）
+  const [mergeMain, setMergeMain] = useState<Artist | null>(null)
+  const [mergeQuery, setMergeQuery] = useState('')
+  const [mergeDup, setMergeDup] = useState<Artist | null>(null)
+  const [merging, setMerging] = useState(false)
+  const [mergeLog, setMergeLog] = useState<string[]>([])
+  const [mergeDone, setMergeDone] = useState(false)
+  const mergeInputRef = useRef<HTMLInputElement>(null)
+
+  // 一括マージ
+  type MergePair = { main: Artist; dup: Artist; selected: boolean }
+  const [bulkMergeOpen, setBulkMergeOpen] = useState(false)
+  const [bulkPairs, setBulkPairs] = useState<MergePair[]>([])
+  const [bulkRunning, setBulkRunning] = useState(false)
+  const [bulkLog, setBulkLog] = useState<string[]>([])
+  const [bulkDone, setBulkDone] = useState(false)
+
+  // 一括自動取得
+  const [autoEnriching, setAutoEnriching] = useState(false)
+  const [autoLog, setAutoLog] = useState<string[]>([])
+  const [autoRemaining, setAutoRemaining] = useState<number | null>(null)
+
+  // Popularity同期
+  const [popularitySyncing, setPopularitySyncing] = useState(false)
+  const [popularityLog, setPopularityLog] = useState<string[]>([])
+  const [popularityRemaining, setPopularityRemaining] = useState<number | null>(null)
+
   const load = async () => {
     try {
       const res = await fetch('/api/admin/artists')
@@ -81,6 +108,72 @@ export default function AdminArtistsPage() {
     })
     setEditing(a); setError(null); setModal('edit')
     setWikidataCandidates(null); setWikidataError(null); setSpotifyImageUrl(null)
+  }
+
+  const runAutoEnrich = async (limit?: number) => {
+    if (autoEnriching) return
+    setAutoEnriching(true)
+    setAutoLog([])
+    setAutoRemaining(null)
+    let stop = false
+    let count = 0
+    while (!stop) {
+      try {
+        const res = await fetch('/api/admin/artists/auto-enrich', { method: 'POST' })
+        const data = await res.json()
+        if (data.done) {
+          setAutoLog(prev => [...prev, '✓ 完了 — 対象アーティストなし'])
+          stop = true
+        } else {
+          const imageLabel = data.applied_image === 'spotify' ? 'Spotify画像' : data.applied_image === 'wikidata' ? 'Wiki画像' : '画像なし'
+          const wikiLabel = data.wiki_matched ? ' + Wiki情報' : ''
+          setAutoLog(prev => [...prev, `${data.artist_name} → ${imageLabel}${wikiLabel} (残り${data.remaining}件)`])
+          setAutoRemaining(data.remaining)
+          count++
+          if (data.remaining === 0 || (limit && count >= limit)) stop = true
+        }
+      } catch (e) {
+        setAutoLog(prev => [...prev, `エラー: ${String(e)}`])
+        stop = true
+      }
+    }
+    setAutoEnriching(false)
+    load()
+  }
+
+  const runSyncPopularity = async () => {
+    if (popularitySyncing) return
+    setPopularitySyncing(true)
+    setPopularityLog([])
+    setPopularityRemaining(null)
+    let stop = false
+    while (!stop) {
+      try {
+        const res = await fetch('/api/admin/artists/sync-popularity', { method: 'POST' })
+        const data = await res.json()
+        if (data.done) {
+          setPopularityLog(prev => [...prev, '✓ 完了'])
+          stop = true
+        } else {
+          for (const item of data.log ?? []) {
+            const label = item.skipped ? 'スキップ' : `popularity: ${item.popularity}`
+            setPopularityLog(prev => [...prev, `${item.name} → ${label}`])
+          }
+          setPopularityRemaining(data.remaining)
+          if (data.remaining === 0) stop = true
+          if (data.rateLimited) {
+            setPopularityLog(prev => [...prev, '⚠ レート制限 — 10秒待機中...'])
+            await new Promise(r => setTimeout(r, 10000))
+          } else {
+            await new Promise(r => setTimeout(r, 300))
+          }
+        }
+      } catch (e) {
+        setPopularityLog(prev => [...prev, `エラー: ${String(e)}`])
+        stop = true
+      }
+    }
+    setPopularitySyncing(false)
   }
 
   const handleWikidataEnrich = async () => {
@@ -191,6 +284,103 @@ export default function AdminArtistsPage() {
     }
   }
 
+  const openBulkMerge = () => {
+    // 名前の前半が一致するペアを自動検出（短い方がメイン）
+    const pairs: MergePair[] = []
+    const seen = new Set<string>()
+    for (const a of artists) {
+      for (const b of artists) {
+        if (a.id === b.id) continue
+        const key = [a.id, b.id].sort().join(':')
+        if (seen.has(key)) continue
+        const an = a.name.toLowerCase()
+        const bn = b.name.toLowerCase()
+        // b が a の名前で始まる（かつ余分なテキストあり）
+        const checkPrefix = (shorter: Artist, longer: Artist, sn: string, ln: string) => {
+          if (!ln.startsWith(sn) || ln.length <= sn.length) return false
+          const rest = ln.slice(sn.length)
+          return /^[\s（(×\-feat&、,　]/.test(rest)
+        }
+        if (checkPrefix(a, b, an, bn)) { seen.add(key); pairs.push({ main: a, dup: b, selected: true }) }
+        else if (checkPrefix(b, a, bn, an)) { seen.add(key); pairs.push({ main: b, dup: a, selected: true }) }
+      }
+    }
+    setBulkPairs(pairs)
+    setBulkLog([])
+    setBulkDone(false)
+    setBulkRunning(false)
+    setBulkMergeOpen(true)
+  }
+
+  const runBulkMerge = async () => {
+    const selected = bulkPairs.filter(p => p.selected)
+    if (!selected.length) return
+    setBulkRunning(true)
+    setBulkLog([])
+    let removedIds = new Set<string>()
+    for (const pair of selected) {
+      if (removedIds.has(pair.main.id) || removedIds.has(pair.dup.id)) {
+        setBulkLog(prev => [...prev, `スキップ: ${pair.dup.name}（既にマージ済み）`])
+        continue
+      }
+      setBulkLog(prev => [...prev, `統合中: ${pair.dup.name} → ${pair.main.name}`])
+      try {
+        const res = await fetch('/api/admin/artists/merge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ main_artist_id: pair.main.id, duplicate_artist_id: pair.dup.id }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          removedIds.add(pair.dup.id)
+          setBulkLog(prev => [...prev, `  ✓ 完了 (公演:${data.moved?.concerts ?? 0} ツアー:${data.moved?.tours ?? 0})`])
+        } else {
+          setBulkLog(prev => [...prev, `  ✗ 失敗: ${data.error}`])
+        }
+      } catch {
+        setBulkLog(prev => [...prev, `  ✗ ネットワークエラー`])
+      }
+      await new Promise(r => setTimeout(r, 200))
+    }
+    setArtists(prev => prev.filter(a => !removedIds.has(a.id)))
+    setBulkDone(true)
+    setBulkRunning(false)
+  }
+
+  const openMerge = (main: Artist) => {
+    setMergeMain(main); setMergeQuery(main.name); setMergeDup(null)
+    setMerging(false); setMergeLog([]); setMergeDone(false)
+    setTimeout(() => mergeInputRef.current?.focus(), 100)
+  }
+
+  const mergeSearchResults = mergeQuery.trim().length >= 1
+    ? artists.filter(a => a.id !== mergeMain?.id && a.name.toLowerCase().includes(mergeQuery.toLowerCase())).slice(0, 8)
+    : []
+
+  const executeMerge = async () => {
+    if (!mergeMain || !mergeDup) return
+    if (!confirm(`「${mergeDup.name}」のデータを「${mergeMain.name}」に統合し、「${mergeDup.name}」を削除します。よろしいですか？`)) return
+    setMerging(true)
+    setMergeLog([])
+    try {
+      const res = await fetch('/api/admin/artists/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ main_artist_id: mergeMain.id, duplicate_artist_id: mergeDup.id }),
+      })
+      const data = await res.json()
+      setMergeLog(data.log ?? [data.error ?? '不明なエラー'])
+      if (res.ok) {
+        setArtists(prev => prev.filter(a => a.id !== mergeDup.id))
+        setMergeDone(true)
+      }
+    } catch {
+      setMergeLog(['ネットワークエラー'])
+    } finally {
+      setMerging(false)
+    }
+  }
+
   const handleDelete = async (a: Artist) => {
     if (!confirm(`「${a.name}」を削除しますか？関連するツアー・公演も全て削除されます。`)) return
     try {
@@ -209,11 +399,40 @@ export default function AdminArtistsPage() {
           <h1 className="text-xl font-black text-white">アーティスト管理</h1>
           <p className="text-sm text-[#8888aa] mt-0.5">{artists.length}件</p>
         </div>
+        <button onClick={() => runAutoEnrich(3)} disabled={autoEnriching || popularitySyncing}
+          className="border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 disabled:opacity-40 font-bold text-sm px-4 py-2.5 rounded-full transition-colors">
+          {autoEnriching ? '取得中...' : '3件取得'}
+        </button>
+        <button onClick={() => runAutoEnrich()} disabled={autoEnriching || popularitySyncing}
+          className="border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 disabled:opacity-40 font-bold text-sm px-4 py-2.5 rounded-full transition-colors">
+          一括自動取得
+        </button>
+        <button onClick={runSyncPopularity} disabled={autoEnriching || popularitySyncing}
+          className="border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 disabled:opacity-40 font-bold text-sm px-4 py-2.5 rounded-full transition-colors">
+          {popularitySyncing ? 'Popularity取得中...' : 'Popularity一括取得'}
+        </button>
+        <button onClick={openBulkMerge} disabled={loading}
+          className="border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 disabled:opacity-40 font-bold text-sm px-4 py-2.5 rounded-full transition-colors flex items-center gap-1.5">
+          <Merge size={14} /> 一括統一
+        </button>
         <button onClick={openCreate}
           className="bg-white hover:bg-[#e0e0e0] text-black font-bold text-sm px-4 py-2.5 rounded-full transition-colors">
           ＋ 追加
         </button>
       </div>
+
+      {autoLog.length > 0 && (
+        <div className="glass rounded-2xl p-4 space-y-1 max-h-48 overflow-y-auto">
+          <p className="text-xs font-bold text-[#8888aa] mb-2">一括自動取得ログ {autoRemaining !== null && !autoEnriching && `(画像なし残り${autoRemaining}件)`}</p>
+          {autoLog.map((line, i) => <p key={i} className="text-xs text-[#b3b3b3] font-mono">{line}</p>)}
+        </div>
+      )}
+      {popularityLog.length > 0 && (
+        <div className="glass rounded-2xl p-4 space-y-1 max-h-48 overflow-y-auto">
+          <p className="text-xs font-bold text-[#8888aa] mb-2">Popularity取得ログ {popularityRemaining !== null && !popularitySyncing && `(残り${popularityRemaining}件)`}</p>
+          {popularityLog.map((line, i) => <p key={i} className="text-xs text-[#b3b3b3] font-mono">{line}</p>)}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-[#8888aa] text-sm">読み込み中...</p>
@@ -259,6 +478,10 @@ export default function AdminArtistsPage() {
                 <button onClick={() => openEdit(a)}
                   className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors">
                   編集
+                </button>
+                <button onClick={() => openMerge(a)}
+                  className="text-xs border border-white/10 text-[#8888aa] hover:text-white hover:border-white/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
+                  <Merge size={11} /> 統一
                 </button>
                 <button onClick={() => handleDelete(a)}
                   className="text-xs border border-red-500/20 text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-full transition-colors">
@@ -357,6 +580,142 @@ export default function AdminArtistsPage() {
                 className="flex-1 bg-white hover:bg-[#e0e0e0] disabled:opacity-50 text-black font-bold py-2.5 rounded-xl text-sm transition-colors">
                 {saving ? '保存中...' : '保存'}
               </button>
+            </div>
+          </div>
+        </AdminModal>
+      )}
+
+      {bulkMergeOpen && (
+        <AdminModal title="一括アーティスト統一" onClose={() => setBulkMergeOpen(false)}>
+          <div className="space-y-4">
+            {bulkPairs.length === 0 ? (
+              <p className="text-sm text-[#8888aa] text-center py-4">統合候補が見つかりませんでした</p>
+            ) : (
+              <>
+                <p className="text-xs text-[#8888aa]">
+                  名前が類似するペアを自動検出しました。統合するものにチェックを入れて実行してください。
+                </p>
+                <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                  {bulkPairs.map((pair, i) => (
+                    <label key={i} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${pair.selected ? 'bg-white/8' : 'opacity-40'}`}>
+                      <input
+                        type="checkbox"
+                        checked={pair.selected}
+                        disabled={bulkRunning}
+                        onChange={e => setBulkPairs(prev => prev.map((p, j) => j === i ? { ...p, selected: e.target.checked } : p))}
+                        className="accent-white shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-[#8888aa]">残す</p>
+                        <p className="text-sm font-bold text-white truncate">{pair.main.name}</p>
+                      </div>
+                      <div className="text-[#8888aa] shrink-0">←</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-red-400">削除</p>
+                        <p className="text-sm text-white truncate">{pair.dup.name}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {!bulkDone && (
+                  <p className="text-xs text-[#8888aa] text-right">
+                    {bulkPairs.filter(p => p.selected).length} / {bulkPairs.length} 件選択
+                  </p>
+                )}
+              </>
+            )}
+
+            {bulkLog.length > 0 && (
+              <div className="bg-white/5 rounded-xl px-4 py-3 space-y-0.5 max-h-40 overflow-y-auto">
+                {bulkLog.map((line, i) => <p key={i} className="text-xs font-mono text-[#b3b3b3]">{line}</p>)}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setBulkMergeOpen(false)}
+                className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">
+                {bulkDone ? '閉じる' : 'キャンセル'}
+              </button>
+              {!bulkDone && bulkPairs.length > 0 && (
+                <button onClick={runBulkMerge}
+                  disabled={bulkRunning || bulkPairs.filter(p => p.selected).length === 0}
+                  className="flex-1 bg-red-500 hover:bg-red-400 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
+                  {bulkRunning ? '統合中...' : `${bulkPairs.filter(p => p.selected).length}件を一括統合`}
+                </button>
+              )}
+            </div>
+          </div>
+        </AdminModal>
+      )}
+
+      {mergeMain && (
+        <AdminModal title="アーティストを統一" onClose={() => setMergeMain(null)}>
+          <div className="space-y-4">
+            {/* メインアーティスト */}
+            <div className="bg-white/5 rounded-xl px-4 py-3">
+              <p className="text-xs text-[#8888aa] mb-1">残す側（メイン）</p>
+              <p className="text-sm font-bold text-white">{mergeMain.name}</p>
+            </div>
+
+            {/* 削除するアーティストを検索 */}
+            {!mergeDone && (
+              <>
+                <div>
+                  <label className="text-xs text-[#8888aa] mb-1 block">統合して削除するアーティストを検索</label>
+                  <input
+                    ref={mergeInputRef}
+                    type="text"
+                    value={mergeQuery}
+                    onChange={e => { setMergeQuery(e.target.value); setMergeDup(null) }}
+                    placeholder="アーティスト名で検索..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[#8888aa] focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                {mergeSearchResults.length > 0 && !mergeDup && (
+                  <div className="rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden max-h-48 overflow-y-auto">
+                    {mergeSearchResults.map(a => (
+                      <button key={a.id} onClick={() => { setMergeDup(a); setMergeQuery(a.name) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors">
+                        <p className="text-sm text-white">{a.name}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {mergeDup && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 space-y-1">
+                    <p className="text-xs text-red-400 font-bold">削除される側</p>
+                    <p className="text-sm text-white">{mergeDup.name}</p>
+                    <p className="text-xs text-[#8888aa]">
+                      このアーティストのデータが「{mergeMain.name}」に統合され、削除されます
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {mergeLog.length > 0 && (
+              <div className="bg-white/5 rounded-xl px-4 py-3 space-y-0.5 max-h-40 overflow-y-auto">
+                {mergeLog.map((line, i) => (
+                  <p key={i} className="text-xs font-mono text-[#b3b3b3]">{line}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setMergeMain(null)}
+                className="flex-1 border border-white/10 text-[#8888aa] hover:text-white py-2.5 rounded-xl text-sm transition-colors">
+                {mergeDone ? '閉じる' : 'キャンセル'}
+              </button>
+              {!mergeDone && (
+                <button
+                  onClick={executeMerge}
+                  disabled={!mergeDup || merging}
+                  className="flex-1 bg-red-500 hover:bg-red-400 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
+                  {merging ? '統合中...' : '統合して削除'}
+                </button>
+              )}
             </div>
           </div>
         </AdminModal>

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { MapPin } from 'lucide-react'
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 export default async function VenuesPage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const { data: concerts } = await supabase
     .from('concerts')

@@ -62,7 +62,7 @@ export default function SetlistTab({ concertId, concertTitle, artistName, concer
   const supabase = createClient()
   const router = useRouter()
 
-  const [revealed, setRevealed] = useState(false)
+  const [revealed, setRevealed] = useState(!(initialSongCount && initialSongCount > 0))
   const [loading, setLoading] = useState(true)
   const setlistViewFired = useRef(false)
   const [loadError, setLoadError] = useState(false)
@@ -385,6 +385,7 @@ export default function SetlistTab({ concertId, concertTitle, artistName, concer
                     url={typeof window !== 'undefined' ? window.location.href.split('?')[0] + '?tab=setlist' : ''}
                     title={concertTitle ?? ''}
                     songs={topSubmission.songs}
+                    concertId={concertId}
                   />
                 </>
               )}

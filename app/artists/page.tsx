@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { siteUrl } from '@/lib/site'
 import ArtistList from './ArtistList'
@@ -16,11 +16,25 @@ export const metadata: Metadata = {
 }
 
 export default async function ArtistsPage() {
-  const supabase = await createClient()
-  const { data: artists } = await supabase
-    .from('artists')
-    .select('id, slug, name, image_url, description')
-    .order('name')
+  const supabase = createPublicClient()
+  const [{ data: raw }, { data: tourRows }] = await Promise.all([
+    supabase
+      .from('artists')
+      .select('id, slug, name, image_url, image_crop_x, image_crop_y, description')
+      .not('image_url', 'is', null)
+      .neq('image_url', '')
+      .limit(1000),
+    supabase.from('tours').select('artist_id'),
+  ])
 
-  return <ArtistList artists={artists ?? []} />
+  const tourCountMap = new Map<string, number>()
+  for (const t of tourRows ?? []) {
+    if (t.artist_id) tourCountMap.set(t.artist_id, (tourCountMap.get(t.artist_id) ?? 0) + 1)
+  }
+
+  const artists = (raw ?? [])
+    .map(a => ({ ...a, tour_count: tourCountMap.get(a.id) ?? 0 }))
+    .sort((a, b) => b.tour_count - a.tour_count)
+
+  return <ArtistList artists={artists} />
 }

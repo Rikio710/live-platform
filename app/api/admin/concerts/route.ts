@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     const admin = createAdminClient()
     const { searchParams } = new URL(req.url)
     const artistId = searchParams.get('artist_id')
+    const tourId = searchParams.get('tour_id')
 
     const PAGE = 1000
     const all: any[] = []
@@ -15,10 +16,11 @@ export async function GET(req: NextRequest) {
     while (true) {
       let query = admin
         .from('concerts')
-        .select('*, artists(id, name), tours(id, name)')
+        .select('*, artists(id, name), tours(id, name), setlist_submissions(count)')
         .order('date', { ascending: false })
         .range(page * PAGE, (page + 1) * PAGE - 1)
       if (artistId) query = query.eq('artist_id', artistId)
+      if (tourId) query = query.eq('tour_id', tourId)
       const { data, error } = await query
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       if (!data?.length) break

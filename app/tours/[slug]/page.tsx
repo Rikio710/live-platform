@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { Calendar } from 'lucide-react'
 import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
 import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
+import UrlTabs from '@/components/ui/UrlTabs'
+import ArticlePromoCard from '@/components/features/article/ArticlePromoCard'
+import { articlePath, displayTitle, getArtistArticle, hasPerformanceNote, songNameKey } from '@/lib/articles'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i
@@ -18,7 +21,7 @@ function shortIdRange(shortId: string) {
 }
 
 type TourWithArtists = Tables<'tours'> & {
-  tour_artists: { artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'slug'> | null }[]
+  tour_artists: { artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'> | null }[]
 }
 
 type TourConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'venue_address' | 'date' | 'start_time' | 'image_url'> & {
@@ -30,7 +33,7 @@ export const revalidate = 3600
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
   const slug = decodeURIComponent(rawSlug)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query = (supabase as any).from('tours').select('id, name, image_url, start_date, end_date, tour_artists(artists(name))')
   let metaQuery = UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
@@ -39,15 +42,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const metaTour = data as { id: string; name: string; image_url: string | null; start_date: string | null; end_date: string | null; tour_artists: { artists: { name: string } | null }[] }
   const artistName = metaTour.tour_artists?.map(ta => ta.artists?.name).filter(Boolean).join(' / ') ?? ''
 
-  const { count: concertCount } = await supabase
+  const { data: metaConcerts } = await supabase
     .from('concerts')
-    .select('id', { count: 'exact', head: true })
+    .select('id, setlist_submissions(id)')
     .eq('tour_id', metaTour.id)
+    .limit(500)
+
+  const concertCount = metaConcerts?.length ?? 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hasSetlist = (metaConcerts ?? []).some(c => ((c.setlist_submissions as any[]) ?? []).length > 0)
 
   const year = metaTour.start_date ? new Date(metaTour.start_date).getFullYear() : null
   const countText = concertCount ? `全${concertCount}公演` : ''
   const yearText = year ? `【${year}年】` : ''
-  const title = `${artistName} ${data.name} セトリ・セットリスト一覧 ${countText}${yearText}`.trim()
+  const title = hasSetlist
+    ? `${artistName} ${data.name} セトリ・セットリスト一覧 ${countText}${yearText}`.trim()
+    : `${artistName} ${data.name} ライブ情報 ${countText}${yearText}`.trim()
   const description = `${artistName}「${data.name}」${countText}のセットリスト（セトリ）を会場別に速報公開。参戦者の感想・掲示板・セトリ投稿受付中。ライブ体験をLiveVaultで記録・共有しよう。`
   const image = metaTour.image_url ?? null
   const canonicalSlug = SHORT_ID_RE.test(slug) ? slug : metaTour.id.slice(0, 8)
@@ -80,17 +90,19 @@ type AnalysisData = {
   avgSongs: number
 }
 
+/** 初回アクセス時に生成してキャッシュ（ISR） */
+export function generateStaticParams() {
+  return []
+}
+
 export default async function TourPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ tab?: string }>
 }) {
   const { slug: rawSlug } = await params
-  const { tab = 'concerts' } = await searchParams
   const slug = decodeURIComponent(rawSlug)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   if (UUID_RE.test(slug)) {
     permanentRedirect(`/tours/${slug.slice(0, 8)}`)
@@ -98,7 +110,7 @@ export default async function TourPage({
 
   const { data: tourRaw } = await (() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const q = (supabase as any).from('tours').select('*, tour_artists(artists(id, name, image_url, slug))')
+    const q = (supabase as any).from('tours').select('*, tour_artists(artists(id, name, image_url, image_crop_x, image_crop_y, slug))')
     if (SHORT_ID_RE.test(slug)) {
       const { lo, hi } = shortIdRange(slug)
       return q.gte('id', lo).lt('id', hi)
@@ -109,22 +121,23 @@ export default async function TourPage({
   if (!tourRaw) notFound()
 
   const tour = tourRaw as TourWithArtists
-  const tourArtistList = (tour.tour_artists ?? []).map(ta => ta.artists).filter(Boolean) as Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'slug'>[]
+  const tourArtistList = (tour.tour_artists ?? []).map(ta => ta.artists).filter(Boolean) as Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'>[]
+  const standardSongsArticle = await getArtistArticle(supabase, tourArtistList[0]?.id)
   const firstArtist = tourArtistList[0] ?? null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: concertsRaw } = await (supabase as any)
     .from('concerts')
-    .select('id, slug, venue_name, venue_address, date, start_time, image_url, setlist_submissions(id), concert_artists(artists(id, name, image_url))')
+    .select('id, slug, venue_name, venue_address, date, start_time, image_url, setlist_submissions(id), concert_artists(artists(id, name, image_url, image_crop_x, image_crop_y))')
     .eq('tour_id', tour.id)
     .order('date', { ascending: true })
-  const concerts = concertsRaw as (TourConcert & { concert_artists: { artists: { id: string; name: string; image_url: string | null } | null }[] })[] | null
+  const concerts = concertsRaw as (TourConcert & { concert_artists: { artists: { id: string; name: string; image_url: string | null; image_crop_x?: number | null; image_crop_y?: number | null } | null }[] })[] | null
   const today = new Date().toISOString().split('T')[0]
 
-  // セトリ分析データ（tabがanalysisのときのみ取得）
+  // セトリ分析データ（タブはブラウザ側で切り替えるので常に取得。ページごと1時間キャッシュされる）
   let analysisData: AnalysisData | null = null
   const concertList = concerts ?? []
-  if (tab === 'analysis' && concertList.length > 0) {
+  if (concertList.length > 0) {
     const concertIds = concertList.map(c => c.id)
     const { data: submissions } = await supabase
       .from('setlist_submissions')
@@ -146,13 +159,20 @@ export default async function TourPage({
     for (const sub of topPerConcert.values()) {
       const tracks = (sub.setlist_songs ?? []).filter(s => s.song_type === 'song')
       totalSongCount += tracks.length
+      // 曲は正規化した曲名でまとめる（song_id は公演によって紐付いていたりいなかったりするため）。
+      // 同じ公演で2回演奏しても1公演として数える
+      const seen = new Set<string>()
       for (const song of tracks) {
-        const key = song.song_id ?? song.song_name.trim().toLowerCase()
+        const name = song.song_name.trim()
+        const key = songNameKey(name)
+        if (!key || seen.has(key)) continue
+        seen.add(key)
         const existing = songMap.get(key)
         if (existing) {
           existing.count++
+          if (hasPerformanceNote(existing.name) && !hasPerformanceNote(name)) existing.name = name
         } else {
-          songMap.set(key, { count: 1, isEncore: song.is_encore ?? false, name: song.song_name.trim() })
+          songMap.set(key, { count: 1, isEncore: song.is_encore ?? false, name })
         }
       }
     }
@@ -213,6 +233,7 @@ export default async function TourPage({
     })),
   }
 
+  const tourArtistIdSet = new Set(tourArtistList.map(a => a.id))
   const concertCount = (concerts ?? []).length
   const headerImage = tour.image_url ?? firstArtist?.image_url ?? null
   const dateRangeText = (() => {
@@ -231,24 +252,26 @@ export default async function TourPage({
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       {/* パンくず */}
-      <nav className="text-xs text-[#8888aa] flex items-center gap-1 flex-wrap">
-        <Link href="/" className="hover:text-white transition-colors">ホーム</Link>
-        <span>/</span>
+      <nav className="text-xs text-[#8888aa] flex items-center gap-1 min-w-0 overflow-hidden">
+        <Link href="/" className="hover:text-white transition-colors shrink-0">ホーム</Link>
+        <span className="shrink-0">/</span>
         {tourArtistList.map((a, i) => (
-          <span key={a.id} className="inline-flex items-center gap-1">
-            <Link href={`/artists/${a.id.slice(0, 8)}`} className="hover:text-white transition-colors">{a.name}</Link>
-            {i < tourArtistList.length - 1 && <span className="text-[#555566]">/</span>}
+          <span key={a.id} className="inline-flex items-center gap-1 min-w-0 shrink">
+            <Link href={`/artists/${a.id.slice(0, 8)}`} className="hover:text-white transition-colors min-w-0 truncate">{a.name}</Link>
+            {i < tourArtistList.length - 1 && <span className="text-[#555566] shrink-0">/</span>}
           </span>
         ))}
-        {tourArtistList.length > 0 && <span>/</span>}
-        <span className="text-white">{tour.name}</span>
+        {tourArtistList.length > 0 && <span className="shrink-0">/</span>}
+        <span className="text-white min-w-0 truncate shrink">{tour.name}</span>
       </nav>
 
       {/* ヘッダー画像 + ツアー情報 */}
       <div className="glass rounded-2xl overflow-hidden">
         <div className="relative h-40 sm:h-56 bg-gradient-to-br from-[#282828]/60 to-[#282828]/40">
           {headerImage && (
-            <img src={headerImage} alt={tour.name} className="w-full h-full object-cover opacity-40" />
+            <img src={headerImage} alt={tour.name} className="w-full h-full object-cover opacity-40"
+              style={!tour.image_url ? { objectPosition: `${firstArtist?.image_crop_x ?? 50}% ${firstArtist?.image_crop_y ?? 50}%` } : undefined}
+            />
           )}
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1">
@@ -256,7 +279,9 @@ export default async function TourPage({
                 <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
                   className="inline-flex items-center gap-2 text-sm text-[#b3b3b3] hover:text-white transition-colors">
                   {a.image_url && (
-                    <img src={a.image_url} alt={a.name} className="w-5 h-5 rounded-full object-cover" />
+                    <img src={a.image_url} alt={a.name} className="w-5 h-5 rounded-full object-cover"
+                      style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }}
+                    />
                   )}
                   {a.name}
                 </Link>
@@ -279,187 +304,199 @@ export default async function TourPage({
       {/* SEOテキスト */}
       <p className="text-xs text-[#8888aa] leading-relaxed">{seoDescription}</p>
 
-      {/* タブ */}
-      <div className="flex gap-0 border-b border-white/10">
-        <Link
-          href={`/tours/${tour.id.slice(0, 8)}`}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab !== 'analysis' ? 'text-white border-white' : 'text-[#8888aa] border-transparent hover:text-[#b3b3b3]'}`}
-        >
-          公演一覧
-        </Link>
-        <Link
-          href={`/tours/${tour.id.slice(0, 8)}?tab=analysis`}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === 'analysis' ? 'text-white border-white' : 'text-[#8888aa] border-transparent hover:text-[#b3b3b3]'}`}
-        >
-          セトリ分析
-        </Link>
-      </div>
+      {/* 記事への導線（定番曲ランキング） */}
+      {standardSongsArticle && (
+        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} />
+      )}
 
-      {/* 公演一覧 */}
-      <section className="space-y-4" style={{ display: tab === 'analysis' ? 'none' : undefined }}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">公演一覧</h2>
-          <span className="text-sm text-[#8888aa]">{(concerts ?? []).length}公演</span>
-        </div>
-        {(() => {
-          const total = concertList.length
-          const ended = concertList.filter(c => c.date < today).length
-          const ongoing = total > 0 && ended < total
-          if (total === 0) return null
-          return (
-            <div className="glass rounded-xl px-4 py-3 flex items-center gap-3">
-              <div className="flex-1 bg-white/10 rounded-full h-1.5 overflow-hidden">
-                <div className="bg-white h-full rounded-full transition-all" style={{ width: `${Math.round(ended / total * 100)}%` }} />
+      {/* タブ（公演一覧 / セトリ分析） */}
+      <UrlTabs
+        defaultKey="concerts"
+        tabs={[
+          {
+            key: 'concerts',
+            label: '公演一覧',
+            panel: (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white">公演一覧</h2>
+                <span className="text-sm text-[#8888aa]">{(concerts ?? []).length}公演</span>
               </div>
-              <span className="text-xs text-[#8888aa] shrink-0">
-                {ended}/{total}公演終了
-                {ongoing && <span className="text-white ml-1.5 font-bold">開催中</span>}
-              </span>
-            </div>
-          )
-        })()}
-
-        {(concerts ?? []).length === 0 ? (
-          <p className="text-sm text-[#8888aa]">公演情報がありません</p>
-        ) : (
-          <div className="space-y-3">
-            {(concerts ?? []).map((c) => {
-              const isPast = c.date < today
-              return (
-                <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                  className={`glass rounded-2xl p-5 flex items-center gap-4 hover:border-white/20 transition-colors group ${isPast ? 'opacity-60' : ''}`}>
-                  <div className="shrink-0 text-center w-14">
-                    <p className="text-xs text-[#8888aa]">
-                      {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}
-                    </p>
-                    <p className="text-2xl font-black text-white">
-                      {new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}
-                    </p>
-                    <p className="text-xs text-[#8888aa]">
-                      {new Date(c.date).toLocaleDateString('ja-JP', { weekday: 'short' })}
-                    </p>
-                  </div>
-                  <div className="w-px h-12 bg-white/10 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">
-                      {c.venue_name}
-                    </p>
-                    {c.venue_address && (
-                      <p className="text-xs text-[#8888aa] mt-0.5 truncate">{c.venue_address}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {c.start_time && (
-                        <span className="text-xs text-[#8888aa]">開演 {c.start_time.slice(0, 5)}</span>
-                      )}
-                      {c.setlist_submissions.length > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] border border-white/20">
-                          セットリスト
-                        </span>
-                      )}
-                      {isPast && (
-                        <span className="text-xs text-[#8888aa] border border-white/10 rounded-full px-2 py-0.5">終了</span>
-                      )}
-                    </div>
-                    {c.concert_artists.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {c.concert_artists.map(ca => ca.artists).filter(Boolean).map(a => (
-                          <span key={a!.id} className="text-[10px] text-[#8888aa] border border-white/10 rounded-full px-2 py-0.5">
-                            {a!.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
-                </Link>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* セトリ分析 */}
-      {tab === 'analysis' && (
-        <section className="space-y-6">
-          {!analysisData || analysisData.totalWithData === 0 ? (
-            <div className="glass rounded-2xl p-10 text-center space-y-2">
-              <p className="text-white font-medium">セトリデータがまだありません</p>
-              <p className="text-sm text-[#8888aa]">公演に参戦した方はセトリを投稿してください</p>
-            </div>
-          ) : (
-            <>
-              {/* サマリー */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'セトリあり', value: `${analysisData.totalWithData}/${analysisData.totalConcerts}公演` },
-                  { label: 'ユニーク曲数', value: `${analysisData.uniqueSongs}曲` },
-                  { label: '平均曲数', value: `${analysisData.avgSongs}曲` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="glass rounded-xl p-3 text-center space-y-0.5">
-                    <p className="text-white font-bold text-base">{value}</p>
-                    <p className="text-[10px] text-[#8888aa]">{label}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* 曲リスト */}
               {(() => {
-                const all = analysisData.songs.filter(s => s.pct === 100)
-                const regular = analysisData.songs.filter(s => s.pct >= 30 && s.pct < 100)
-                const rare = analysisData.songs.filter(s => s.pct < 30)
-
-                const SongRow = ({ song, tier }: { song: SongStat; tier: 'all' | 'regular' | 'rare' }) => (
-                  <div className="flex items-center gap-3 py-3 border-b border-white/5 last:border-0">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                      tier === 'all' ? 'bg-white/80' :
-                      tier === 'rare' ? 'bg-amber-400/60' :
-                      'bg-white/25'
-                    }`} />
-                    <span className="flex-1 text-sm text-white min-w-0 truncate">{song.name}</span>
-                    {song.isEncore && (
-                      <span className="text-[9px] text-[#8888aa] uppercase tracking-widest shrink-0">enc</span>
-                    )}
-                    {tier === 'all' && (
-                      <span className="text-[10px] text-white/40 uppercase tracking-[0.12em] border border-white/15 rounded px-1.5 py-0.5 shrink-0">
-                        全公演
-                      </span>
-                    )}
-                    {tier === 'rare' && (
-                      <span className="text-[10px] text-amber-400/60 uppercase tracking-[0.12em] border border-amber-400/20 rounded px-1.5 py-0.5 shrink-0">
-                        rare
-                      </span>
-                    )}
-                    <span className="text-xs text-[#8888aa] font-mono tabular-nums shrink-0 w-12 text-right">
-                      {song.count}/{analysisData!.totalWithData}
+                const total = concertList.length
+                const ended = concertList.filter(c => c.date < today).length
+                const ongoing = total > 0 && ended < total
+                if (total === 0) return null
+                return (
+                  <div className="glass rounded-xl px-4 py-3 flex items-center gap-3">
+                    <div className="flex-1 bg-white/10 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-white h-full rounded-full transition-all" style={{ width: `${Math.round(ended / total * 100)}%` }} />
+                    </div>
+                    <span className="text-xs text-[#8888aa] shrink-0">
+                      {ended}/{total}公演終了
+                      {ongoing && <span className="text-white ml-1.5 font-bold">開催中</span>}
                     </span>
                   </div>
                 )
-
-                const Section = ({ title, songs, tier }: { title: string; songs: SongStat[]; tier: 'all' | 'regular' | 'rare' }) =>
-                  songs.length === 0 ? null : (
-                    <div className="glass rounded-2xl overflow-hidden">
-                      <div className="px-5 py-3 border-b border-white/5">
-                        <span className="text-[10px] font-bold text-[#8888aa] uppercase tracking-[0.15em]">{title}</span>
-                        <span className="ml-2 text-[10px] text-[#8888aa]/60">{songs.length}曲</span>
-                      </div>
-                      <div className="px-5">
-                        {songs.map(s => <SongRow key={s.name} song={s} tier={tier} />)}
-                      </div>
-                    </div>
-                  )
-
-                return (
-                  <div className="space-y-3">
-                    <Section title="全公演で演奏" songs={all} tier="all" />
-                    <Section title="常連曲" songs={regular} tier="regular" />
-                    <Section title="レア曲" songs={rare} tier="rare" />
-                  </div>
-                )
               })()}
-            </>
-          )}
-        </section>
-      )}
+
+              {(concerts ?? []).length === 0 ? (
+                <p className="text-sm text-[#8888aa]">公演情報がありません</p>
+              ) : (
+                <div className="space-y-3">
+                  {(concerts ?? []).map((c) => {
+                    const isPast = c.date < today
+                    return (
+                      <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
+                        className={`glass rounded-2xl p-5 flex items-center gap-4 hover:border-white/20 transition-colors group ${isPast ? 'opacity-60' : ''}`}>
+                        <div className="shrink-0 text-center w-14">
+                          <p className="text-xs text-[#8888aa]">
+                            {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}
+                          </p>
+                          <p className="text-2xl font-black text-white">
+                            {new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}
+                          </p>
+                          <p className="text-xs text-[#8888aa]">
+                            {new Date(c.date).toLocaleDateString('ja-JP', { weekday: 'short' })}
+                          </p>
+                        </div>
+                        <div className="w-px h-12 bg-white/10 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">
+                            {c.venue_name}
+                          </p>
+                          {c.venue_address && (
+                            <p className="text-xs text-[#8888aa] mt-0.5 truncate">{c.venue_address}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {c.start_time && (
+                              <span className="text-xs text-[#8888aa]">開演 {c.start_time.slice(0, 5)}</span>
+                            )}
+                            {c.setlist_submissions.length > 0 && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] border border-white/20">
+                                セットリスト
+                              </span>
+                            )}
+                            {isPast && (
+                              <span className="text-xs text-[#8888aa] border border-white/10 rounded-full px-2 py-0.5">終了</span>
+                            )}
+                          </div>
+                          {(() => {
+                            const guests = c.concert_artists.map(ca => ca.artists).filter(Boolean).filter(a => !tourArtistIdSet.has(a!.id))
+                            if (!guests.length) return null
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                <span className="text-[10px] text-[#555566]">ゲスト:</span>
+                                {guests.map(a => (
+                                  <Link key={a!.id} href={`/artists/${a!.id.slice(0, 8)}`}
+                                    className="flex items-center gap-1 text-[10px] text-[#8888aa] hover:text-white border border-white/10 hover:border-white/20 rounded-full px-2 py-0.5 transition-colors">
+                                    {a!.image_url && (
+                                      <img src={a!.image_url} alt="" className="w-3 h-3 rounded-full object-cover shrink-0"
+                                        style={{ objectPosition: `${a!.image_crop_x ?? 50}% ${a!.image_crop_y ?? 50}%` }} />
+                                    )}
+                                    {a!.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            )
+                          })()}
+                        </div>
+                        <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+            ),
+          },
+          {
+            key: 'analysis',
+            label: 'セトリ分析',
+            panel: (
+              <section className="space-y-6">
+                  {!analysisData || analysisData.totalWithData === 0 ? (
+                    <div className="glass rounded-2xl p-10 text-center space-y-2">
+                      <p className="text-white font-medium">セトリデータがまだありません</p>
+                      <p className="text-sm text-[#8888aa]">公演に参戦した方はセトリを投稿してください</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* サマリー */}
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { label: 'セトリあり', value: `${analysisData.totalWithData}/${analysisData.totalConcerts}公演` },
+                          { label: 'ユニーク曲数', value: `${analysisData.uniqueSongs}曲` },
+                          { label: '平均曲数', value: `${analysisData.avgSongs}曲` },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="glass rounded-xl p-3 text-center space-y-0.5">
+                            <p className="text-white font-bold text-base">{value}</p>
+                            <p className="text-[10px] text-[#8888aa]">{label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 曲リスト */}
+                      {(() => {
+                        const all = analysisData.songs.filter(s => s.pct === 100)
+                        const regular = analysisData.songs.filter(s => s.pct >= 30 && s.pct < 100)
+                        const rare = analysisData.songs.filter(s => s.pct < 30)
+
+                        const SongRow = ({ song, tier }: { song: SongStat; tier: 'all' | 'regular' | 'rare' }) => (
+                          <div className="flex items-center gap-3 py-3 border-b border-white/5 last:border-0">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              tier === 'all' ? 'bg-white/80' :
+                              tier === 'rare' ? 'bg-amber-400/60' :
+                              'bg-white/25'
+                            }`} />
+                            <span className="flex-1 text-sm text-white min-w-0 truncate">{song.name}</span>
+                            {song.isEncore && (
+                              <span className="text-[9px] text-[#8888aa] uppercase tracking-widest shrink-0">enc</span>
+                            )}
+                            {tier === 'all' && (
+                              <span className="text-[10px] text-white/40 uppercase tracking-[0.12em] border border-white/15 rounded px-1.5 py-0.5 shrink-0">
+                                全公演
+                              </span>
+                            )}
+                            {tier === 'rare' && (
+                              <span className="text-[10px] text-amber-400/60 uppercase tracking-[0.12em] border border-amber-400/20 rounded px-1.5 py-0.5 shrink-0">
+                                rare
+                              </span>
+                            )}
+                            <span className="text-xs text-[#8888aa] font-mono tabular-nums shrink-0 w-12 text-right">
+                              {song.count}/{analysisData!.totalWithData}
+                            </span>
+                          </div>
+                        )
+
+                        const Section = ({ title, songs, tier }: { title: string; songs: SongStat[]; tier: 'all' | 'regular' | 'rare' }) =>
+                          songs.length === 0 ? null : (
+                            <div className="glass rounded-2xl overflow-hidden">
+                              <div className="px-5 py-3 border-b border-white/5">
+                                <span className="text-[10px] font-bold text-[#8888aa] uppercase tracking-[0.15em]">{title}</span>
+                                <span className="ml-2 text-[10px] text-[#8888aa]/60">{songs.length}曲</span>
+                              </div>
+                              <div className="px-5">
+                                {songs.map(s => <SongRow key={s.name} song={s} tier={tier} />)}
+                              </div>
+                            </div>
+                          )
+
+                        return (
+                          <div className="space-y-3">
+                            <Section title="全公演で演奏" songs={all} tier="all" />
+                            <Section title="常連曲" songs={regular} tier="regular" />
+                            <Section title="レア曲" songs={rare} tier="rare" />
+                          </div>
+                        )
+                      })()}
+                    </>
+                  )}
+                </section>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

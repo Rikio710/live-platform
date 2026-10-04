@@ -7,7 +7,7 @@ import { Calendar, MapPin } from 'lucide-react'
 import type { Tables } from '@/types/supabase'
 
 type UpcomingConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
-  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url'> | null
+  artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y'> | null
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
 
@@ -24,7 +24,7 @@ export default function UpcomingConcerts({ initialConcerts }: { initialConcerts:
     const today = new Date().toISOString().split('T')[0]
     const { data } = await supabase
       .from('concerts')
-      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url), tours(id, name, image_url)')
+      .select('id, slug, venue_name, date, start_time, image_url, artists(id, name, image_url, image_crop_x, image_crop_y), tours(id, name, image_url)')
       .gte('date', today)
       .order('date', { ascending: true })
       .range(concerts.length, concerts.length + PAGE_SIZE - 1)
@@ -51,7 +51,7 @@ export default function UpcomingConcerts({ initialConcerts }: { initialConcerts:
             className="group rounded-lg p-3 hover:bg-[#282828] transition-colors">
             <div className="aspect-square rounded-md overflow-hidden bg-[#282828] mb-3">
               {(c.image_url || c.tours?.image_url || c.artists?.image_url) ? (
-                <img src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url ?? undefined} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <img src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url ?? undefined} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" style={!c.image_url && !c.tours?.image_url && c.artists ? { objectPosition: `${c.artists.image_crop_x ?? 50}% ${c.artists.image_crop_y ?? 50}%` } : undefined} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <Calendar size={32} className="text-[#535353]" />

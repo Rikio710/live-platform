@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Link2, Check } from 'lucide-react'
+import { X, Link2, Check, ImageDown } from 'lucide-react'
 
 type Song = {
   song_name: string
@@ -15,10 +15,12 @@ type Props = {
   url: string
   title: string      // 例: "嵐 東京ドーム 4/1"
   songs?: Song[]     // セトリシェア時のみ渡す
+  concertId?: string // セトリ画像生成用
 }
 
-export default function ShareModal({ isOpen, onClose, url, title, songs }: Props) {
+export default function ShareModal({ isOpen, onClose, url, title, songs, concertId }: Props) {
   const [copied, setCopied] = useState<'url' | 'setlist' | null>(null)
+  const [imgLoading, setImgLoading] = useState(false)
 
   if (!isOpen) return null
 
@@ -133,6 +135,38 @@ export default function ShareModal({ isOpen, onClose, url, title, songs }: Props
                 }
                 <span className={`text-sm font-bold transition-colors ${copied === 'setlist' ? 'text-green-400' : 'text-white'}`}>
                   {copied === 'setlist' ? 'コピーしました！' : 'セトリをテキストでコピー'}
+                </span>
+              </button>
+            )}
+
+            {/* セトリ画像を保存（セトリ＋concertIdがある場合のみ） */}
+            {songs && songs.length > 0 && concertId && (
+              <button
+                onClick={async () => {
+                  setImgLoading(true)
+                  try {
+                    const res = await fetch(`/api/og/setlist/${concertId}`)
+                    const blob = await res.blob()
+                    const file = new File([blob], 'setlist.png', { type: 'image/png' })
+                    if (navigator.canShare?.({ files: [file] })) {
+                      await navigator.share({ files: [file], title })
+                    } else {
+                      const objUrl = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = objUrl
+                      a.download = 'setlist.png'
+                      a.click()
+                      URL.revokeObjectURL(objUrl)
+                    }
+                  } catch {}
+                  setImgLoading(false)
+                }}
+                disabled={imgLoading}
+                className="flex items-center gap-3 w-full px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                <ImageDown size={20} className="text-[#8888aa] shrink-0" />
+                <span className="text-sm font-bold text-white">
+                  {imgLoading ? '画像を生成中...' : 'セトリ画像を保存'}
                 </span>
               </button>
             )}

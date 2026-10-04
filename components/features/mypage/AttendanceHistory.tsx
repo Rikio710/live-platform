@@ -6,7 +6,7 @@ import { Ticket, Mic2, MapPin, Tent, ChevronDown, ChevronRight } from 'lucide-re
 
 type FestivalEvent = {
   id: string; name: string; image_url: string | null
-  festival_groups: { id: string; name: string } | null
+  festival_groups: { id: string; name: string | null } | null
 }
 
 type Attendance = {
@@ -20,7 +20,7 @@ type Attendance = {
     image_url: string | null
     stage_name: string | null
     festival_event_id: string | null
-    artists: { id: string; name: string; image_url: string | null } | null
+    artists: { id: string; name: string; image_url: string | null; image_crop_x?: number | null; image_crop_y?: number | null } | null
     tours: { id: string; name: string; image_url: string | null } | null
     festival_events: FestivalEvent | null
   }
@@ -199,7 +199,7 @@ export default function AttendanceHistory({
                         <Link key={a.id} href={`/concerts/${a.concerts.id.slice(0, 8)}`}
                           className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group">
                           {a.concerts.artists?.image_url ? (
-                            <img src={a.concerts.artists.image_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                            <img src={a.concerts.artists.image_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" style={{ objectPosition: `${a.concerts.artists.image_crop_x ?? 50}% ${a.concerts.artists.image_crop_y ?? 50}%` }} />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-[#282828] flex items-center justify-center shrink-0">
                               <Mic2 size={14} className="text-[#8888aa]" />
@@ -238,7 +238,7 @@ export default function AttendanceHistory({
                   ) : a.concerts.tours?.image_url ? (
                     <img src={a.concerts.tours.image_url} alt="" className="w-full h-full object-cover" />
                   ) : a.concerts.artists?.image_url ? (
-                    <img src={a.concerts.artists.image_url} alt="" className="w-full h-full object-cover opacity-40" />
+                    <img src={a.concerts.artists.image_url} alt="" className="w-full h-full object-cover opacity-40" style={{ objectPosition: `${a.concerts.artists.image_crop_x ?? 50}% ${a.concerts.artists.image_crop_y ?? 50}%` }} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Mic2 size={18} className="text-[#8888aa]" />

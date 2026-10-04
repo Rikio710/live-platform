@@ -19,7 +19,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const slug = decodeURIComponent(rawSlug)
   const admin = createAdminClient()
 
-  const q = admin.from('tours').select('name, image_url, start_date, end_date, artists(name)')
+  const q = admin.from('tours').select('name, image_url, start_date, end_date, artists!tours_artist_id_fkey(name)')
   const query = UUID_RE.test(slug)
     ? q.eq('id', slug)
     : SHORT_ID_RE.test(slug)

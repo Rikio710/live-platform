@@ -34,33 +34,28 @@ export default async function SearchPage({
     { data: concerts },
     { data: songs },
   ] = await Promise.all([
-    supabase.from('artists').select('id, slug, name, image_url').ilike('name', like).limit(5),
-    supabase.from('tours').select('id, slug, name, start_date, artists(name)').ilike('name', like).limit(5),
+    supabase.from('artists').select('id, slug, name, image_url, image_crop_x, image_crop_y').ilike('name', like).limit(5),
+    supabase.from('tours').select('id, slug, name, start_date, artists!tours_artist_id_fkey(name)').ilike('name', like).limit(5),
     supabase.from('concerts').select('id, slug, venue_name, date, artists(name), tours(name)').ilike('venue_name', like).limit(5),
-    supabase.from('setlist_songs')
-      .select('song_name, concerts(id, slug, venue_name, date, artists(name))')
-      .ilike('song_name', like)
-      .limit(20),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('songs')
+      .select('id, name, album_name, image_url, spotify_artist_name, artist_id, artists(name)')
+      .ilike('name', like)
+      .order('name')
+      .limit(10),
   ])
 
-  // 曲名：同じ曲名でグループ化して公演リストにまとめる
-  const songMap = new Map<string, { song_name: string; concerts: { id: string; slug: string | null; venue_name: string; date: string; artist: string }[] }>()
-  for (const s of (songs ?? []) as any[]) {
-    if (!s.concerts) continue
-    const key = s.song_name
-    if (!songMap.has(key)) songMap.set(key, { song_name: key, concerts: [] })
-    const entry = songMap.get(key)!
-    if (!entry.concerts.find(c => c.id === s.concerts.id)) {
-      entry.concerts.push({
-        id: s.concerts.id,
-        slug: s.concerts.slug,
-        venue_name: s.concerts.venue_name,
-        date: s.concerts.date,
-        artist: s.concerts.artists?.name ?? '',
-      })
-    }
+  // 曲の演奏回数を取得
+  const songIds = (songs ?? []).map((s: any) => s.id) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { data: perfRows } = songIds.length > 0
+    ? await supabase.from('setlist_songs').select('song_id').in('song_id', songIds).eq('song_type', 'song')
+    : { data: [] }
+  const perfCountMap = new Map<string, number>()
+  for (const r of (perfRows ?? []) as { song_id: string | null }[]) {
+    if (r.song_id) perfCountMap.set(r.song_id, (perfCountMap.get(r.song_id) ?? 0) + 1)
   }
-  const songResults = [...songMap.values()].slice(0, 5)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const songResults = (songs ?? []) as any[]
 
   const total = (artists?.length ?? 0) + (tours?.length ?? 0) + (concerts?.length ?? 0) + songResults.length
 
@@ -87,7 +82,7 @@ export default async function SearchPage({
               <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
                 className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
                 {a.image_url
-                  ? <img src={a.image_url} alt={a.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  ? <img src={a.image_url} alt={a.name} className="w-9 h-9 rounded-full object-cover shrink-0" style={{ objectPosition: `${(a as any).image_crop_x ?? 50}% ${(a as any).image_crop_y ?? 50}%` }} />
                   : <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#333333] to-[#282828] shrink-0 flex items-center justify-center"><Mic2 size={14} className="text-white/60" /></div>
                 }
                 <span className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors">{a.name}</span>
@@ -146,23 +141,30 @@ export default async function SearchPage({
             <Music size={14} /> 曲名
           </h2>
           <div className="space-y-2">
-            {songResults.map(s => (
-              <div key={s.song_name} className="glass rounded-2xl px-4 py-3 space-y-2">
-                <p className="font-bold text-white">{s.song_name}</p>
-                <div className="space-y-1">
-                  {s.concerts.slice(0, 3).map(c => (
-                    <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                      className="flex items-center gap-2 text-xs text-[#8888aa] hover:text-[#b3b3b3] transition-colors">
-                      <span className="shrink-0">{c.date}</span>
-                      <span className="truncate">{c.artist && `${c.artist} `}{c.venue_name}</span>
-                    </Link>
-                  ))}
-                  {s.concerts.length > 3 && (
-                    <p className="text-xs text-[#8888aa]">他 {s.concerts.length - 3}公演</p>
+            {songResults.map((s: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+              const artistName = s.spotify_artist_name ?? s.artists?.name ?? ''
+              const count = perfCountMap.get(s.id) ?? 0
+              return (
+                <Link key={s.id} href={`/songs/${(s.id as string).slice(0, 8)}`}
+                  className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
+                  {s.image_url ? (
+                    <img src={s.image_url} alt={s.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-[#282828] flex items-center justify-center shrink-0">
+                      <Music size={14} className="text-white/30" />
+                    </div>
                   )}
-                </div>
-              </div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{s.name}</p>
+                    <p className="text-xs text-[#8888aa] truncate">
+                      {artistName}{s.album_name ? ` · ${s.album_name}` : ''}
+                    </p>
+                  </div>
+                  <p className="text-xs text-[#555577] shrink-0">{count > 0 ? `${count}公演` : ''}</p>
+                  <span className="text-[#8888aa] group-hover:text-[#b3b3b3] shrink-0">›</span>
+                </Link>
+              )
+            })}
           </div>
         </section>
       )}

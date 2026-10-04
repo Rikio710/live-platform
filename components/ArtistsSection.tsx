@@ -24,7 +24,7 @@ export default function ArtistsSection({ artists }: { artists: any[] }) {
           <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
             className="flex items-center gap-2 glass rounded-full px-4 py-2 hover:border-white/20 transition-colors text-sm font-medium">
             {a.image_url ? (
-              <img src={a.image_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+              <img src={a.image_url} alt="" className="w-6 h-6 rounded-full object-cover" style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }} />
             ) : (
               <span className="w-6 h-6 rounded-full bg-[#333333] flex items-center justify-center">
                 <Mic2 size={11} className="text-[#b3b3b3]" />
