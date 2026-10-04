@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import * as cheerio from 'cheerio'
+import { parseLivefansSetlist } from '@/lib/livefansSetlist'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -16,29 +16,6 @@ const DELAY_MS = 400
 // 3回目失敗 → 終了
 const RETRY_HOURS = [24, 48]
 
-const SORT_MAPS: Record<string, Record<string, string>> = {
-  beck:      { '1':'2','2':'1' },
-  hammett:   { '1':'4','4':'1','2':'3','3':'2','6':'5','5':'6' },
-  blackmore: { '1':'3','3':'1','2':'5','5':'2','6':'4','4':'6' },
-  white:     { '1':'6','6':'1','3':'5','5':'3','2':'4','4':'2' },
-  may:       { '1':'3','3':'1','2':'6','6':'2','4':'5','5':'4' },
-  johnson:   { '1':'4','4':'1','2':'8','8':'2','3':'10','10':'3' },
-  harrison:  { '1':'9','9':'1','3':'5','5':'3','6':'8','8':'6' },
-  young:     { '4':'2','2':'4','6':'8','8':'6','1':'10','10':'1' },
-  rhoads:    { '2':'9','9':'2','3':'4','4':'3','6':'1','1':'6' },
-  luke:      { '1':'6','6':'1','3':'7','7':'3','4':'5','5':'4' },
-}
-
-function buildSlToPosition(mode: string, total: number): Record<number, number> {
-  const sort = SORT_MAPS[mode] ?? {}
-  const slToPos: Record<number, number> = {}
-  for (let b = 1; b <= total + 10; b++) {
-    const slN = sort[String(b)] ? parseInt(sort[String(b)]) : b
-    slToPos[slN] = b
-  }
-  return slToPos
-}
-
 async function scrapeSetlist(eventId: number): Promise<{ songs: { song_name: string; is_encore: boolean; order_num: number }[] }> {
   const url = `${BASE}/events/${eventId}`
   const headers = {
@@ -51,41 +28,10 @@ async function scrapeSetlist(eventId: number): Promise<{ songs: { song_name: str
     if (!res.ok) return { songs: [] }
     const html = await res.text()
     const cookies = res.headers.get('set-cookie') ?? ''
-    const $ = cheerio.load(html)
 
-    let slToPos: Record<number, number> = {}
-    const ajaxMatch = html.match(/element_read\([^,]+,\s*[^,]+,\s*'(key1=\d+&key2=[^']+)'/)
-    if (ajaxMatch) {
-      const legendRes = await fetch(`${BASE}/events/legend?${ajaxMatch[1]}`, {
-        headers: { ...headers, 'Referer': url, 'X-Requested-With': 'XMLHttpRequest', ...(cookies ? { 'Cookie': cookies } : {}) },
-      }).catch(() => null)
-      if (legendRes?.ok) {
-        const modeM = (await legendRes.text()).match(/(?:rowNoRewrite|getSort)\(['"](\w+)['"]/)
-        if (modeM) slToPos = buildSlToPosition(modeM[1], $('td.rnd').length)
-      }
-    }
-
-    const rawEntries: { slN: number; song_name: string; is_encore: boolean }[] = []
-    $('td.rnd').each((_, el) => {
-      const td = $(el)
-      const cls = td.attr('class') ?? ''
-      const slM = cls.match(/\bsl(\d+)\b/)
-      if (!slM) return
-      const slN = parseInt(slM[1])
-      const is_encore = !cls.includes('rnd2')
-      const ttlEl = td.find('div.ttl')
-      const ttlClone = ttlEl.clone()
-      ttlClone.find('p.memo, .cmt').remove()
-      const name = ttlEl.find('a').first().text().trim() || ttlClone.text().trim()
-      if (!name || /^\d+$/.test(name) || /^EN\d*$/i.test(name) || /^[\u2014\u2013\u2012\u2010\uFF0D-]/.test(name)) return
-      rawEntries.push({ slN, song_name: name, is_encore })
-    })
-
-    const songs = rawEntries
-      .map(e => ({ ...e, sort_key: slToPos[e.slN] ?? e.slN }))
-      .sort((a, b) => a.sort_key - b.sort_key)
-      .map((e, i) => ({ song_name: e.song_name, is_encore: e.is_encore, order_num: i + 1 }))
-
+    // 曲順のシャッフル（旧形式）・新形式の両方に対応した共通処理
+    const songs = await parseLivefansSetlist(html, { url, cookies, headers })
+    if (!songs) return { songs: [] } // 並べ替えモードが取れず曲順を保証できない → 次回再試行
     return { songs }
   } catch {
     return { songs: [] }
