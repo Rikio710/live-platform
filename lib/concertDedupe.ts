@@ -19,7 +19,12 @@ export function sameVenue(a: string | null | undefined, b: string | null | undef
   if (!x || !y) return false
   if (x === y) return true
   const [short, long] = x.length <= y.length ? [x, y] : [y, x]
-  return short.length >= 4 && long.includes(short)
+  if (short.length >= 4 && long.includes(short)) return true
+  // 前半の呼び方だけ違う（「宮城・セキスイハイムスーパーアリーナ」と「グランディ・21 セキスイハイムスーパーアリーナ」等）:
+  // 後ろが8文字以上かつ短い方の6割以上一致すれば同じ会場
+  let n = 0
+  while (n < short.length && short[short.length - 1 - n] === long[long.length - 1 - n]) n++
+  return n >= 8 && n >= short.length * 0.6
 }
 
 function sameStartTime(a: string | null | undefined, b: string | null | undefined): boolean {
