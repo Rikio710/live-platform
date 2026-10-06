@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/supabase/guards'
 import * as cheerio from 'cheerio'
 import { findSameConcert } from '@/lib/concertDedupe'
+import { stripArtistPrefix } from '@/lib/tourName'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -453,11 +454,6 @@ async function scrapeGroupPage(
 
 // LiveFans のグループ名に付くアーティスト名プレフィックスを除去
 // 例: "Hey! Say! JUMP -Hey! Say! JUMP DOME TOUR 2025" → "Hey! Say! JUMP DOME TOUR 2025"
-function stripArtistPrefix(tourName: string, artistName: string): string {
-  const escaped = artistName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return tourName.replace(new RegExp(`^${escaped}\\s*[-ーー−–—]\\s*`, 'i'), '').trim()
-}
-
 // ツアー名を正規化してマッチングキーを生成
 function normalizeTourKey(name: string): string {
   return name.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
