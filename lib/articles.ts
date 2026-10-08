@@ -177,7 +177,8 @@ async function fetchSetlists(supabase: Client, artistId: string): Promise<Submis
         .from('setlist_songs')
         .select('submission_id, song_id, song_name, song_type, is_encore, order_num')
         .in('submission_id', chunk)
-        .order('id')
+        // id だけで並べると主キーの索引を全件なめる実行計画になり遅い（タイムアウトの原因）
+        .order('submission_id').order('order_num').order('id')
         .range(from, from + 999)
       if (error) throw new Error(error.message)
       rows.push(...((data ?? []) as typeof rows))

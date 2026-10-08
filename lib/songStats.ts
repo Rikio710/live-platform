@@ -23,7 +23,14 @@ export async function getStandardSongs(supabase: Client, artistId: string): Prom
 
 /** 1アーティスト分を集計して保存する（管理画面の「今すぐ再集計」・月次の更新） */
 export async function refreshArtistSongStats(admin: Client, artistId: string): Promise<StandardSongsData | null> {
-  const stats = await computeStandardSongs(admin, artistId)
+  let stats: StandardSongsData | null
+  try {
+    stats = await computeStandardSongs(admin, artistId)
+  } catch {
+    // DB が混んでいてタイムアウトすることがあるので1回だけやり直す
+    await new Promise(r => setTimeout(r, 3000))
+    stats = await computeStandardSongs(admin, artistId)
+  }
   const { error } = await admin
     .from('artist_song_stats')
     .upsert({ artist_id: artistId, data: stats, computed_at: new Date().toISOString() })
@@ -68,8 +75,11 @@ export async function refreshStaleSongStats(admin: Client, budgetMs: number): Pr
       if (stats) { withData++; refreshedArtistIds.push(id) }
     } catch (e) {
       failed.push(`${id}: ${e instanceof Error ? e.message : String(e)}`)
-      // 失敗したものは次の呼び出しで繰り返さないよう、今回は飛ばした扱いにする（次の月次で再挑戦）
-      await admin.from('artist_song_stats').upsert({ artist_id: id, data: null, computed_at: new Date().toISOString() })
+      // 失敗したものは次の呼び出しで繰り返さないよう、今回は済み扱いにする（次の月次で再挑戦）。
+      // 前回の集計結果があればそのまま残す
+      const { data: prev } = await admin.from('artist_song_stats').select('artist_id').eq('artist_id', id).maybeSingle()
+      if (prev) await admin.from('artist_song_stats').update({ computed_at: new Date().toISOString() }).eq('artist_id', id)
+      else await admin.from('artist_song_stats').insert({ artist_id: id, data: null, computed_at: new Date().toISOString() })
     }
     processed++
   }
