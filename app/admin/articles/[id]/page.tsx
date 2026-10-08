@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Plus, Trash2 } from 'lucide-react'
 import {
-  adminGetArticle, adminGetRankingSongs, adminUpdateArticle, adminDeleteArticle, type ArticleUpdate,
+  adminGetArticle, adminGetRankingSongs, adminRefreshSongStats, adminUpdateArticle, adminDeleteArticle, type ArticleUpdate,
 } from '../actions'
 
 const input = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-[#555566] focus:outline-none focus:border-white/30'
@@ -18,6 +18,7 @@ export default function AdminArticleEditPage() {
   const [meta, setMeta] = useState<{ artistName: string | null; artistId: string | null; type: string; number: number } | null>(null)
   const [songs, setSongs] = useState<{ name: string; pct: number; count: number }[]>([])
   const [saving, setSaving] = useState(false)
+  const [statsState, setStatsState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
@@ -86,6 +87,26 @@ export default function AdminArticleEditPage() {
       )}
       <div className="space-y-1">
         <p className="text-xs text-[#8888aa]">{meta.type === 'data' ? 'データ型' : '編集型'}・{meta.artistName ?? '—'}</p>
+        {meta.type === 'data' && meta.artistId && (
+          <button
+            type="button"
+            disabled={statsState === 'running'}
+            onClick={async () => {
+              setStatsState('running')
+              try {
+                await adminRefreshSongStats(meta.artistId!)
+                setSongs(await adminGetRankingSongs(meta.artistId!))
+                setStatsState('done')
+              } catch {
+                setStatsState('error')
+              }
+            }}
+            className="text-xs text-[#8888aa] hover:text-white underline disabled:opacity-50"
+            title="ランキングは通常、月1回自動で集計し直します"
+          >
+            {statsState === 'running' ? '集計中…' : statsState === 'done' ? '集計し直しました' : statsState === 'error' ? '失敗しました（もう一度）' : 'ランキングを今すぐ集計し直す'}
+          </button>
+        )}
         <p className={`text-sm font-bold ${form.status === 'published' ? 'text-emerald-300' : 'text-[#8888aa]'}`}>
           {form.status === 'published' ? '公開中' : '下書き'}
         </p>

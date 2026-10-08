@@ -1,0 +1,25 @@
+name: Song Stats Monthly
+
+# セトリ分析（定番曲ランキング）の月次更新。全アーティスト分が終わるまで API を繰り返し呼ぶ
+on:
+  schedule:
+    - cron: '0 18 1 * *'  # 毎月2日 3:00（JST）
+  workflow_dispatch:         # 手動実行も可能
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Refresh song stats
+        run: |
+          for i in $(seq 1 400); do
+            code=$(curl -s -o /tmp/res.json -w "%{http_code}" --max-time 90 \
+              "https://livevault.jp/api/cron/song-stats" \
+              -H "Authorization: Bearer ${{ secrets.CRAWL_SECRET }}")
+            echo "[$i] HTTP $code $(cat /tmp/res.json | head -c 300)"
+            if [ "$code" != "200" ]; then sleep 30; continue; fi
+            remaining=$(python3 -c "import json;print(json.load(open('/tmp/res.json'))['remaining'])")
+            [ "$remaining" = "0" ] && { echo "完了"; exit 0; }
+          done
+          echo "上限回数に達しました（残りは次回）"

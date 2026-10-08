@@ -11,7 +11,8 @@ import { permanentRedirect } from 'next/navigation'
 import type { Tables } from '@/types/supabase'
 import UrlTabs from '@/components/ui/UrlTabs'
 import ArticlePromoCard from '@/components/features/article/ArticlePromoCard'
-import { articlePath, computeStandardSongs, displayTitle, getArtistArticle } from '@/lib/articles'
+import { articlePath, displayTitle, getArtistArticle } from '@/lib/articles'
+import { getStandardSongs } from '@/lib/songStats'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i
@@ -164,7 +165,7 @@ export default async function ArtistPage({
   {
     const [stats, { count: pastConcerts }] = await Promise.all([
       // 集計に失敗してもページ自体は表示する（分析タブだけ出さない）
-      computeStandardSongs(supabase, artist.id).catch(e => { console.error('computeStandardSongs', artist.id, e); return null }),
+      getStandardSongs(supabase, artist.id).catch(e => { console.error('computeStandardSongs', artist.id, e); return null }),
       supabase.from('concerts').select('id', { count: 'exact', head: true }).eq('artist_id', artist.id).lt('date', today),
     ])
     if (stats) {

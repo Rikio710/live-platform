@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
 import { computeStandardSongs, defaultStandardSongsArticle, type Article } from '@/lib/articles'
+import { refreshArtistSongStats } from '@/lib/songStats'
 import { listStandardSongsCandidates, syncStandardSongsArticles } from '@/lib/articleSync'
 
 function revalidateArticles() {
@@ -73,6 +74,14 @@ export async function adminGetRankingSongs(artistId: string): Promise<{ name: st
   await requireAdmin()
   const stats = await computeStandardSongs(createAdminClient(), artistId)
   return (stats?.ranking ?? []).map(s => ({ name: s.name, pct: s.pct, count: s.count }))
+}
+
+/** セトリ分析（定番曲ランキング）を今すぐ集計し直して保存する（通常は月1回の自動更新） */
+export async function adminRefreshSongStats(artistId: string): Promise<void> {
+  await requireAdmin()
+  await refreshArtistSongStats(createAdminClient(), artistId)
+  revalidatePath(`/artists/${artistId.slice(0, 8)}`)
+  revalidateArticles()
 }
 
 export type ArticleUpdate = {

@@ -9,9 +9,10 @@ import ArticleCard from '@/components/features/article/ArticleCard'
 import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
 import {
-  ARTICLE_CATEGORIES, POSITION_LABEL, articlePath, categoryLabel, computeStandardSongs, displayTitle, formatJaDate,
+  ARTICLE_CATEGORIES, POSITION_LABEL, articlePath, categoryLabel, displayTitle, formatJaDate,
   isArticleCategory, listPublishedArticles, type Article, type PositionSong, type StandardSongsData,
 } from '@/lib/articles'
+import { getStandardSongs } from '@/lib/songStats'
 import { autoDescription, autoLead, autoSongNote, autoSummary } from '@/lib/articleText'
 
 /**
@@ -27,8 +28,8 @@ export type ArticleWithArtist = Article & {
 
 export const ARTICLE_SELECT = '*, artists(id, name, image_url, image_crop_x, image_crop_y)'
 
-/** 集計（generateMetadata と本体で1回だけ実行） */
-const getStats = cache(async (artistId: string, supabase: Client) => computeStandardSongs(supabase, artistId))
+/** 保存済みの集計結果（generateMetadata と本体で1回だけ読む） */
+const getStats = cache(async (artistId: string, supabase: Client) => getStandardSongs(supabase, artistId))
 
 async function statsFor(a: ArticleWithArtist, supabase: Client): Promise<StandardSongsData | null> {
   return a.category === 'standard-songs' && a.artist_id ? getStats(a.artist_id, supabase) : null
