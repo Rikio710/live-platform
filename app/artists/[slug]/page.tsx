@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { throwIfDbError } from '@/lib/dbError'
 import { notFound } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
@@ -115,10 +116,11 @@ export default async function ArtistPage({
     permanentRedirect(`/artists/${slug.slice(0, 8)}`)
   }
 
-  const { data: artist } = await (SHORT_ID_RE.test(slug)
+  const { data: artist, error: artistError } = await (SHORT_ID_RE.test(slug)
     ? (() => { const { lo, hi } = shortIdRange(slug); return supabase.from('artists').select('*').gte('id', lo).lt('id', hi) })()
     : supabase.from('artists').select('*').eq('slug', slug)
   ).single()
+  throwIfDbError(artistError)
   if (!artist) notFound()
 
   const today = new Date().toISOString().split('T')[0]
@@ -161,7 +163,8 @@ export default async function ArtistPage({
   let analysisData: AnalysisData | null = null
   {
     const [stats, { count: pastConcerts }] = await Promise.all([
-      computeStandardSongs(supabase, artist.id),
+      // 集計に失敗してもページ自体は表示する（分析タブだけ出さない）
+      computeStandardSongs(supabase, artist.id).catch(e => { console.error('computeStandardSongs', artist.id, e); return null }),
       supabase.from('concerts').select('id', { count: 'exact', head: true }).eq('artist_id', artist.id).lt('date', today),
     ])
     if (stats) {

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { throwIfDbError } from '@/lib/dbError'
 import { notFound } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
@@ -104,7 +105,8 @@ export default async function ConcertPage({
     .from('concerts')
     .select('*, artists(id, name, image_url, image_crop_x, image_crop_y), tours(id, name, image_url), festival_events(id, name, slug, image_url)')
   const pageQuery = SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
-  const { data: concert } = await pageQuery.single()
+  const { data: concert, error: concertError } = await pageQuery.single()
+  throwIfDbError(concertError)
 
   if (!concert) notFound()
 

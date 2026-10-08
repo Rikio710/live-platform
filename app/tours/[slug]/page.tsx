@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { throwIfDbError } from '@/lib/dbError'
 import { notFound } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
@@ -108,7 +109,7 @@ export default async function TourPage({
     permanentRedirect(`/tours/${slug.slice(0, 8)}`)
   }
 
-  const { data: tourRaw } = await (() => {
+  const { data: tourRaw, error: tourError } = await (() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const q = (supabase as any).from('tours').select('*, tour_artists(artists(id, name, image_url, image_crop_x, image_crop_y, slug))')
     if (SHORT_ID_RE.test(slug)) {
@@ -118,6 +119,7 @@ export default async function TourPage({
     return q.eq('slug', slug)
   })().single()
 
+  throwIfDbError(tourError)
   if (!tourRaw) notFound()
 
   const tour = tourRaw as TourWithArtists

@@ -128,6 +128,17 @@ type SubmissionRow = {
  * setlist_submissions → concerts の inner join で絞ると重くタイムアウトするため、
  * 先に公演一覧を取り、公演IDで分割してセトリを取る。
  */
+/** ID を size 件ずつに分けて取得する（同時に走らせるのは4件まで。並列にしすぎると DB が詰まる） */
+async function inChunks<T>(ids: string[], size: number, fn: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size))
+  const out: T[] = []
+  for (let i = 0; i < chunks.length; i += 4) {
+    for (const r of await Promise.all(chunks.slice(i, i + 4).map(fn))) out.push(...r)
+  }
+  return out
+}
+
 async function fetchSetlists(supabase: Client, artistId: string): Promise<SubmissionRow[]> {
   const today = new Date().toISOString().split('T')[0]
   const concerts: SubmissionRow['concerts'][] = []
@@ -146,23 +157,46 @@ async function fetchSetlists(supabase: Client, artistId: string): Promise<Submis
   if (concerts.length === 0) return []
   const concertById = new Map(concerts.map(c => [c.id, c]))
 
+  // セトリ（submission）と曲は別々に取る。setlist_songs を埋め込む取得は件数が多いアーティストで数秒かかり、
+  // 公開用（anon）の statement timeout を超えてページごと表示できなくなるため（2026-10 一括取り込み後の Mr.Children 等）
   const ids = concerts.map(c => c.id)
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
-  const results = await Promise.all(chunks.map(async chunk => {
+  const subs = (await inChunks(ids, 100, async chunk => {
     const { data, error } = await supabase
       .from('setlist_submissions')
-      .select('concert_id, votes_count, setlist_songs(song_id, song_name, song_type, is_encore, order_num)')
+      .select('id, concert_id, votes_count')
       .in('concert_id', chunk)
     if (error) throw new Error(error.message)
-    return (data ?? []) as unknown as Omit<SubmissionRow, 'concerts'>[]
-  }))
+    return (data ?? []) as { id: string; concert_id: string; votes_count: number | null }[]
+  })).sort((a, b) => (b.votes_count ?? 0) - (a.votes_count ?? 0))
+
+  const songsBySub = new Map<string, SubmissionRow['setlist_songs']>()
+  const songRows = await inChunks(subs.map(s => s.id), 30, async chunk => {
+    const rows: (SubmissionRow['setlist_songs'][number] & { submission_id: string })[] = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('setlist_songs')
+        .select('submission_id, song_id, song_name, song_type, is_encore, order_num')
+        .in('submission_id', chunk)
+        .order('id')
+        .range(from, from + 999)
+      if (error) throw new Error(error.message)
+      rows.push(...((data ?? []) as typeof rows))
+      if (!data || data.length < 1000) break
+    }
+    return rows
+  })
+  for (const { submission_id, ...song } of songRows) {
+    const list = songsBySub.get(submission_id)
+    if (list) list.push(song)
+    else songsBySub.set(submission_id, [song])
+  }
 
   // 公演ごとに投票数最多のセトリを1件
   const top = new Map<string, SubmissionRow>()
-  for (const r of results.flat().sort((a, b) => (b.votes_count ?? 0) - (a.votes_count ?? 0))) {
-    if (top.has(r.concert_id) || !r.setlist_songs.some(s => s.song_type === 'song')) continue
-    top.set(r.concert_id, { ...r, concerts: concertById.get(r.concert_id)! })
+  for (const sub of subs) {
+    const songs = songsBySub.get(sub.id) ?? []
+    if (top.has(sub.concert_id) || !songs.some(s => s.song_type === 'song')) continue
+    top.set(sub.concert_id, { concert_id: sub.concert_id, votes_count: sub.votes_count, setlist_songs: songs, concerts: concertById.get(sub.concert_id)! })
   }
   return [...top.values()]
 }
