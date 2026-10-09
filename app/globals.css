@@ -39,3 +39,9 @@ select option {
   background-color: #1c1c1c;
   color: #f0f0f5;
 }
+
+/* 会員登録の案内（SignupPrompt）の出現アニメーション */
+@keyframes signupIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}

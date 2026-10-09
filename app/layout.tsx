@@ -4,6 +4,7 @@ import Header from '@/components/Header'
 import Link from 'next/link'
 import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
+import SignupPrompt from '@/components/SignupPrompt'
 
 export const metadata: Metadata = {
   verification: {
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <p>© 2026 LiveVault — ライブ参戦体験のOS</p>
           </div>
         </footer>
+        <SignupPrompt />
         <Analytics />
         {/* Google Tag Manager */}
         <Script id="gtm" strategy="afterInteractive">{`

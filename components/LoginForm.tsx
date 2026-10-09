@@ -5,12 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { dataLayerPush } from '@/lib/gtag'
 
-export default function LoginForm() {
+/** initialMode: 会員登録の案内（SignupPrompt）などから /login?mode=signup で来たら新規登録の画面で開く */
+export default function LoginForm({ initialMode = 'login' }: { initialMode?: 'login' | 'signup' }) {
   const supabase = createClient()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
