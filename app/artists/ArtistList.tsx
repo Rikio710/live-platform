@@ -43,7 +43,6 @@ export default function ArtistList({ artists }: { artists: Artist[] }) {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-baseline gap-3">
         <h1 className="text-2xl font-black text-white">アーティスト一覧</h1>
-        {!searching && <p className="text-sm text-[#8888aa]">{filtered.length}組</p>}
       </div>
 
       <div className="relative">
