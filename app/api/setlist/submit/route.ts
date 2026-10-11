@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { revalidateConcertPages } from '@/lib/revalidatePages'
 
 type SongInput = {
   name: string
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
     const { error: songsErr } = await admin.from('setlist_songs').insert(inserts)
     if (songsErr) return NextResponse.json({ error: songsErr.message }, { status: 500 })
 
+    await revalidateConcertPages(admin, [concert_id], { related: true })
     return NextResponse.json({ ok: true, submission_id: subId })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

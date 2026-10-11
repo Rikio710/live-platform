@@ -4,7 +4,7 @@ import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
 import { Tent, MapPin, Calendar, ChevronRight } from 'lucide-react'
 
-export const revalidate = 3600
+export const revalidate = 604800 // 7日
 
 /** 初回アクセス時に生成してキャッシュ（ISR） */
 export function generateStaticParams() {

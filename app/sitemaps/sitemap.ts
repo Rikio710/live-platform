@@ -2,19 +2,27 @@ import type { MetadataRoute } from 'next'
 import { createPublicClient } from '@/lib/supabase/public'
 import { siteUrl } from '@/lib/site'
 import { ARTICLE_CATEGORIES } from '@/lib/articles'
-import { CONCERTS_PER_SITEMAP, fetchAllRows, sitemapIds } from '@/lib/sitemaps'
+import { unstable_cache } from 'next/cache'
+import { CONCERTS_PER_SITEMAP, SITEMAP_FILE_IDS, fetchAllRows } from '@/lib/sitemaps'
 
 // 分割サイトマップ本体。まとめ（サイトマップインデックス）は /sitemap.xml（app/sitemap.xml/route.ts）
-export const revalidate = 3600
+// ビルド時には作らず（DB が混んでいるとデプロイが失敗するため）、アクセス時に作って1日キャッシュする
+export const dynamic = 'force-dynamic'
 
 export async function generateSitemaps() {
-  return (await sitemapIds()).map(id => ({ id }))
+  return SITEMAP_FILE_IDS.map(id => ({ id }))
 }
 
 export default async function sitemap(props: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
-  const id = Number(await props.id)
+  return buildSitemap(Number(await props.id))
+}
+
+const buildSitemap = unstable_cache(buildSitemapUncached, ['sitemap-v2'], { revalidate: 86400 })
+
+async function buildSitemapUncached(id: number): Promise<MetadataRoute.Sitemap> {
   const supabase = createPublicClient()
-  const now = new Date()
+  // キャッシュに保存すると Date は文字列になるので、最初から文字列にしておく
+  const now = new Date().toISOString()
 
   // 1: アーティスト
   if (id === 1) {
@@ -32,7 +40,7 @@ export default async function sitemap(props: { id: Promise<string> }): Promise<M
       supabase.from('concerts').select('id, date').order('date', { ascending: false }).order('id')
         .range(start + from, start + to), CONCERTS_PER_SITEMAP)
     return concerts.map(c => ({
-      url: `${siteUrl}/concerts/${c.id.slice(0, 8)}`, lastModified: new Date(c.date), changeFrequency: 'weekly', priority: 0.8,
+      url: `${siteUrl}/concerts/${c.id.slice(0, 8)}`, lastModified: c.date, changeFrequency: 'weekly', priority: 0.8,
     }))
   }
 
@@ -63,7 +71,7 @@ export default async function sitemap(props: { id: Promise<string> }): Promise<M
   return [
     ...fixed,
     ...(articles ?? []).map(a => ({
-      url: `${siteUrl}/articles/${a.number}`, lastModified: new Date(a.updated_at), changeFrequency: 'weekly' as const, priority: 0.8,
+      url: `${siteUrl}/articles/${a.number}`, lastModified: a.updated_at, changeFrequency: 'weekly' as const, priority: 0.8,
     })),
     ...tours.map(t => ({ url: `${siteUrl}/tours/${t.id.slice(0, 8)}`, lastModified: now, changeFrequency: 'weekly' as const, priority: 0.7 })),
     ...festivals.map(f => ({

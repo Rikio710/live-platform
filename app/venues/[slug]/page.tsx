@@ -13,7 +13,7 @@ type ConcertRow = Pick<Tables<'concerts'>, 'id' | 'slug' | 'date' | 'start_time'
   tours: Pick<Tables<'tours'>, 'id' | 'name' | 'image_url'> | null
 }
 
-export const revalidate = 3600
+export const revalidate = 604800 // 7日（データ更新時は lib/revalidatePages.ts ですぐ作り直す）
 
 /** 初回アクセス時に生成してキャッシュ（ISR） */
 export function generateStaticParams() {

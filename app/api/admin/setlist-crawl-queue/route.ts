@@ -1,3 +1,4 @@
+import { revalidateConcertPages } from '@/lib/revalidatePages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseLivefansSetlist } from '@/lib/livefansSetlist'
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
   const alreadyDone = new Set((existing ?? []).map(s => s.concert_id))
 
   let found = 0, not_found = 0, skipped = 0
+  const foundIds: string[] = []
 
   for (const concert of dueList) {
     // 既にセトリあり → キューから外す
@@ -159,6 +161,7 @@ export async function GET(req: NextRequest) {
       await (admin as any).from('concerts')
         .update({ setlist_check_count: 99, setlist_check_next_at: null })
         .eq('id', concert.id)
+      foundIds.push(concert.id)
       found++
     } else {
       // セトリなし → 次回スケジュールを設定
@@ -173,6 +176,9 @@ export async function GET(req: NextRequest) {
       not_found++
     }
   }
+
+  // セトリを登録した公演のページ（と、ツアー・アーティスト・会場）をすぐ作り直す
+  await revalidateConcertPages(admin, foundIds, { related: true })
 
   return NextResponse.json({
     ok: true,

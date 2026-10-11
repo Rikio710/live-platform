@@ -7,7 +7,7 @@ import ArticleView, { ARTICLE_SELECT, buildArticleMetadata, type ArticleWithArti
 
 // 公開記事は ISR（1時間キャッシュ）。Cookie を読むとキャッシュが効かなくなるので、
 // ここでは Cookie を読まないクライアントだけを使う。下書きは /admin/articles/[id]/preview で確認する。
-export const revalidate = 3600
+export const revalidate = 86400 // 1日
 
 /**
  * デプロイ時には生成せず、初回アクセス時に生成してキャッシュする（ISR）。

@@ -66,6 +66,10 @@ export default function AttendButton({ concertId }: { concertId: string }) {
         gtagEvent('attended_click', { login_status: 'member' })
         setAttended(true)
       }
+      // 公演ページは長めにキャッシュしているので、参戦人数を反映するため作り直してもらう
+      await fetch('/api/revalidate/concert', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ concertId }),
+      }).catch(() => {})
       router.refresh()
     } catch {
       alert('操作に失敗しました。再試行してください。')

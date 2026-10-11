@@ -16,7 +16,7 @@ function shortIdRange(shortId: string) {
   return { lo, hi }
 }
 
-export const revalidate = 3600
+export const revalidate = 604800 // 7日
 
 /** 初回アクセス時に生成してキャッシュ（ISR） */
 export function generateStaticParams() {

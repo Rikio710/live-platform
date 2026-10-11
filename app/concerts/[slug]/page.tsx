@@ -30,7 +30,7 @@ type MetadataConcert = Pick<Tables<'concerts'>, 'venue_name' | 'date' | 'image_u
   setlist_submissions: { id: string }[]
 }
 
-export const revalidate = 300 // 公演当日のセトリ・参戦数を早めに反映するため短め
+export const revalidate = 604800 // 7日。セトリ投稿・参戦登録・日付の切り替わりではすぐ作り直す（lib/revalidatePages.ts）
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SHORT_ID_RE = /^[0-9a-f]{8}$/i

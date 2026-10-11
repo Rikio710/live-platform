@@ -28,7 +28,7 @@ type ArtistTour = Pick<Tables<'tours'>, 'id' | 'name' | 'start_date' | 'end_date
   concerts: { id: string; setlist_submissions: { id: string }[] }[]
 }
 
-export const revalidate = 3600
+export const revalidate = 604800 // 7日（データ更新時は lib/revalidatePages.ts ですぐ作り直す）
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params

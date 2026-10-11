@@ -1,12 +1,13 @@
 import { siteUrl } from '@/lib/site'
-import { sitemapIds } from '@/lib/sitemaps'
+import { cachedSitemapIds } from '@/lib/sitemaps'
 
 // サイトマップインデックス（Search Console・robots.txt に登録済みの /sitemap.xml）。
 // 本体は件数が多いので /sitemaps/sitemap/{id}.xml に分割している（Google は1ファイル5万URLまで）。
-export const revalidate = 3600
+// ビルド時には作らない（DB が混んでいるとデプロイが失敗するため）。番号の一覧は1時間キャッシュ
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const ids = await sitemapIds()
+  const ids = await cachedSitemapIds()
   const now = new Date().toISOString()
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

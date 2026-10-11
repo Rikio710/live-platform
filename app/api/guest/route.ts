@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { revalidateConcertPages } from '@/lib/revalidatePages'
 
 // ゲスト（未ログイン）投稿・投票用API
 // ログイン済みの場合は実際のuser_idを使い、未ログインの場合はguest_user_id（localStorageから渡す）を使う
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
       if (songsErr) return NextResponse.json({ error: songsErr.message }, { status: 500 })
     }
 
+    await revalidateConcertPages(admin, [concert_id], { related: true })
     return NextResponse.json({ submission_id: subData.id, guest_name: isGuest ? guest_name : null })
   }
 
@@ -92,6 +94,9 @@ export async function POST(req: NextRequest) {
       await admin.from('setlist_submission_votes').delete()
         .eq('submission_id', submission_id).eq('user_id', actorId)
     }
+    // 投票数でセトリの表示順が変わるので公演ページを作り直す
+    const { data: sub } = await admin.from('setlist_submissions').select('concert_id').eq('id', submission_id).maybeSingle()
+    if (sub?.concert_id) await revalidateConcertPages(admin, [sub.concert_id])
     return NextResponse.json({ ok: true })
   }
 
