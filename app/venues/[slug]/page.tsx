@@ -1,3 +1,4 @@
+import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
@@ -21,7 +22,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const venueName = decodeURIComponent(slug)
+  const venueName = fromSlugParam(slug)
   const supabase = createPublicClient()
 
   const { data: metaConcerts } = await supabase
@@ -45,12 +46,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     alternates: {
-      canonical: `${siteUrl}/venues/${slug}`,
+      canonical: `${siteUrl}/venues/${encodeURIComponent(venueName)}`,
     },
     openGraph: {
       title,
       description,
-      url: `${siteUrl}/venues/${slug}`,
+      url: `${siteUrl}/venues/${encodeURIComponent(venueName)}`,
     },
     twitter: {
       card: 'summary',
@@ -62,7 +63,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function VenuePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const venueName = decodeURIComponent(slug)
+  const venueName = fromSlugParam(slug)
   const supabase = createPublicClient()
 
   const { data: concerts } = await supabase
@@ -124,7 +125,7 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
     '@type': 'MusicVenue',
     name: venueName,
     address: venueAddress ?? undefined,
-    url: `${siteUrl}/venues/${slug}`,
+    url: `${siteUrl}/venues/${encodeURIComponent(venueName)}`,
     event: rows.map(c => ({
       '@type': 'MusicEvent',
       name: `${c.artists?.name ?? ''} ${c.tours?.name ?? c.venue_name}`,

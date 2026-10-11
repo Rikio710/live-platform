@@ -1,3 +1,4 @@
+import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { throwIfDbError } from '@/lib/dbError'
 import { notFound } from 'next/navigation'
@@ -33,7 +34,7 @@ export const revalidate = 3600
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
-  const slug = decodeURIComponent(rawSlug)
+  const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query = (supabase as any).from('tours').select('id, name, image_url, start_date, end_date, tour_artists(artists(name))')
@@ -102,7 +103,7 @@ export default async function TourPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug: rawSlug } = await params
-  const slug = decodeURIComponent(rawSlug)
+  const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
 
   if (UUID_RE.test(slug)) {

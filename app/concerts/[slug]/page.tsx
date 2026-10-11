@@ -1,3 +1,4 @@
+import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { throwIfDbError } from '@/lib/dbError'
@@ -42,7 +43,7 @@ function shortIdRange(shortId: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
-  const slug = decodeURIComponent(rawSlug)
+  const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
   const query = supabase
     .from('concerts')
@@ -93,7 +94,7 @@ export default async function ConcertPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug: rawSlug } = await params
-  const slug = decodeURIComponent(rawSlug)
+  const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
 
   // UUID での旧URLは短縮URLにリダイレクト

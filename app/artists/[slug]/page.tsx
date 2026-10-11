@@ -1,3 +1,4 @@
+import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { throwIfDbError } from '@/lib/dbError'
 import { notFound } from 'next/navigation'
@@ -31,7 +32,7 @@ export const revalidate = 3600
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug: rawSlug } = await params
-  const slug = decodeURIComponent(rawSlug)
+  const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
 
   const baseQuery = supabase.from('artists').select('id, name, description, image_url, website_url, twitter_url, instagram_url, youtube_url')
@@ -110,7 +111,7 @@ export default async function ArtistPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug: rawSlug } = await params
-  const slug = decodeURIComponent(rawSlug)
+  const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
 
   if (UUID_RE.test(slug)) {
