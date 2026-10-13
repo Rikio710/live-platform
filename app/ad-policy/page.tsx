@@ -18,6 +18,7 @@ export default function AdPolicyPage() {
         <h2 className="text-base font-bold text-white">利用しているプログラム</h2>
         <ul className="list-disc pl-5 space-y-1">
           <li>楽天アフィリエイト（楽天市場・楽天トラベル）</li>
+          <li>Amazon アソシエイト・プログラム</li>
           <li>もしもアフィリエイト（Amazon・楽天市場など）</li>
         </ul>
         <p className="text-xs text-[#8888aa]">Amazon のアソシエイトとして、LiveVault は適格販売により収入を得ています。</p>

@@ -2,12 +2,14 @@
  * アフィリエイトリンク（2026-10 開始）
  *   ID は Vercel の環境変数で設定する。未設定のものはリンクを出さない（ID がないと報酬にならないため）
  *     NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID  … 楽天アフィリエイトID（楽天市場・楽天トラベル）
+ *     NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG  … Amazon アソシエイトのトラッキングID（livevault-22）。あればこちらを優先
  *     NEXT_PUBLIC_MOSHIMO_AMAZON_AID    … もしもアフィリエイトの Amazon 用 a_id
  *     NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID   … もしもアフィリエイトの 楽天市場 用 a_id（楽天アフィリエイトIDがないときに使う）
  *   商品を1つずつ登録せず、検索結果ページへのリンクに ID を付けて全ページに自動で出す。
  *   ステマ規制（景品表示法）のため、表示する枠には必ず「PR」を付ける（components/features/affiliate/AffiliateBox.tsx）
  */
 const RAKUTEN_AFF = process.env.NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID ?? ''
+const AMAZON_TAG = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG ?? ''
 const MOSHIMO_AMAZON = process.env.NEXT_PUBLIC_MOSHIMO_AMAZON_AID ?? ''
 const MOSHIMO_RAKUTEN = process.env.NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID ?? ''
 
@@ -21,6 +23,7 @@ export type AffiliateItem = {
 const enc = encodeURIComponent
 
 function amazon(url: string): string | null {
+  if (AMAZON_TAG) return `${url}${url.includes('?') ? '&' : '?'}tag=${enc(AMAZON_TAG)}`
   if (!MOSHIMO_AMAZON) return null
   return `https://af.moshimo.com/af/c/click?a_id=${enc(MOSHIMO_AMAZON)}&p_id=170&pc_id=185&pl_id=4062&url=${enc(url)}`
 }
