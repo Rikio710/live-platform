@@ -1,3 +1,5 @@
+import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
+import { artistAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { throwIfDbError } from '@/lib/dbError'
@@ -394,6 +396,9 @@ export default async function ArtistPage({
       {standardSongsArticle && (
         <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} label="セトリの傾向をチェック" />
       )}
+
+      {/* アフィリエイト（CD・ライブ映像・グッズ） */}
+      <AffiliateBox placement="artist" items={artistAffiliateItems({ name: artist.name })} />
 
       {/* タブ（ライブ情報 / セトリ分析） */}
       <UrlTabs

@@ -47,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/articles" className="hover:text-white transition-colors">記事・特集</Link>
               <Link href="/articles/category/standard-songs" className="hover:text-white transition-colors">ライブ定番曲ランキング</Link>
               <Link href="/contact" className="hover:text-white transition-colors">お問い合わせ</Link>
+              <Link href="/ad-policy" className="hover:text-white transition-colors">広告について</Link>
             </div>
             <p>© 2026 LiveVault — ライブ参戦体験のOS</p>
           </div>

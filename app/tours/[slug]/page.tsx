@@ -1,3 +1,5 @@
+import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
+import { tourAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { throwIfDbError } from '@/lib/dbError'
@@ -311,6 +313,9 @@ export default async function TourPage({
       {standardSongsArticle && (
         <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} />
       )}
+
+      {/* アフィリエイト（映像作品・CD） */}
+      <AffiliateBox placement="tour" items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })} />
 
       {/* タブ（公演一覧 / セトリ分析） */}
       <UrlTabs

@@ -1,3 +1,5 @@
+import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
+import { concertAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -361,6 +363,15 @@ export default async function ConcertPage({
         initialSongCount={sortedSongs.filter(s => s.song_type === 'song').length || undefined}
       />
       </Suspense>
+
+      {/* アフィリエイト（開催前: 会場近くのホテル / 開催後: 映像作品・CD） */}
+      <AffiliateBox
+        placement="concert"
+        items={concertAffiliateItems({
+          artist: c.artists?.name ?? null, tour: c.tours?.name ?? null, venue: c.venue_name,
+          upcoming: c.date >= new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }),
+        })}
+      />
 
       {/* 記事への導線（定番曲ランキング） */}
       {standardSongsArticle && (
