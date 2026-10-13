@@ -1,4 +1,3 @@
-import { rakutenProducts } from '@/lib/rakutenItems'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { concertAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -210,11 +209,8 @@ export default async function ConcertPage({
     })),
   } : null
 
-  // アフィリエイトの画像つき商品（開催前は予習用のCD、開催後はライブ映像。同じアーティストの公演で検索結果を使い回す）
+  // アフィリエイトの画像つき商品は開催前は予習用のCD、開催後はライブ映像（同じアーティストの公演で検索結果を使い回す）
   const isUpcoming = c.date >= new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
-  const affiliateProducts = c.artists?.name
-    ? await rakutenProducts(`${c.artists.name} ${isUpcoming ? 'CD' : 'Blu-ray'}`, c.artists.name)
-    : []
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
@@ -374,7 +370,7 @@ export default async function ConcertPage({
       {/* アフィリエイト（開催前: 会場近くのホテル / 開催後: 映像作品・CD） */}
       <AffiliateBox
         placement="concert"
-        products={affiliateProducts}
+        productQuery={c.artists?.name ? { q: `${c.artists.name} ${isUpcoming ? 'CD' : 'Blu-ray'}`, artist: c.artists.name } : null}
         items={concertAffiliateItems({
           artist: c.artists?.name ?? null, tour: c.tours?.name ?? null, venue: c.venue_name,
           upcoming: c.date >= new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }),

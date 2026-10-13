@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ExternalLink, Hotel, Disc3 } from 'lucide-react'
 import type { AffiliateItem, AffiliateProduct } from '@/lib/affiliate'
@@ -9,13 +10,24 @@ import { dataLayerPush } from '@/lib/gtag'
  * アフィリエイトの枠。ステマ規制のため必ず「PR」を表示し、リンクは rel="sponsored"。
  * ID が未設定などで items が空なら何も表示しない。
  */
-export default function AffiliateBox({ items, products = [], placement, title = '関連商品・サービス' }: {
+export default function AffiliateBox({ items, productQuery, placement, title = '関連商品・サービス' }: {
   items: AffiliateItem[]
-  /** 画像つきで出す商品（楽天の商品検索）。あれば上に並べる */
-  products?: AffiliateProduct[]
+  /** 画像つきで出す商品（楽天の商品検索）の検索語。表示後にブラウザから /api/affiliate/products で取る */
+  productQuery?: { q: string; artist: string } | null
   placement: string
   title?: string
 }) {
+  const [products, setProducts] = useState<AffiliateProduct[]>([])
+  useEffect(() => {
+    if (!productQuery) return
+    const params = new URLSearchParams(productQuery)
+    let alive = true
+    fetch(`/api/affiliate/products?${params}`)
+      .then(r => r.json())
+      .then((d: { products?: AffiliateProduct[] }) => { if (alive) setProducts(d.products ?? []) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [productQuery?.q, productQuery?.artist]) // eslint-disable-line react-hooks/exhaustive-deps
   if (items.length === 0 && products.length === 0) return null
   return (
     <section className="glass rounded-2xl p-4 space-y-3 min-w-0">

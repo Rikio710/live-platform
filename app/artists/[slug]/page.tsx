@@ -1,4 +1,3 @@
-import { rakutenProducts } from '@/lib/rakutenItems'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { artistAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -399,7 +398,7 @@ export default async function ArtistPage({
       )}
 
       {/* アフィリエイト（CD・ライブ映像・グッズ） */}
-      <AffiliateBox placement="artist" products={await rakutenProducts(`${artist.name} Blu-ray`, artist.name)} items={artistAffiliateItems({ name: artist.name })} />
+      <AffiliateBox placement="artist" productQuery={{ q: `${artist.name} Blu-ray`, artist: artist.name }} items={artistAffiliateItems({ name: artist.name })} />
 
       {/* タブ（ライブ情報 / セトリ分析） */}
       <UrlTabs

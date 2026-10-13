@@ -1,4 +1,3 @@
-import { rakutenProducts } from '@/lib/rakutenItems'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { tourAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -318,7 +317,7 @@ export default async function TourPage({
       {/* アフィリエイト（映像作品・CD） */}
       <AffiliateBox
         placement="tour"
-        products={tourArtistList[0] ? await rakutenProducts(`${tourArtistList[0].name} Blu-ray`, tourArtistList[0].name) : []}
+        productQuery={tourArtistList[0] ? { q: `${tourArtistList[0].name} Blu-ray`, artist: tourArtistList[0].name } : null}
         items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })}
       />
 
