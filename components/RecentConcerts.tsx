@@ -1,9 +1,10 @@
 'use client'
 
+import { TitleArt } from '@/components/ui/FallbackArt'
 import Link from 'next/link'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Calendar, MapPin } from 'lucide-react'
+
 import type { Tables } from '@/types/supabase'
 
 type RecentConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'date' | 'start_time' | 'image_url'> & {
@@ -53,9 +54,7 @@ export default function RecentConcerts({ initialConcerts }: { initialConcerts: R
               {(c.image_url || c.tours?.image_url || c.artists?.image_url) ? (
                 <img src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url ?? undefined} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" style={!c.image_url && !c.tours?.image_url && c.artists ? { objectPosition: `${c.artists.image_crop_x ?? 50}% ${c.artists.image_crop_y ?? 50}%` } : undefined} />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <MapPin size={32} className="text-[#535353]" />
-                </div>
+                <TitleArt title={c.tours?.name ?? c.venue_name} sub={c.artists?.name} colorKey={c.tours?.name ?? c.artists?.name ?? c.venue_name} size="md" className="w-full h-full" />
               )}
             </div>
             <p className="text-sm font-bold text-white truncate leading-tight">

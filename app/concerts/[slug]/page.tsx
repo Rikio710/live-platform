@@ -1,3 +1,4 @@
+import { fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { concertAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -245,7 +246,10 @@ export default async function ConcertPage({
             return bgSrc ? (
               <img src={bgSrc} alt="" className="w-full h-full object-cover opacity-40"
                 style={useArtistCrop ? { objectPosition: `${c.artists?.image_crop_x ?? 50}% ${c.artists?.image_crop_y ?? 50}%` } : undefined} />
-            ) : null
+            ) : (
+              // 画像がないときはツアー名（なければアーティスト名）から決まる単色
+              <div className="absolute inset-0" style={{ background: fallbackColor(c.tours?.name ?? c.festival_events?.name ?? c.artists?.name ?? c.venue_name) }} />
+            )
           })()}
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1">

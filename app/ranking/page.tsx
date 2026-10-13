@@ -1,8 +1,9 @@
+import { NameArt } from '@/components/ui/FallbackArt'
 import { createPublicClient } from '@/lib/supabase/public'
 import UrlTabs from '@/components/ui/UrlTabs'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Calendar, Mic2, Route } from 'lucide-react'
+import { Route } from 'lucide-react'
 
 export const revalidate = 1800
 
@@ -86,7 +87,7 @@ export default async function RankingPage() {
             <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
               className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
               <RankNum n={i + 1} />
-              <Thumb src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url} fallback={<Calendar size={18} className="text-[#535353]" />} />
+              <Thumb src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url} fallback={<NameArt name={c.tours?.name ?? c.artists?.name ?? c.venue_name} size="sm" className="w-full h-full" />} />
               <div className="flex-1 min-w-0">
                 {c.artists?.name && <p className="text-xs text-[#b3b3b3] truncate">{c.artists.name}</p>}
                 <p className="text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{c.tours?.name ?? c.venue_name}</p>
@@ -126,7 +127,7 @@ export default async function RankingPage() {
             <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
               className="glass rounded-2xl px-4 py-3 flex items-center gap-3 hover:border-white/20 transition-colors group">
               <RankNum n={i + 1} />
-              <Thumb src={a.image_url} fallback={<Mic2 size={18} className="text-[#535353]" />} />
+              <Thumb src={a.image_url} fallback={<NameArt name={a.name} size="sm" className="w-full h-full" />} />
               <p className="flex-1 text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{a.name}</p>
               <span className="text-xs text-violet-400 shrink-0">セトリ{a.setlist_count}件</span>
             </Link>

@@ -1,3 +1,4 @@
+import { NameArt } from '@/components/ui/FallbackArt'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -280,9 +281,7 @@ export default async function MyPage() {
                     className="w-full aspect-square"
                   />
                 ) : (
-                  <div className="w-full aspect-square rounded-full bg-[#333333] flex items-center justify-center">
-                    <Mic2 size={20} className="text-[#b3b3b3]" />
-                  </div>
+                  <NameArt name={f.artists.name} size="lg" className="w-full aspect-square rounded-full" />
                 )}
                 <span className="text-xs text-[#ccccdd] text-center line-clamp-2 w-full leading-tight">{f.artists.name}</span>
               </Link>

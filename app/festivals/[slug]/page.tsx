@@ -1,8 +1,9 @@
+import { TitleArt } from '@/components/ui/FallbackArt'
 import Link from 'next/link'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
-import { Tent, MapPin, Calendar, ChevronRight } from 'lucide-react'
+import { MapPin, Calendar, ChevronRight } from 'lucide-react'
 
 export const revalidate = 604800 // 7日
 
@@ -86,9 +87,7 @@ export default async function FestivalGroupPage({ params }: { params: Promise<{ 
         {group.image_url ? (
           <img src={group.image_url} alt={group.name} className="w-20 h-20 rounded-2xl object-cover shrink-0" />
         ) : (
-          <div className="w-20 h-20 rounded-2xl bg-[#282828] flex items-center justify-center shrink-0">
-            <Tent size={32} className="text-[#8888aa]" />
-          </div>
+          <TitleArt title={group.name} size="sm" className="w-20 h-20 rounded-2xl shrink-0" />
         )}
         <div className="flex-1 min-w-0 pt-1">
           <p className="text-xs text-[#8888aa]">フェス</p>

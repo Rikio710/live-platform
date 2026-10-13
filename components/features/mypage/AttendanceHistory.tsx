@@ -1,8 +1,9 @@
 'use client'
 
+import { NameArt, TitleArt } from '@/components/ui/FallbackArt'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Ticket, Mic2, MapPin, Tent, ChevronDown, ChevronRight } from 'lucide-react'
+import { Ticket, Mic2, MapPin, ChevronDown, ChevronRight } from 'lucide-react'
 
 type FestivalEvent = {
   id: string; name: string; image_url: string | null
@@ -179,9 +180,7 @@ export default function AttendanceHistory({
                     {fe.image_url ? (
                       <img src={fe.image_url} alt={fe.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-[#282828] flex items-center justify-center shrink-0">
-                        <Tent size={18} className="text-[#8888aa]" />
-                      </div>
+                      <TitleArt title={fe.festival_groups?.name ?? fe.name} size="sm" className="w-10 h-10 rounded-lg shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       {fe.festival_groups && <p className="text-xs text-[#8888aa]">{fe.festival_groups.name}</p>}
@@ -240,9 +239,7 @@ export default function AttendanceHistory({
                   ) : a.concerts.artists?.image_url ? (
                     <img src={a.concerts.artists.image_url} alt="" className="w-full h-full object-cover opacity-40" style={{ objectPosition: `${a.concerts.artists.image_crop_x ?? 50}% ${a.concerts.artists.image_crop_y ?? 50}%` }} />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Mic2 size={18} className="text-[#8888aa]" />
-                    </div>
+                    <NameArt name={a.concerts.tours?.name ?? a.concerts.artists?.name ?? a.concerts.venue_name} size="md" className="w-full h-full" />
                   )}
                 </div>
                 {/* メイン情報 */}

@@ -1,8 +1,9 @@
+import { NameArt, TileArt, TitleArt } from '@/components/ui/FallbackArt'
 import Link from 'next/link'
 import { notFound, permanentRedirect } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
-import { Mic2, MapPin, Calendar, Tent } from 'lucide-react'
+import { MapPin, Calendar } from 'lucide-react'
 
 export const revalidate = 604800 // 7日
 
@@ -149,9 +150,13 @@ export default async function FestivalEventPage({ params }: { params: Promise<{ 
         ) : group?.image_url ? (
           <img src={group.image_url} alt={group.name} className="w-20 h-20 rounded-2xl object-cover shrink-0" />
         ) : (
-          <div className="w-20 h-20 rounded-2xl bg-[#282828] flex items-center justify-center shrink-0">
-            <Tent size={32} className="text-[#8888aa]" />
-          </div>
+          // 画像がないときは、出演アーティストの画像4枚のタイル（足りなければフェス名のグラデーション）
+          (() => {
+            const imgs = [...new Set(concerts.map(c => c.artists?.image_url).filter((u): u is string => !!u))]
+            return imgs.length >= 4
+              ? <TileArt images={imgs} title="" className="w-20 h-20 rounded-2xl shrink-0" />
+              : <TitleArt title={group?.name ?? ev.name} size="sm" className="w-20 h-20 rounded-2xl shrink-0" />
+          })()
         )}
         <div className="flex-1 min-w-0 pt-1">
           {group && <p className="text-xs text-[#8888aa]">{group.name}</p>}
@@ -237,9 +242,7 @@ function ConcertRow({ concert: c, showStage = true }: { concert: Concert; showSt
           style={{ objectPosition: `${artist.image_crop_x ?? 50}% ${artist.image_crop_y ?? 50}%` }}
         />
       ) : (
-        <div className="w-10 h-10 rounded-full bg-[#282828] flex items-center justify-center shrink-0">
-          <Mic2 size={16} className="text-[#8888aa]" />
-        </div>
+        <NameArt name={artist?.name ?? '?'} size="sm" className="w-10 h-10 rounded-full shrink-0" />
       )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-white truncate">{artist?.name ?? '—'}</p>

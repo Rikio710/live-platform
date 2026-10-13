@@ -1,7 +1,7 @@
+import { TitleArt } from '@/components/ui/FallbackArt'
 import Link from 'next/link'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
-import { Tent } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'フェス一覧 | LiveVault',
@@ -56,9 +56,7 @@ export default async function FestivalsPage() {
               {g.image_url ? (
                 <img src={g.image_url} alt={g.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
               ) : (
-                <div className="w-14 h-14 rounded-xl bg-[#282828] flex items-center justify-center shrink-0">
-                  <Tent size={24} className="text-[#8888aa]" />
-                </div>
+                <TitleArt title={g.name} size="sm" className="w-14 h-14 rounded-xl shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-white truncate group-hover:text-white/90">{g.name}</p>

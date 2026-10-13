@@ -1,8 +1,9 @@
 'use client'
 
+import { NameArt } from '@/components/ui/FallbackArt'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Calendar, Mic2, Route } from 'lucide-react'
+import { Route } from 'lucide-react'
 
 type ArtistImageInfo = { id: string; name: string; image_url: string | null; image_crop_x?: number | null; image_crop_y?: number | null }
 
@@ -75,7 +76,7 @@ function ConcertList({ concerts }: { concerts: RankingConcert[] }) {
           <RankNum n={i + 1} />
           <Thumb
             src={c.image_url ?? c.tours?.image_url ?? c.artists?.image_url}
-            fallback={<Calendar size={18} className="text-[#535353]" />}
+            fallback={<NameArt name={c.tours?.name ?? c.artists?.name ?? c.venue_name} size="sm" className="w-full h-full" />}
             objectPosition={!c.image_url && !c.tours?.image_url && c.artists ? `${c.artists.image_crop_x ?? 50}% ${c.artists.image_crop_y ?? 50}%` : undefined}
           />
           <div className="flex-1 min-w-0">
@@ -135,7 +136,7 @@ function ArtistList({ artists }: { artists: RankingArtist[] }) {
           <RankNum n={i + 1} />
           <Thumb
             src={a.image_url}
-            fallback={<Mic2 size={18} className="text-[#535353]" />}
+            fallback={<NameArt name={a.name} size="sm" className="w-full h-full" />}
             objectPosition={`${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%`}
           />
           <p className="flex-1 text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{a.name}</p>

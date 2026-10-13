@@ -1,8 +1,8 @@
 'use client'
 
+import { NameArt } from '@/components/ui/FallbackArt'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Mic2 } from 'lucide-react'
 
 const INITIAL_COUNT = 12
 
@@ -26,9 +26,7 @@ export default function ArtistsSection({ artists }: { artists: any[] }) {
             {a.image_url ? (
               <img src={a.image_url} alt="" className="w-6 h-6 rounded-full object-cover" style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }} />
             ) : (
-              <span className="w-6 h-6 rounded-full bg-[#333333] flex items-center justify-center">
-                <Mic2 size={11} className="text-[#b3b3b3]" />
-              </span>
+              <NameArt name={a.name} size="sm" className="w-6 h-6 rounded-full text-[10px]" />
             )}
             {a.name}
           </Link>

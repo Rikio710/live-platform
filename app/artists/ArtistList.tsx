@@ -1,5 +1,6 @@
 'use client'
 
+import { NameArt } from '@/components/ui/FallbackArt'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Mic2, Search } from 'lucide-react'
@@ -80,9 +81,7 @@ export default function ArtistList({ artists }: { artists: Artist[] }) {
                     {af.image_url ? (
                       <img src={af.image_url} alt={a.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" style={{ objectPosition: `${af.image_crop_x ?? 50}% ${af.image_crop_y ?? 50}%` }} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center opacity-20">
-                        <Mic2 size={40} className="text-white" />
-                      </div>
+                      <NameArt name={a.name} size="lg" className="w-full h-full opacity-90 group-hover:opacity-100 transition-opacity" />
                     )}
                   </div>
                   <div className="px-3 pt-3 pb-1">

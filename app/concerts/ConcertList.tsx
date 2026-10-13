@@ -1,5 +1,6 @@
 'use client'
 
+import { NameArt } from '@/components/ui/FallbackArt'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Calendar, MapPin } from 'lucide-react'
@@ -139,9 +140,7 @@ export default function ConcertList({ upcoming, past }: { upcoming: ConcertItem[
                       style={c.imagePosition ? { objectPosition: c.imagePosition } : undefined}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Calendar size={20} className="text-white/40" />
-                    </div>
+                    <NameArt name={c.tourName ?? c.artistName ?? c.venueName} size="md" className="w-full h-full" />
                   )}
                 </div>
                 <div className="shrink-0 text-center w-10">

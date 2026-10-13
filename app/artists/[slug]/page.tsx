@@ -1,3 +1,4 @@
+import { NameArt, TitleArt } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { artistAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -6,7 +7,7 @@ import { throwIfDbError } from '@/lib/dbError'
 import { notFound } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/public'
 import type { Metadata } from 'next'
-import { Mic2, Route, Globe, Tent } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import FollowButton from '@/components/features/artist/FollowButton'
 import { siteUrl } from '@/lib/site'
 import { safeJsonLd } from '@/lib/json-ld'
@@ -269,9 +270,7 @@ export default async function ArtistPage({
           {artist.image_url ? (
             <img src={artist.image_url} alt={artist.name} className="w-32 h-32 rounded-2xl object-cover shrink-0" style={{ objectPosition: `${artist.image_crop_x ?? 50}% ${artist.image_crop_y ?? 50}%` }} />
           ) : (
-            <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-[#333333] to-[#282828] flex items-center justify-center shrink-0">
-              <Mic2 size={40} className="text-white/70" />
-            </div>
+            <NameArt name={artist.name} size="xl" className="w-32 h-32 rounded-2xl shrink-0" />
           )}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-black text-white">{artist.name}</h1>
@@ -450,9 +449,7 @@ export default async function ArtistPage({
                         {(t.image_url || artist.image_url) ? (
                           <img src={t.image_url ?? artist.image_url ?? undefined} alt={t.name} className="w-14 h-14 rounded-xl object-cover shrink-0" style={!t.image_url ? { objectPosition: `${artist.image_crop_x ?? 50}% ${artist.image_crop_y ?? 50}%` } : undefined} />
                         ) : (
-                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#333333]/60 to-[#282828]/60 shrink-0 flex items-center justify-center">
-                            <Route size={22} className="text-white/60" />
-                          </div>
+                          <TitleArt title={t.name} colorKey={artist.name + t.name} size="sm" className="w-14 h-14 rounded-xl shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{t.name}</p>
@@ -485,9 +482,7 @@ export default async function ArtistPage({
                         {img ? (
                           <img src={img} alt={event.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                         ) : (
-                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#333333]/60 to-[#282828]/60 shrink-0 flex items-center justify-center">
-                            <Tent size={22} className="text-white/60" />
-                          </div>
+                          <TitleArt title={group?.name ?? event.name} size="sm" className="w-14 h-14 rounded-xl shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">

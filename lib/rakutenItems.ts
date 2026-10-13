@@ -44,7 +44,14 @@ export async function rakutenProducts(keyword: string, artist: string, limit = 3
   if (!APP_ID || !ACCESS_KEY || !keyword.trim()) return []
   try {
     const key = norm(artist)
-    const items = (await cachedSearch(keyword)).filter(it => (!key || norm(it.name).includes(key)) && !/中古|USED|レンタル/i.test(it.name))
+    // 英数字だけの名前（eill 等）は前後が英数字でないことも見る（「BAREILLES」の中の eill に一致させない）
+    const ascii = /^[a-z0-9]+$/.test(key)
+    const wordRe = ascii ? new RegExp(`(^|[^a-z0-9])${key}([^a-z0-9]|$)`) : null
+    const matches = (name: string) => {
+      const n = norm(name)
+      return !key || (wordRe ? wordRe.test(n) : n.includes(key))
+    }
+    const items = (await cachedSearch(keyword)).filter(it => matches(it.name) && !/中古|USED|レンタル/i.test(it.name))
     return items.slice(0, limit).flatMap(it => {
       const href = rakuten(it.url)
       return href ? [{ name: it.name, price: it.price, image: it.image, href }] : []

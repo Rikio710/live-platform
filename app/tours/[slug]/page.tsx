@@ -1,3 +1,4 @@
+import { fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { tourAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -272,7 +273,8 @@ export default async function TourPage({
 
       {/* ヘッダー画像 + ツアー情報 */}
       <div className="glass rounded-2xl overflow-hidden">
-        <div className="relative h-40 sm:h-56 bg-gradient-to-br from-[#282828]/60 to-[#282828]/40">
+        <div className="relative h-40 sm:h-56 bg-gradient-to-br from-[#282828]/60 to-[#282828]/40"
+          style={!headerImage ? { background: fallbackColor(tour.name) } : undefined}>
           {headerImage && (
             <img src={headerImage} alt={tour.name} className="w-full h-full object-cover opacity-40"
               style={!tour.image_url ? { objectPosition: `${firstArtist?.image_crop_x ?? 50}% ${firstArtist?.image_crop_y ?? 50}%` } : undefined}

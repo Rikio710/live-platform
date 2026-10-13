@@ -1,8 +1,9 @@
+import { NameArt } from '@/components/ui/FallbackArt'
 import Link from 'next/link'
 import { cache } from 'react'
 import type { Metadata } from 'next'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Calendar, ChevronRight, MapPin, Mic2, Music, PenLine } from 'lucide-react'
+import { Calendar, ChevronRight, MapPin, Music, PenLine } from 'lucide-react'
 import type { Database } from '@/types/supabase'
 import FollowButton from '@/components/features/artist/FollowButton'
 import ArticleCard from '@/components/features/article/ArticleCard'
@@ -245,7 +246,7 @@ export default async function ArticleView({ article: a, preview, supabase }: {
               <img src={artist.image_url} alt={artist.name} className="w-14 h-14 rounded-full object-cover"
                 style={{ objectPosition: `${artist.image_crop_x ?? 50}% ${artist.image_crop_y ?? 50}%` }} />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center"><Mic2 size={20} className="text-white/40" /></div>
+              <NameArt name={artist.name} size="md" className="w-14 h-14 rounded-full" />
             )}
           </Link>
           <div className="min-w-0 flex-1">
