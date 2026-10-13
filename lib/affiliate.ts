@@ -13,6 +13,14 @@ const AMAZON_TAG = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG ?? ''
 const MOSHIMO_AMAZON = process.env.NEXT_PUBLIC_MOSHIMO_AMAZON_AID ?? ''
 const MOSHIMO_RAKUTEN = process.env.NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID ?? ''
 
+/** 画像つきで出す商品（楽天の商品検索APIの結果。lib/rakutenItems.ts） */
+export type AffiliateProduct = {
+  name: string
+  price: number
+  image: string
+  href: string
+}
+
 export type AffiliateItem = {
   provider: 'amazon' | 'rakuten' | 'rakuten_travel'
   label: string
@@ -28,7 +36,7 @@ function amazon(url: string): string | null {
   return `https://af.moshimo.com/af/c/click?a_id=${enc(MOSHIMO_AMAZON)}&p_id=170&pc_id=185&pl_id=4062&url=${enc(url)}`
 }
 
-function rakuten(url: string): string | null {
+export function rakuten(url: string): string | null {
   if (RAKUTEN_AFF) return `https://hb.afl.rakuten.co.jp/hgc/${RAKUTEN_AFF}/?pc=${enc(url)}&m=${enc(url)}`
   if (MOSHIMO_RAKUTEN) return `https://af.moshimo.com/af/c/click?a_id=${enc(MOSHIMO_RAKUTEN)}&p_id=54&pc_id=54&pl_id=616&url=${enc(url)}`
   return null

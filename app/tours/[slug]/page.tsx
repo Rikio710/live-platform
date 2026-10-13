@@ -1,3 +1,4 @@
+import { rakutenProducts } from '@/lib/rakutenItems'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { tourAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -315,7 +316,11 @@ export default async function TourPage({
       )}
 
       {/* アフィリエイト（映像作品・CD） */}
-      <AffiliateBox placement="tour" items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })} />
+      <AffiliateBox
+        placement="tour"
+        products={tourArtistList[0] ? await rakutenProducts(`${tourArtistList[0].name} Blu-ray`, tourArtistList[0].name) : []}
+        items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })}
+      />
 
       {/* タブ（公演一覧 / セトリ分析） */}
       <UrlTabs

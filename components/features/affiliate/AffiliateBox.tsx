@@ -2,25 +2,48 @@
 
 import Link from 'next/link'
 import { ExternalLink, Hotel, Disc3 } from 'lucide-react'
-import type { AffiliateItem } from '@/lib/affiliate'
+import type { AffiliateItem, AffiliateProduct } from '@/lib/affiliate'
 import { dataLayerPush } from '@/lib/gtag'
 
 /**
  * アフィリエイトの枠。ステマ規制のため必ず「PR」を表示し、リンクは rel="sponsored"。
  * ID が未設定などで items が空なら何も表示しない。
  */
-export default function AffiliateBox({ items, placement, title = '関連商品・サービス' }: {
+export default function AffiliateBox({ items, products = [], placement, title = '関連商品・サービス' }: {
   items: AffiliateItem[]
+  /** 画像つきで出す商品（楽天の商品検索）。あれば上に並べる */
+  products?: AffiliateProduct[]
   placement: string
   title?: string
 }) {
-  if (items.length === 0) return null
+  if (items.length === 0 && products.length === 0) return null
   return (
     <section className="glass rounded-2xl p-4 space-y-3 min-w-0">
       <div className="flex items-center gap-2">
         <span className="text-[10px] font-bold text-[#8888aa] border border-white/15 rounded px-1.5 py-0.5 leading-none">PR</span>
         <h2 className="text-xs font-bold text-[#b3b3b3]">{title}</h2>
       </div>
+      {products.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {products.map(p => (
+            <a
+              key={p.href}
+              href={p.href}
+              target="_blank"
+              rel="sponsored nofollow noopener noreferrer"
+              onClick={() => dataLayerPush({ event: 'affiliate_click', affiliate_provider: 'rakuten_item', affiliate_placement: placement })}
+              className="min-w-0 rounded-xl bg-white/5 hover:bg-white/10 p-2 transition-colors space-y-1.5"
+            >
+              <div className="aspect-square rounded-lg bg-white overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.image} alt="" loading="lazy" className="w-full h-full object-contain" />
+              </div>
+              <p className="text-[11px] text-white leading-snug line-clamp-2 break-words">{p.name}</p>
+              <p className="text-xs font-bold text-white tabular-nums">¥{p.price.toLocaleString('ja-JP')}<span className="text-[10px] font-normal text-[#8888aa] ml-1">楽天</span></p>
+            </a>
+          ))}
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         {items.map(it => (
           <a
