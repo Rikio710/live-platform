@@ -1,3 +1,4 @@
+import { revalidateFestivalPages } from '@/lib/revalidatePages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
         image_url: body.image_url || null,
       }).select('*, festival_events(id, name, slug, start_date, end_date, venue_name, image_url)').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      revalidateFestivalPages()
       return NextResponse.json(data)
     }
 
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
         image_url: body.image_url || null,
       }).select('id, name, slug, start_date, end_date, venue_name, image_url').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      revalidateFestivalPages()
       return NextResponse.json(data)
     }
 

@@ -1,3 +1,4 @@
+import { revalidateConcertPages } from '@/lib/revalidatePages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
@@ -20,6 +21,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       image_url: body.image_url || null,
     }).eq('id', id).select('*, artists(id, name), tours(id, name), festival_events(id, name, festival_groups(name))').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await revalidateConcertPages(admin, [id], { related: true })
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -33,6 +35,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const admin = createAdminClient()
     const { error } = await admin.from('concerts').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await revalidateConcertPages(admin, [id])
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

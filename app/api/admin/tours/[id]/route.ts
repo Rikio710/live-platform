@@ -1,3 +1,4 @@
+import { revalidateTourPages } from '@/lib/revalidatePages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
@@ -32,6 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       .select('*, tour_artists(artists(id, name)), concerts(id, setlist_submissions(count))')
       .eq('id', id)
       .single()
+    await revalidateTourPages(admin, id)
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

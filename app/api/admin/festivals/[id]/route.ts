@@ -1,3 +1,4 @@
+import { revalidateFestivalPages } from '@/lib/revalidatePages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
@@ -18,6 +19,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         image_url: body.image_url || null,
       }).eq('id', id).select('*, festival_events(id, name, slug, start_date, end_date, venue_name, image_url)').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      revalidateFestivalPages()
       return NextResponse.json(data)
     }
 
@@ -33,6 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         image_url: body.image_url || null,
       }).eq('id', id).select('id, name, slug, start_date, end_date, venue_name, image_url').single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      revalidateFestivalPages()
       return NextResponse.json(data)
     }
 
@@ -57,6 +60,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    revalidateFestivalPages()
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

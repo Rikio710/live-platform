@@ -1,3 +1,4 @@
+import { revalidateArtistPages } from '@/lib/revalidatePages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/supabase/guards'
@@ -30,6 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         await (admin as any).from('artist_livefans_ids').upsert({ artist_id: id, livefans_id: lfId, crawl_page: 0 }, { onConflict: 'livefans_id' })
       }
     }
+    revalidateArtistPages(id)
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -48,6 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       image_crop_scale: body.image_crop_scale,
     }).eq('id', id).select('id, image_crop_x, image_crop_y, image_crop_scale').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    revalidateArtistPages(id)
     return NextResponse.json(data)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -61,6 +64,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const admin = createAdminClient()
     const { error } = await admin.from('artists').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    revalidateArtistPages(id)
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

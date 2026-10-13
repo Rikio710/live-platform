@@ -29,3 +29,23 @@ export async function revalidateConcertPages(admin: Client, concertIds: string[]
   for (const p of paths) revalidatePath(p)
   return paths.size
 }
+
+/** フェスのページ（一覧・各フェス・各年）をまとめて作り直す（管理画面での編集後） */
+export function revalidateFestivalPages(): void {
+  revalidatePath('/festivals', 'layout')
+}
+
+/** アーティストページと一覧を作り直す（管理画面での編集後） */
+export function revalidateArtistPages(artistId: string): void {
+  revalidatePath(`/artists/${artistId.slice(0, 8)}`)
+  revalidatePath('/artists')
+}
+
+/** ツアーページと、そのツアーの公演・アーティストのページを作り直す（管理画面での編集後） */
+export async function revalidateTourPages(admin: Client, tourId: string): Promise<void> {
+  revalidatePath(`/tours/${tourId.slice(0, 8)}`)
+  const { data } = await admin.from('concerts').select('id').eq('tour_id', tourId)
+  await revalidateConcertPages(admin, ((data ?? []) as { id: string }[]).map(c => c.id))
+  const { data: ta } = await admin.from('tour_artists').select('artist_id').eq('tour_id', tourId)
+  for (const r of (ta ?? []) as { artist_id: string }[]) revalidatePath(`/artists/${r.artist_id.slice(0, 8)}`)
+}
