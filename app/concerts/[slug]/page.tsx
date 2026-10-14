@@ -1,4 +1,4 @@
-import { fallbackColor } from '@/components/ui/FallbackArt'
+import { NameArt, fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { concertAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -327,7 +327,9 @@ export default async function ConcertPage({
                 {displayArtists.map((a: any) => (
                   <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
                     className="flex items-center gap-1.5 border border-white/10 hover:border-white/20 text-[#b3b3b3] hover:text-white text-xs px-3 py-1.5 rounded-full transition-colors">
-                    {a.image_url && <img src={a.image_url} alt={a.name} className="w-4 h-4 rounded-full object-cover" />}
+                    {a.image_url
+                      ? <img src={a.image_url} alt={a.name} className="w-4 h-4 rounded-full object-cover" />
+                      : <NameArt name={a.name} size="sm" className="w-4 h-4 rounded-full text-[8px]" />}
                     {a.name}
                   </Link>
                 ))}

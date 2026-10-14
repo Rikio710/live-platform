@@ -34,10 +34,10 @@ async function search(keyword: string): Promise<{ name: string; price: number; i
     price: it.itemPrice,
     image: (it.mediumImageUrls?.[0] ?? '').replace(/_ex=\d+x\d+/, '_ex=240x240'),
     url: it.itemUrl,
-  })).filter(it => it.image)
+  })).filter(it => it.image && !/no_?image/i.test(it.image)) // 画像なし（NO IMAGE）の商品は出さない
 }
 
-const cachedSearch = unstable_cache(search, ['rakuten-items-v1'], { revalidate: 604800 })
+const cachedSearch = unstable_cache(search, ['rakuten-items-v2'], { revalidate: 604800 })
 
 /** artist の名前を含む商品だけ、最大 limit 件（無関係な商品を出さないため） */
 export async function rakutenProducts(keyword: string, artist: string, limit = 3): Promise<AffiliateProduct[]> {

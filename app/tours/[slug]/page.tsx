@@ -1,4 +1,4 @@
-import { fallbackColor } from '@/components/ui/FallbackArt'
+import { NameArt, fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { tourAffiliateItems } from '@/lib/affiliate'
 import { fromSlugParam } from '@/lib/slugKey'
@@ -26,7 +26,7 @@ function shortIdRange(shortId: string) {
 }
 
 type TourWithArtists = Tables<'tours'> & {
-  tour_artists: { artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'> | null }[]
+  tour_artists: { order_num: number | null; artists: Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'> | null }[]
 }
 
 type TourConcert = Pick<Tables<'concerts'>, 'id' | 'slug' | 'venue_name' | 'venue_address' | 'date' | 'start_time' | 'image_url'> & {
@@ -115,7 +115,7 @@ export default async function TourPage({
 
   const { data: tourRaw, error: tourError } = await (() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const q = (supabase as any).from('tours').select('*, tour_artists(artists(id, name, image_url, image_crop_x, image_crop_y, slug))')
+    const q = (supabase as any).from('tours').select('*, tour_artists(order_num, artists(id, name, image_url, image_crop_x, image_crop_y, slug))')
     if (SHORT_ID_RE.test(slug)) {
       const { lo, hi } = shortIdRange(slug)
       return q.gte('id', lo).lt('id', hi)
@@ -127,7 +127,10 @@ export default async function TourPage({
   if (!tourRaw) notFound()
 
   const tour = tourRaw as TourWithArtists
-  const tourArtistList = (tour.tour_artists ?? []).map(ta => ta.artists).filter(Boolean) as Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'>[]
+  // 並び順: ツアーの主催アーティスト → order_num 順（対バン・複数出演のツアーで順番が乱れないように）
+  const tourArtistList = [...(tour.tour_artists ?? [])]
+    .sort((x, y) => (x.artists?.id === tour.artist_id ? -1 : y.artists?.id === tour.artist_id ? 1 : (x.order_num ?? 999) - (y.order_num ?? 999)))
+    .map(ta => ta.artists).filter(Boolean) as Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'>[]
   const standardSongsArticle = await getArtistArticle(supabase, tourArtistList[0]?.id)
   const firstArtist = tourArtistList[0] ?? null
 
@@ -261,12 +264,12 @@ export default async function TourPage({
       <nav className="text-xs text-[#8888aa] flex items-center gap-1 min-w-0 overflow-hidden">
         <Link href="/" className="hover:text-white transition-colors shrink-0">ホーム</Link>
         <span className="shrink-0">/</span>
-        {tourArtistList.map((a, i) => (
-          <span key={a.id} className="inline-flex items-center gap-1 min-w-0 shrink">
-            <Link href={`/artists/${a.id.slice(0, 8)}`} className="hover:text-white transition-colors min-w-0 truncate">{a.name}</Link>
-            {i < tourArtistList.length - 1 && <span className="text-[#555566] shrink-0">/</span>}
+        {firstArtist && (
+          <span className="inline-flex items-center gap-1 min-w-0 shrink">
+            <Link href={`/artists/${firstArtist.id.slice(0, 8)}`} className="hover:text-white transition-colors min-w-0 truncate">{firstArtist.name}</Link>
+            {tourArtistList.length > 1 && <span className="shrink-0">ほか</span>}
           </span>
-        ))}
+        )}
         {tourArtistList.length > 0 && <span className="shrink-0">/</span>}
         <span className="text-white min-w-0 truncate shrink">{tour.name}</span>
       </nav>
@@ -281,18 +284,23 @@ export default async function TourPage({
             />
           )}
           <div className="absolute inset-0 flex items-end p-5">
-            <div className="space-y-1">
-              {tourArtistList.map(a => (
-                <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
-                  className="inline-flex items-center gap-2 text-sm text-[#b3b3b3] hover:text-white transition-colors">
-                  {a.image_url && (
-                    <img src={a.image_url} alt={a.name} className="w-5 h-5 rounded-full object-cover"
-                      style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }}
-                    />
-                  )}
-                  {a.name}
-                </Link>
-              ))}
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {tourArtistList.slice(0, 6).map(a => (
+                  <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
+                    className="inline-flex items-center gap-1.5 text-sm text-[#d0d0d8] hover:text-white transition-colors min-w-0">
+                    {a.image_url ? (
+                      <img src={a.image_url} alt={a.name} className="w-5 h-5 rounded-full object-cover shrink-0"
+                        style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }}
+                      />
+                    ) : (
+                      <NameArt name={a.name} size="sm" className="w-5 h-5 rounded-full shrink-0 text-[9px]" />
+                    )}
+                    <span className="truncate">{a.name}</span>
+                  </Link>
+                ))}
+                {tourArtistList.length > 6 && <span className="text-sm text-[#b3b3b3]">ほか{tourArtistList.length - 6}組</span>}
+              </div>
               <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">{tour.name}</h1>
             </div>
           </div>
