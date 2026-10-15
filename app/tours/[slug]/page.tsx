@@ -308,32 +308,28 @@ export default async function TourPage({
             />
           )}
           <div className="relative flex items-end p-5 w-full">
-            <div className="space-y-1.5 min-w-0">
-              {isEvent && <p className="text-xs font-bold text-[#b3b3b3]">出演 {tourArtistList.length}組</p>}
-              <ShowMore
-                inline
-                initial={6}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1"
-                buttonClassName="text-sm text-[#b3b3b3] hover:text-white underline underline-offset-2"
-                items={tourArtistList.map(a => (
-                  <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
-                    className="inline-flex items-center gap-1.5 text-sm text-[#d0d0d8] hover:text-white transition-colors min-w-0">
-                    {a.image_url ? (
-                      <img src={a.image_url} alt={a.name} className="w-5 h-5 rounded-full object-cover shrink-0"
-                        style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }}
-                      />
-                    ) : (
-                      <NameArt name={a.name} size="sm" className="w-5 h-5 rounded-full shrink-0 text-[9px]" />
-                    )}
-                    <span className="truncate">{a.name}</span>
-                  </Link>
-                ))}
-              />
+            <div className="space-y-1 min-w-0">
+              {/* 写真の上は1行だけ: イベントは「出演 ○組」、通常は主催アーティスト（ほかの出演者は下のチップ） */}
+              {isEvent ? (
+                <p className="text-xs font-bold text-[#b3b3b3]">出演 {tourArtistList.length}組</p>
+              ) : firstArtist && (
+                <Link href={`/artists/${firstArtist.id.slice(0, 8)}`}
+                  className="inline-flex items-center gap-1.5 text-sm font-bold text-[#d0d0d8] hover:text-white transition-colors min-w-0">
+                  {firstArtist.image_url ? (
+                    <img src={firstArtist.image_url} alt={firstArtist.name} className="w-5 h-5 rounded-full object-cover shrink-0"
+                      style={{ objectPosition: `${firstArtist.image_crop_x ?? 50}% ${firstArtist.image_crop_y ?? 50}%` }} />
+                  ) : (
+                    <NameArt name={firstArtist.name} size="sm" className="w-5 h-5 rounded-full shrink-0 text-[9px]" />
+                  )}
+                  <span className="truncate">{firstArtist.name}{tourArtistList.length > 1 && <span className="font-normal text-[#b3b3b3]"> ほか{tourArtistList.length - 1}組</span>}</span>
+                </Link>
+              )}
               <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">{tour.name}</h1>
             </div>
           </div>
         </div>
-        <div className="px-5 py-4 flex flex-wrap gap-x-5 gap-y-1.5">
+        <div className="px-5 py-4 space-y-3">
+        <div className="flex flex-wrap gap-x-5 gap-y-1.5">
           {dateRangeText && (
             <p className="text-sm text-[#8888aa] flex items-center gap-1.5">
               <Calendar size={13} className="shrink-0" />
@@ -341,6 +337,24 @@ export default async function TourPage({
             </p>
           )}
           <p className="text-sm text-[#8888aa]">全 <span className="text-white font-bold">{concertCount}</span> 公演</p>
+        </div>
+          {/* 出演アーティスト（2組以上のとき。公演ページと同じチップ） */}
+          {tourArtistList.length > 1 && (
+            <ShowMore
+              inline
+              initial={6}
+              className="flex flex-wrap gap-2"
+              items={tourArtistList.map(a => (
+                <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
+                  className="flex items-center gap-1.5 border border-white/10 hover:border-white/20 text-[#b3b3b3] hover:text-white text-xs px-3 py-1.5 rounded-full transition-colors">
+                  {a.image_url
+                    ? <img src={a.image_url} alt={a.name} className="w-4 h-4 rounded-full object-cover" style={{ objectPosition: `${a.image_crop_x ?? 50}% ${a.image_crop_y ?? 50}%` }} />
+                    : <NameArt name={a.name} size="sm" className="w-4 h-4 rounded-full text-[8px]" />}
+                  {a.name}
+                </Link>
+              ))}
+            />
+          )}
         </div>
       </div>
 
