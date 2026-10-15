@@ -358,11 +358,6 @@ export default async function ConcertPage({
         </div>
       </div>
 
-      {/* SEO説明文 */}
-      <p className="text-sm text-[#8888aa] leading-relaxed">
-        {concertDescription}
-      </p>
-
       {/* タブコンテンツ */}
       <Suspense fallback={<div className="h-14 rounded-2xl border border-white/8" />}>
       <ConcertTabs
@@ -460,6 +455,11 @@ export default async function ConcertPage({
           </section>
         )
       })()}
+      {/* SEO説明文 */}
+      <p className="text-sm text-[#8888aa] leading-relaxed">
+        {concertDescription}
+      </p>
+
     </div>
   )
 }

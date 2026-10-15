@@ -142,7 +142,7 @@ export default async function ArtistPage({
     supabase
       .from('concerts').select('id, venue_name, date, tours(name)')
       .eq('artist_id', artist.id).gte('date', today)
-      .order('date', { ascending: true }).limit(3),
+      .order('date', { ascending: true }).limit(30),
     supabase
       .from('concerts').select('id, date, tours(name)')
       .eq('artist_id', artist.id).lt('date', today)
@@ -192,6 +192,7 @@ export default async function ArtistPage({
 
   if (upcomingConcerts && upcomingConcerts.length > 0) {
     const lines = (upcomingConcerts as Array<{ id: string; venue_name: string; date: string; tours: { name: string } | null }>)
+      .slice(0, 3)
       .map(c => {
         const dateStr = new Date(c.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
         const tourName = (c.tours as { name: string } | null)?.name
@@ -320,94 +321,6 @@ export default async function ArtistPage({
         </div>
       </div>
 
-      {/* SEOテキスト */}
-      <p className="text-sm text-[#8888aa] leading-relaxed">
-        {artist.name}のライブ・コンサートのセットリスト（セトリ）・参戦記録・掲示板。
-        {(tours ?? []).length > 0 && `${(tours ?? []).length}ツアー・`}
-        {totalSetlistConcerts > 0
-          ? `${totalSetlistConcerts}公演分のセトリを公開中。`
-          : 'ツアーごとに公演情報・セトリ速報を確認できます。'}
-        各会場のセットリスト全曲・参戦レポート・掲示板もLiveVaultで。
-      </p>
-
-
-      {/* 今後の公演 */}
-      {(upcomingConcerts ?? []).length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold text-white">今後の公演</h2>
-          <div className="space-y-2">
-            {(upcomingConcerts as Array<{ id: string; venue_name: string; date: string; tours: { name: string } | null }>).map(c => (
-              <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                className="glass rounded-2xl px-4 py-3 flex items-center gap-4 hover:border-white/20 transition-colors group">
-                <div className="shrink-0 text-center w-12">
-                  <p className="text-xs text-[#8888aa]">
-                    {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}
-                  </p>
-                  <p className="text-xl font-black text-white">
-                    {new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}
-                  </p>
-                  <p className="text-xs text-[#8888aa]">
-                    {new Date(c.date).toLocaleDateString('ja-JP', { weekday: 'short' })}
-                  </p>
-                </div>
-                <div className="w-px h-10 bg-white/10 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  {(c.tours as { name: string } | null)?.name && (
-                    <p className="text-xs text-[#b3b3b3] font-bold truncate">{(c.tours as { name: string }).name}</p>
-                  )}
-                  <p className="text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{c.venue_name}</p>
-                </div>
-                <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 対バン出演 */}
-      {/* 自分が主催の公演は除き、新しい順。5件より多ければ畳む */}
-      {(() => {
-        const list = ((taibanConcerts ?? []) as any[]).map((ca: any) => ca.concerts)
-          .filter((c: any) => c && c.artist_id !== artist.id)
-          .sort((a: any, b: any) => b.date.localeCompare(a.date))
-        if (list.length === 0) return null
-        return (
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold text-white">対バン・共演</h2>
-          <ShowMore
-            initial={5}
-            unit="件"
-            className="space-y-2"
-            items={list.map((c: any) => {
-              return (
-                <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
-                  className="glass rounded-2xl px-4 py-3 flex items-center gap-4 hover:border-white/20 transition-colors group">
-                  <div className="shrink-0 text-center w-12">
-                    <p className="text-xs text-[#8888aa]">{new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}</p>
-                    <p className="text-xl font-black text-white">{new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}</p>
-                  </div>
-                  <div className="w-px h-10 bg-white/10 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    {c.tours?.name && <p className="text-xs text-[#b3b3b3] font-bold truncate">{c.tours.name}</p>}
-                    <p className="text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{c.venue_name}</p>
-                  </div>
-                  <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
-                </Link>
-              )
-            })}
-          />
-        </section>
-        )
-      })()}
-
-      {/* 記事への導線（定番曲ランキング） */}
-      {standardSongsArticle && (
-        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} label="セトリの傾向をチェック" />
-      )}
-
-      {/* アフィリエイト（CD・ライブ映像・グッズ） */}
-      <AffiliateBox placement="artist" productQuery={{ q: `${artist.name} Blu-ray`, artist: artist.name }} items={artistAffiliateItems({ name: artist.name })} />
-
       {/* タブ（ライブ情報 / セトリ分析） */}
       <UrlTabs
         defaultKey="info"
@@ -446,8 +359,7 @@ export default async function ArtistPage({
             {isEmpty ? (
               <p className="text-sm text-[#8888aa]">ツアー情報がありません</p>
             ) : (
-              <div className="space-y-3">
-                {items.map(item => {
+              <ShowMore initial={8} unit="件" className="space-y-3" items={items.map(item => {
                   if (item.kind === 'tour') {
                     const t = item.tour
                     const concertCount = t.concerts.length
@@ -508,8 +420,7 @@ export default async function ArtistPage({
                       </Link>
                     )
                   }
-                })}
-              </div>
+                })} />
             )}
           </section>
         )
@@ -608,6 +519,92 @@ export default async function ArtistPage({
           },
         ]}
       />
+      {/* 今後の公演 */}
+      {(upcomingConcerts ?? []).length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-white">今後の公演</h2>
+          <ShowMore initial={3} unit="公演" className="space-y-2" items={(upcomingConcerts as Array<{ id: string; venue_name: string; date: string; tours: { name: string } | null }>).map(c => (
+              <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
+                className="glass rounded-2xl px-4 py-3 flex items-center gap-4 hover:border-white/20 transition-colors group">
+                <div className="shrink-0 text-center w-12">
+                  <p className="text-xs text-[#8888aa]">
+                    {new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}
+                  </p>
+                  <p className="text-xl font-black text-white">
+                    {new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}
+                  </p>
+                  <p className="text-xs text-[#8888aa]">
+                    {new Date(c.date).toLocaleDateString('ja-JP', { weekday: 'short' })}
+                  </p>
+                </div>
+                <div className="w-px h-10 bg-white/10 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  {(c.tours as { name: string } | null)?.name && (
+                    <p className="text-xs text-[#b3b3b3] font-bold truncate">{(c.tours as { name: string }).name}</p>
+                  )}
+                  <p className="text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{c.venue_name}</p>
+                </div>
+                <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
+              </Link>
+            ))} />
+        </section>
+      )}
+
+      {/* 対バン出演 */}
+      {/* 自分が主催の公演は除き、新しい順。5件より多ければ畳む */}
+      {(() => {
+        const list = ((taibanConcerts ?? []) as any[]).map((ca: any) => ca.concerts)
+          .filter((c: any) => c && c.artist_id !== artist.id)
+          .sort((a: any, b: any) => b.date.localeCompare(a.date))
+        if (list.length === 0) return null
+        return (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-white">対バン・共演</h2>
+          <ShowMore
+            initial={5}
+            unit="件"
+            className="space-y-2"
+            items={list.map((c: any) => {
+              return (
+                <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
+                  className="glass rounded-2xl px-4 py-3 flex items-center gap-4 hover:border-white/20 transition-colors group">
+                  <div className="shrink-0 text-center w-12">
+                    <p className="text-xs text-[#8888aa]">{new Date(c.date).toLocaleDateString('ja-JP', { month: 'short' })}</p>
+                    <p className="text-xl font-black text-white">{new Date(c.date).toLocaleDateString('ja-JP', { day: 'numeric' }).replace('日', '')}</p>
+                  </div>
+                  <div className="w-px h-10 bg-white/10 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    {c.tours?.name && <p className="text-xs text-[#b3b3b3] font-bold truncate">{c.tours.name}</p>}
+                    <p className="text-sm font-bold text-white group-hover:text-[#b3b3b3] transition-colors truncate">{c.venue_name}</p>
+                  </div>
+                  <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
+                </Link>
+              )
+            })}
+          />
+        </section>
+        )
+      })()}
+
+      {/* 記事への導線（定番曲ランキング） */}
+      {standardSongsArticle && (
+        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} label="セトリの傾向をチェック" />
+      )}
+
+      {/* アフィリエイト（CD・ライブ映像・グッズ） */}
+      <AffiliateBox placement="artist" productQuery={{ q: `${artist.name} Blu-ray`, artist: artist.name }} items={artistAffiliateItems({ name: artist.name })} />
+
+      {/* SEOテキスト */}
+      <p className="text-sm text-[#8888aa] leading-relaxed">
+        {artist.name}のライブ・コンサートのセットリスト（セトリ）・参戦記録・掲示板。
+        {(tours ?? []).length > 0 && `${(tours ?? []).length}ツアー・`}
+        {totalSetlistConcerts > 0
+          ? `${totalSetlistConcerts}公演分のセトリを公開中。`
+          : 'ツアーごとに公演情報・セトリ速報を確認できます。'}
+        各会場のセットリスト全曲・参戦レポート・掲示板もLiveVaultで。
+      </p>
+
+
     </div>
   )
 }

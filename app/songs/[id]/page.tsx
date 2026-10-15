@@ -123,11 +123,6 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
         />
       )}
 
-      {/* 記事への導線（定番曲ランキング） */}
-      {standardSongsArticle && (
-        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} label={`${artistName}のライブ定番曲をチェック`} />
-      )}
-
       {/* 演奏履歴 */}
       <div className="space-y-3">
         <p className="text-xs font-bold text-[#8888aa] uppercase tracking-widest">演奏された公演</p>
@@ -157,6 +152,11 @@ export default async function SongPage({ params }: { params: Promise<{ id: strin
           </div>
         )}
       </div>
+      {/* 記事への導線（定番曲ランキング） */}
+      {standardSongsArticle && (
+        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} label={`${artistName}のライブ定番曲をチェック`} />
+      )}
+
     </div>
   )
 }

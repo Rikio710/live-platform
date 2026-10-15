@@ -323,21 +323,6 @@ export default async function TourPage({
         </div>
       </div>
 
-      {/* SEOテキスト */}
-      <p className="text-xs text-[#8888aa] leading-relaxed">{seoDescription}</p>
-
-      {/* 記事への導線（定番曲ランキング） */}
-      {standardSongsArticle && (
-        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} />
-      )}
-
-      {/* アフィリエイト（映像作品・CD） */}
-      <AffiliateBox
-        placement="tour"
-        productQuery={tourArtistList[0] ? { q: `${tourArtistList[0].name} Blu-ray`, artist: tourArtistList[0].name } : null}
-        items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })}
-      />
-
       {/* タブ（公演一覧 / セトリ分析） */}
       <UrlTabs
         defaultKey="concerts"
@@ -372,8 +357,7 @@ export default async function TourPage({
               {(concerts ?? []).length === 0 ? (
                 <p className="text-sm text-[#8888aa]">公演情報がありません</p>
               ) : (
-                <div className="space-y-3">
-                  {(concerts ?? []).map((c) => {
+                <ShowMore initial={20} unit="公演" className="space-y-3" items={(concerts ?? []).map((c) => {
                     const isPast = c.date < today
                     return (
                       <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
@@ -434,8 +418,7 @@ export default async function TourPage({
                         <span className="text-[#8888aa] group-hover:text-[#b3b3b3] transition-colors shrink-0">›</span>
                       </Link>
                     )
-                  })}
-                </div>
+                  })} />
               )}
             </section>
             ),
@@ -527,6 +510,21 @@ export default async function TourPage({
           },
         ]}
       />
+      {/* SEOテキスト */}
+      <p className="text-xs text-[#8888aa] leading-relaxed">{seoDescription}</p>
+
+      {/* 記事への導線（定番曲ランキング） */}
+      {standardSongsArticle && (
+        <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} />
+      )}
+
+      {/* アフィリエイト（映像作品・CD） */}
+      <AffiliateBox
+        placement="tour"
+        productQuery={tourArtistList[0] ? { q: `${tourArtistList[0].name} Blu-ray`, artist: tourArtistList[0].name } : null}
+        items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })}
+      />
+
     </div>
   )
 }

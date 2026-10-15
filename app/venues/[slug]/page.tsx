@@ -1,3 +1,4 @@
+import ShowMore from '@/components/ui/ShowMore'
 import { fromSlugParam } from '@/lib/slugKey'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -170,6 +171,39 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
         </p>
       </div>
 
+      {/* 今後の公演 */}
+      {upcoming.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-bold text-white">今後の公演</h2>
+          <ShowMore initial={1} moreLabel={`ほか${upcoming.length - 10}公演を表示`} className="space-y-2" items={[
+            <ConcertList key="a" concerts={upcoming.slice(0, 10)} today={today} setlistConcertIds={setlistConcertIds} />,
+            ...(upcoming.length > 10 ? [<ConcertList key="b" concerts={upcoming.slice(10)} today={today} setlistConcertIds={setlistConcertIds} />] : []),
+          ]} />
+        </section>
+      )}
+
+      {/* 過去の開催ライブ一覧（年別） */}
+      {pastYears.length > 0 && (
+        <section className="space-y-6">
+          <h2 className="text-lg font-bold text-white">{venueName}の過去のライブ・セトリ一覧</h2>
+          {/* 新しい3年分だけ表示し、各年も10公演まで（大きな会場は数百公演になるため）。残りは「ほか○を表示」で広げる */}
+          <ShowMore initial={3} unit="年分" className="space-y-6" items={pastYears.map(year => {
+            const list = pastByYear.get(year)!
+            return (
+              <div key={year} className="space-y-2">
+                <h3 className="text-sm font-bold text-[#8888aa] flex items-center gap-2">
+                  <span>{year}年</span>
+                  <span className="text-[#555566]">({list.length}公演)</span>
+                </h3>
+                <ShowMore initial={1} moreLabel={`ほか${list.length - 10}公演を表示`} className="space-y-2" items={[
+                  <ConcertList key="a" concerts={list.slice(0, 10)} today={today} setlistConcertIds={setlistConcertIds} />,
+                  ...(list.length > 10 ? [<ConcertList key="b" concerts={list.slice(10)} today={today} setlistConcertIds={setlistConcertIds} />] : []),
+                ]} />
+              </div>
+            )
+          })} />
+        </section>
+      )}
       {/* 出演アーティスト */}
       {artists.length > 0 && (
         <section className="space-y-3">
@@ -177,8 +211,7 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
             <Music2 size={14} />
             出演アーティスト
           </h2>
-          <div className="flex flex-wrap gap-2">
-            {artists.map(a => (
+          <ShowMore initial={12} className="flex flex-wrap gap-2" items={artists.map(a => (
               <Link
                 key={a.id}
                 href={`/artists/${a.id.slice(0, 8)}`}
@@ -187,32 +220,7 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
                 {a.name}
                 <span className="text-[#555566]">{a.count}</span>
               </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 今後の公演 */}
-      {upcoming.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-white">今後の公演</h2>
-          <ConcertList concerts={upcoming} today={today} setlistConcertIds={setlistConcertIds} />
-        </section>
-      )}
-
-      {/* 過去の開催ライブ一覧（年別） */}
-      {pastYears.length > 0 && (
-        <section className="space-y-6">
-          <h2 className="text-lg font-bold text-white">{venueName}の過去のライブ・セトリ一覧</h2>
-          {pastYears.map(year => (
-            <div key={year} className="space-y-2">
-              <h3 className="text-sm font-bold text-[#8888aa] flex items-center gap-2">
-                <span>{year}年</span>
-                <span className="text-[#555566]">({pastByYear.get(year)!.length}公演)</span>
-              </h3>
-              <ConcertList concerts={pastByYear.get(year)!} today={today} setlistConcertIds={setlistConcertIds} />
-            </div>
-          ))}
+            ))} />
         </section>
       )}
     </div>
@@ -276,6 +284,7 @@ function ConcertList({
           </Link>
         )
       })}
+
     </div>
   )
 }
