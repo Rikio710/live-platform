@@ -1,3 +1,4 @@
+import ShowMore from '@/components/ui/ShowMore'
 import { NameArt, TitleArt } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { artistAffiliateItems } from '@/lib/affiliate'
@@ -155,7 +156,7 @@ export default async function ArtistPage({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from('concert_artists')
-      .select('concerts(id, venue_name, date, tour_id, tours(id, name))')
+      .select('concerts(id, artist_id, venue_name, date, tour_id, tours(id, name))')
       .eq('artist_id', artist.id)
       .order('created_at', { ascending: false })
       .limit(20),
@@ -364,13 +365,20 @@ export default async function ArtistPage({
       )}
 
       {/* 対バン出演 */}
-      {(taibanConcerts ?? []).length > 0 && (
+      {/* 自分が主催の公演は除き、新しい順。5件より多ければ畳む */}
+      {(() => {
+        const list = ((taibanConcerts ?? []) as any[]).map((ca: any) => ca.concerts)
+          .filter((c: any) => c && c.artist_id !== artist.id)
+          .sort((a: any, b: any) => b.date.localeCompare(a.date))
+        if (list.length === 0) return null
+        return (
         <section className="space-y-3">
           <h2 className="text-sm font-bold text-white">対バン・共演</h2>
-          <div className="space-y-2">
-            {(taibanConcerts as any[]).map((ca: any) => {
-              const c = ca.concerts
-              if (!c) return null
+          <ShowMore
+            initial={5}
+            unit="件"
+            className="space-y-2"
+            items={list.map((c: any) => {
               return (
                 <Link key={c.id} href={`/concerts/${c.id.slice(0, 8)}`}
                   className="glass rounded-2xl px-4 py-3 flex items-center gap-4 hover:border-white/20 transition-colors group">
@@ -387,9 +395,10 @@ export default async function ArtistPage({
                 </Link>
               )
             })}
-          </div>
+          />
         </section>
-      )}
+        )
+      })()}
 
       {/* 記事への導線（定番曲ランキング） */}
       {standardSongsArticle && (

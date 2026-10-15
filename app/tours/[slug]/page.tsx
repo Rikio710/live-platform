@@ -1,3 +1,5 @@
+import { artistNamesText } from '@/lib/artistNames'
+import ShowMore from '@/components/ui/ShowMore'
 import { NameArt, fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { tourAffiliateItems } from '@/lib/affiliate'
@@ -40,12 +42,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const slug = fromSlugParam(rawSlug)
   const supabase = createPublicClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const query = (supabase as any).from('tours').select('id, name, image_url, start_date, end_date, tour_artists(artists(name))')
+  const query = (supabase as any).from('tours').select('id, name, image_url, start_date, end_date, artist_id, tour_artists(order_num, artists(id, name))')
   let metaQuery = UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
   const { data } = await metaQuery.single()
   if (!data) return { title: 'ツアー' }
-  const metaTour = data as { id: string; name: string; image_url: string | null; start_date: string | null; end_date: string | null; tour_artists: { artists: { name: string } | null }[] }
-  const artistName = metaTour.tour_artists?.map(ta => ta.artists?.name).filter(Boolean).join(' / ') ?? ''
+  const metaTour = data as { id: string; name: string; image_url: string | null; start_date: string | null; end_date: string | null; artist_id: string | null; tour_artists: { order_num: number | null; artists: { id: string; name: string } | null }[] }
+  // ページと同じ並び（主催アーティスト → order_num 順）
+  const metaArtists = [...(metaTour.tour_artists ?? [])]
+    .sort((x, y) => (x.artists?.id === metaTour.artist_id ? -1 : y.artists?.id === metaTour.artist_id ? 1 : (x.order_num ?? 999) - (y.order_num ?? 999)))
+  const artistName = artistNamesText(metaArtists.map(ta => ta.artists?.name), 2)
 
   const { data: metaConcerts } = await supabase
     .from('concerts')
@@ -212,7 +217,7 @@ export default async function TourPage({
   }
 
   const firstConcert = (concerts ?? [])[0]
-  const allArtistNames = tourArtistList.map(a => a.name).join(' / ')
+  const allArtistNames = artistNamesText(tourArtistList.map(a => a.name), 3)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'MusicEvent',
@@ -285,8 +290,11 @@ export default async function TourPage({
           )}
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1.5 min-w-0">
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
-                {tourArtistList.slice(0, 6).map(a => (
+              <ShowMore
+                initial={6}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                buttonClassName="text-sm text-[#b3b3b3] hover:text-white underline underline-offset-2"
+                items={tourArtistList.map(a => (
                   <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
                     className="inline-flex items-center gap-1.5 text-sm text-[#d0d0d8] hover:text-white transition-colors min-w-0">
                     {a.image_url ? (
@@ -299,8 +307,7 @@ export default async function TourPage({
                     <span className="truncate">{a.name}</span>
                   </Link>
                 ))}
-                {tourArtistList.length > 6 && <span className="text-sm text-[#b3b3b3]">ほか{tourArtistList.length - 6}組</span>}
-              </div>
+              />
               <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">{tour.name}</h1>
             </div>
           </div>
@@ -409,7 +416,7 @@ export default async function TourPage({
                             return (
                               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                                 <span className="text-[10px] text-[#555566]">ゲスト:</span>
-                                {guests.map(a => (
+                                {guests.slice(0, 3).map(a => (
                                   <Link key={a!.id} href={`/artists/${a!.id.slice(0, 8)}`}
                                     className="flex items-center gap-1 text-[10px] text-[#8888aa] hover:text-white border border-white/10 hover:border-white/20 rounded-full px-2 py-0.5 transition-colors">
                                     {a!.image_url && (
@@ -419,6 +426,7 @@ export default async function TourPage({
                                     {a!.name}
                                   </Link>
                                 ))}
+                                {guests.length > 3 && <span className="text-[10px] text-[#8888aa]">ほか{guests.length - 3}組</span>}
                               </div>
                             )
                           })()}

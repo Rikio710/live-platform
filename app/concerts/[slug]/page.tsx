@@ -1,3 +1,4 @@
+import ShowMore from '@/components/ui/ShowMore'
 import { NameArt, fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
 import { concertAffiliateItems } from '@/lib/affiliate'
@@ -323,8 +324,10 @@ export default async function ConcertPage({
             const displayArtists = fromConcertArtists.length > 0 ? fromConcertArtists : (c.artists ? [c.artists] : [])
             if (displayArtists.length <= 1 && fromConcertArtists.length === 0) return null
             return (
-              <div className="flex flex-wrap gap-2">
-                {displayArtists.map((a: any) => (
+              <ShowMore
+                initial={6}
+                className="flex flex-wrap gap-2"
+                items={displayArtists.map((a: any) => (
                   <Link key={a.id} href={`/artists/${a.id.slice(0, 8)}`}
                     className="flex items-center gap-1.5 border border-white/10 hover:border-white/20 text-[#b3b3b3] hover:text-white text-xs px-3 py-1.5 rounded-full transition-colors">
                     {a.image_url
@@ -333,7 +336,7 @@ export default async function ConcertPage({
                     {a.name}
                   </Link>
                 ))}
-              </div>
+              />
             )
           })()}
 
