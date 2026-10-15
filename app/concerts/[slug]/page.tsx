@@ -324,7 +324,7 @@ export default async function ConcertPage({
             const displayArtists = fromConcertArtists.length > 0 ? fromConcertArtists : (c.artists ? [c.artists] : [])
             if (displayArtists.length <= 1 && fromConcertArtists.length === 0) return null
             return (
-              <ShowMore
+              <ShowMore inline
                 initial={6}
                 className="flex flex-wrap gap-2"
                 items={displayArtists.map((a: any) => (

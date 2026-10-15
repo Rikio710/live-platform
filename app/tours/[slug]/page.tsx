@@ -291,6 +291,7 @@ export default async function TourPage({
           <div className="absolute inset-0 flex items-end p-5">
             <div className="space-y-1.5 min-w-0">
               <ShowMore
+                inline
                 initial={6}
                 className="flex flex-wrap items-center gap-x-3 gap-y-1"
                 buttonClassName="text-sm text-[#b3b3b3] hover:text-white underline underline-offset-2"

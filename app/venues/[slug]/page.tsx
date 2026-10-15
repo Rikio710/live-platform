@@ -211,7 +211,7 @@ export default async function VenuePage({ params }: { params: Promise<{ slug: st
             <Music2 size={14} />
             出演アーティスト
           </h2>
-          <ShowMore initial={12} className="flex flex-wrap gap-2" items={artists.map(a => (
+          <ShowMore inline initial={12} className="flex flex-wrap gap-2" items={artists.map(a => (
               <Link
                 key={a.id}
                 href={`/artists/${a.id.slice(0, 8)}`}
