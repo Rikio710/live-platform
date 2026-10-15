@@ -44,14 +44,17 @@ export default function AffiliateBox({ items, productQuery, placement, title = '
               target="_blank"
               rel="sponsored nofollow noopener noreferrer"
               onClick={() => dataLayerPush({ event: 'affiliate_click', affiliate_provider: 'rakuten_item', affiliate_placement: placement })}
-              className="min-w-0 rounded-xl bg-white/5 hover:bg-white/10 p-2 transition-colors space-y-1.5"
+              // スマホ: 縦長の小さなカード3枚 / PC・タブレット: 小さい画像＋横に商品名・値段（画像が大きくなりすぎないように）
+              className="min-w-0 rounded-xl bg-white/5 hover:bg-white/10 p-2 transition-colors space-y-1.5 sm:space-y-0 sm:flex sm:items-center sm:gap-3"
             >
-              <div className="aspect-square rounded-lg bg-white overflow-hidden">
+              <div className="aspect-square rounded-lg bg-white overflow-hidden sm:w-16 sm:h-16 sm:shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.image} alt="" loading="lazy" className="w-full h-full object-contain" />
               </div>
-              <p className="text-[11px] text-white leading-snug line-clamp-2 break-words">{p.name}</p>
-              <p className="text-xs font-bold text-white tabular-nums">¥{p.price.toLocaleString('ja-JP')}<span className="text-[10px] font-normal text-[#8888aa] ml-1">楽天</span></p>
+              <div className="min-w-0 space-y-1.5 sm:space-y-1">
+                <p className="text-[11px] sm:text-xs text-white leading-snug line-clamp-2 break-words">{p.name}</p>
+                <p className="text-xs font-bold text-white tabular-nums">¥{p.price.toLocaleString('ja-JP')}<span className="text-[10px] font-normal text-[#8888aa] ml-1">楽天</span></p>
+              </div>
             </a>
           ))}
         </div>
