@@ -1,3 +1,4 @@
+import { isEventByPerformers } from '@/lib/eventMode'
 import { artistNamesText } from '@/lib/artistNames'
 import ShowMore from '@/components/ui/ShowMore'
 import { NameArt, fallbackColor } from '@/components/ui/FallbackArt'
@@ -65,6 +66,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const year = metaTour.start_date ? new Date(metaTour.start_date).getFullYear() : null
   const countText = concertCount ? `全${concertCount}公演` : ''
   const yearText = year ? `【${year}年】` : ''
+  // 出演者が5組以上のイベント（紅白・音楽の日など）は、アーティスト名を並べない
+  if (isEventByPerformers(metaArtists.length)) {
+    const evTitle = `${data.name} ${hasSetlist ? 'セトリ・出演者一覧' : '出演者・ライブ情報'} ${countText}${yearText}`.trim()
+    const evDesc = `「${data.name}」${countText}の出演アーティスト${metaArtists.length}組${hasSetlist ? '・セットリスト（セトリ）' : ''}。参戦者の感想・掲示板・セトリ投稿受付中。ライブ体験をLiveVaultで記録・共有しよう。`
+    const canonical = `${siteUrl}/tours/${SHORT_ID_RE.test(slug) ? slug : metaTour.id.slice(0, 8)}`
+    return {
+      title: evTitle, description: evDesc, alternates: { canonical },
+      openGraph: { title: evTitle, description: evDesc, url: canonical, ...(metaTour.image_url ? { images: [{ url: metaTour.image_url, width: 1200, height: 630, alt: evTitle }] } : {}) },
+      twitter: { card: 'summary_large_image', title: evTitle, description: evDesc },
+    }
+  }
   const title = hasSetlist
     ? `${artistName} ${data.name} セトリ・セットリスト一覧 ${countText}${yearText}`.trim()
     : `${artistName} ${data.name} ライブ情報 ${countText}${yearText}`.trim()
@@ -133,8 +145,10 @@ export default async function TourPage({
 
   const tour = tourRaw as TourWithArtists
   // 並び順: ツアーの主催アーティスト → order_num 順（対バン・複数出演のツアーで順番が乱れないように）
+  // イベント（出演5組以上）は主催アーティストを先頭にしない（取り込み元のアーティストが先頭に来てしまうため）
+  const mainFirst = !isEventByPerformers((tour.tour_artists ?? []).length)
   const tourArtistList = [...(tour.tour_artists ?? [])]
-    .sort((x, y) => (x.artists?.id === tour.artist_id ? -1 : y.artists?.id === tour.artist_id ? 1 : (x.order_num ?? 999) - (y.order_num ?? 999)))
+    .sort((x, y) => (mainFirst && x.artists?.id === tour.artist_id ? -1 : mainFirst && y.artists?.id === tour.artist_id ? 1 : (x.order_num ?? 999) - (y.order_num ?? 999)))
     .map(ta => ta.artists).filter(Boolean) as Pick<Tables<'artists'>, 'id' | 'name' | 'image_url' | 'image_crop_x' | 'image_crop_y' | 'slug'>[]
   const standardSongsArticle = await getArtistArticle(supabase, tourArtistList[0]?.id)
   const firstArtist = tourArtistList[0] ?? null
@@ -249,7 +263,9 @@ export default async function TourPage({
 
   const tourArtistIdSet = new Set(tourArtistList.map(a => a.id))
   const concertCount = (concerts ?? []).length
-  const headerImage = tour.image_url ?? firstArtist?.image_url ?? null
+  const isEvent = isEventByPerformers(tourArtistList.length)
+  // イベントは取り込み元のアーティストの写真を使わない（ツアー自体の画像がなければ単色＋ツアー名）
+  const headerImage = tour.image_url ?? (isEvent ? null : firstArtist?.image_url) ?? null
   const dateRangeText = (() => {
     if (tour.start_date && tour.end_date) {
       const s = new Date(tour.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -259,7 +275,9 @@ export default async function TourPage({
     if (tour.start_date) return new Date(tour.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' }) + '〜'
     return null
   })()
-  const seoDescription = `${allArtistNames}「${tour.name}」全${concertCount}公演のセットリスト（セトリ）・参戦記録。${dateRangeText ? `${dateRangeText}開催。` : ''}各会場のセトリ速報・ライブレポ・掲示板を公演ごとに確認できます。`
+  const seoDescription = isEvent
+    ? `「${tour.name}」の出演アーティスト${tourArtistList.length}組・全${concertCount}公演のセットリスト（セトリ）・参戦記録。${dateRangeText ? `${dateRangeText}開催。` : ''}各会場のセトリ速報・ライブレポ・掲示板を公演ごとに確認できます。`
+    : `${allArtistNames}「${tour.name}」全${concertCount}公演のセットリスト（セトリ）・参戦記録。${dateRangeText ? `${dateRangeText}開催。` : ''}各会場のセトリ速報・ライブレポ・掲示板を公演ごとに確認できます。`
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
@@ -269,27 +287,29 @@ export default async function TourPage({
       <nav className="text-xs text-[#8888aa] flex items-center gap-1 min-w-0 overflow-hidden">
         <Link href="/" className="hover:text-white transition-colors shrink-0">ホーム</Link>
         <span className="shrink-0">/</span>
-        {firstArtist && (
+        {firstArtist && !isEvent && (
           <span className="inline-flex items-center gap-1 min-w-0 shrink">
             <Link href={`/artists/${firstArtist.id.slice(0, 8)}`} className="hover:text-white transition-colors min-w-0 truncate">{firstArtist.name}</Link>
             {tourArtistList.length > 1 && <span className="shrink-0">ほか</span>}
           </span>
         )}
-        {tourArtistList.length > 0 && <span className="shrink-0">/</span>}
+        {tourArtistList.length > 0 && !isEvent && <span className="shrink-0">/</span>}
         <span className="text-white min-w-0 truncate shrink">{tour.name}</span>
       </nav>
 
       {/* ヘッダー画像 + ツアー情報 */}
       <div className="glass rounded-2xl overflow-hidden">
-        <div className="relative h-40 sm:h-56 bg-gradient-to-br from-[#282828]/60 to-[#282828]/40"
+        {/* 高さは最低 h-40（PC h-56）。出演者を広げたときは中身に合わせて伸ばす */}
+        <div className="relative min-h-40 sm:min-h-56 flex items-end bg-gradient-to-br from-[#282828]/60 to-[#282828]/40"
           style={!headerImage ? { background: fallbackColor(tour.name) } : undefined}>
           {headerImage && (
-            <img src={headerImage} alt={tour.name} className="w-full h-full object-cover opacity-40"
+            <img src={headerImage} alt={tour.name} className="absolute inset-0 w-full h-full object-cover opacity-40"
               style={!tour.image_url ? { objectPosition: `${firstArtist?.image_crop_x ?? 50}% ${firstArtist?.image_crop_y ?? 50}%` } : undefined}
             />
           )}
-          <div className="absolute inset-0 flex items-end p-5">
+          <div className="relative flex items-end p-5 w-full">
             <div className="space-y-1.5 min-w-0">
+              {isEvent && <p className="text-xs font-bold text-[#b3b3b3]">出演 {tourArtistList.length}組</p>}
               <ShowMore
                 inline
                 initial={6}
@@ -515,16 +535,16 @@ export default async function TourPage({
       <p className="text-xs text-[#8888aa] leading-relaxed">{seoDescription}</p>
 
       {/* 記事への導線（定番曲ランキング） */}
-      {standardSongsArticle && (
+      {standardSongsArticle && !isEvent && (
         <ArticlePromoCard href={articlePath(standardSongsArticle)} title={displayTitle(standardSongsArticle)} />
       )}
 
       {/* アフィリエイト（映像作品・CD） */}
-      <AffiliateBox
+      {!isEvent && <AffiliateBox
         placement="tour"
         productQuery={tourArtistList[0] ? { q: `${tourArtistList[0].name} Blu-ray`, artist: tourArtistList[0].name } : null}
         items={tourAffiliateItems({ artist: tourArtistList[0]?.name ?? null, tour: tour.name })}
-      />
+      />}
 
     </div>
   )

@@ -1,3 +1,4 @@
+import { isEventByPerformers } from '@/lib/eventMode'
 import ShowMore from '@/components/ui/ShowMore'
 import { NameArt, fallbackColor } from '@/components/ui/FallbackArt'
 import AffiliateBox from '@/components/features/affiliate/AffiliateBox'
@@ -51,7 +52,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const supabase = createPublicClient()
   const query = supabase
     .from('concerts')
-    .select('id, venue_name, date, image_url, artists(name), tours(name, image_url), setlist_submissions(id)')
+    .select('id, venue_name, date, image_url, artists(name), tours(name, image_url), setlist_submissions(id), concert_artists(artist_id)')
   let metaQuery = UUID_RE.test(slug) ? query.eq('id', slug) : SHORT_ID_RE.test(slug) ? (() => { const { lo, hi } = shortIdRange(slug); return query.gte('id', lo).lt('id', hi) })() : query.eq('slug', slug)
   const { data } = await metaQuery.single()
   if (!data) return { title: '公演' }
@@ -60,6 +61,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const dateStr = new Date(d.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
   const dateShort = new Date(d.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })
   const hasSetlist = (d.setlist_submissions ?? []).length > 0
+  // 出演者が5組以上のイベント（紅白・音楽の日など）は、取り込み元のアーティスト名を出さない
+  const performerCount = ((data as unknown as { concert_artists?: unknown[] }).concert_artists ?? []).length
+  if (isEventByPerformers(performerCount)) {
+    const evName = d.tours?.name ?? d.venue_name
+    const evTitle = `${evName} ${d.venue_name} ${dateShort} ${hasSetlist ? 'セトリ・出演者' : '出演者・ライブ情報'}`
+    const evDesc = `「${evName}」${dateStr} ${d.venue_name}の出演アーティスト${performerCount}組${hasSetlist ? '・セットリスト' : ''}。参戦者の感想・掲示板・参戦登録はLiveVaultで。`
+    const evImage = d.image_url ?? d.tours?.image_url ?? null
+    return {
+      title: evTitle, description: evDesc,
+      alternates: { canonical: `${siteUrl}/concerts/${shortId}` },
+      openGraph: { title: evTitle, description: evDesc, url: `${siteUrl}/concerts/${shortId}`, ...(evImage ? { images: [{ url: evImage, width: 1200, height: 630, alt: evTitle }] } : {}) },
+      twitter: { card: 'summary_large_image', title: evTitle, description: evDesc },
+    }
+  }
   const title = hasSetlist
     ? `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} ${dateShort} セトリ・セットリスト`
     : `${d.artists?.name} ${d.tours?.name ?? ''} ${d.venue_name} ${dateShort} ライブ情報`
@@ -151,7 +166,9 @@ export default async function ConcertPage({
 
   const songs = (topSetlist?.setlist_songs ?? []) as Array<{ song_name: string; song_type: string; order_num: number; is_encore: boolean }>
   const sortedSongs = [...songs].sort((a, b) => a.order_num - b.order_num)
-  const standardSongsArticle = await getArtistArticle(supabase, c.artists?.id)
+  const performerCount = (concertArtists as unknown[] | null ?? []).length
+  const isEvent = isEventByPerformers(performerCount)
+  const standardSongsArticle = isEvent ? null : await getArtistArticle(supabase, c.artists?.id)
 
   const breadcrumbLd = {
     '@context': 'https://schema.org',
@@ -164,7 +181,9 @@ export default async function ConcertPage({
     ],
   }
 
-  const concertDescription = `${c.artists?.name}の${c.venue_name}（${dateStr}）のセットリスト・ライブ参戦記録です。セトリ投稿・感想の共有・掲示板での交流ができます。`
+  const concertDescription = isEvent
+    ? `「${c.tours?.name ?? c.venue_name}」${c.venue_name}（${dateStr}）の出演アーティスト${performerCount}組・セットリスト・ライブ参戦記録です。セトリ投稿・感想の共有・掲示板での交流ができます。`
+    : `${c.artists?.name}の${c.venue_name}（${dateStr}）のセットリスト・ライブ参戦記録です。セトリ投稿・感想の共有・掲示板での交流ができます。`
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -223,7 +242,7 @@ export default async function ConcertPage({
       <nav className="text-xs text-[#8888aa] flex items-center gap-1 min-w-0 overflow-hidden">
         <Link href="/" className="hover:text-white transition-colors shrink-0">ホーム</Link>
         <span className="shrink-0">/</span>
-        {c.artists && (
+        {c.artists && !isEvent && (
           <>
             <Link href={`/artists/${c.artists.id.slice(0, 8)}`} className="hover:text-white transition-colors min-w-0 truncate shrink">{c.artists.name}</Link>
             <span className="shrink-0">/</span>
@@ -242,8 +261,8 @@ export default async function ConcertPage({
       <div className="glass rounded-2xl overflow-hidden">
         <div className="relative h-48 sm:h-64 bg-gradient-to-br from-[#282828]/60 to-[#282828]/40">
           {(() => {
-            const bgSrc = c.image_url ?? c.festival_events?.image_url ?? c.tours?.image_url ?? c.artists?.image_url ?? null
-            const useArtistCrop = !c.image_url && !c.festival_events?.image_url && !c.tours?.image_url && c.artists
+            const bgSrc = c.image_url ?? c.festival_events?.image_url ?? c.tours?.image_url ?? (isEvent ? null : c.artists?.image_url) ?? null
+            const useArtistCrop = !isEvent && !c.image_url && !c.festival_events?.image_url && !c.tours?.image_url && c.artists
             return bgSrc ? (
               <img src={bgSrc} alt="" className="w-full h-full object-cover opacity-40"
                 style={useArtistCrop ? { objectPosition: `${c.artists?.image_crop_x ?? 50}% ${c.artists?.image_crop_y ?? 50}%` } : undefined} />
@@ -272,7 +291,9 @@ export default async function ConcertPage({
                 </>
               ) : (
                 <>
-                  {c.artists && (
+                  {isEvent ? (
+                    <p className="text-sm text-[#b3b3b3] font-bold">出演 {performerCount}組</p>
+                  ) : c.artists && (
                     <Link href={`/artists/${c.artists.id.slice(0, 8)}`}
                       className="text-sm text-[#b3b3b3] font-bold hover:text-white transition-colors">
                       {c.artists.name}
@@ -372,14 +393,14 @@ export default async function ConcertPage({
       </Suspense>
 
       {/* アフィリエイト（開催前: 会場近くのホテル / 開催後: 映像作品・CD） */}
-      <AffiliateBox
+      {!isEvent && <AffiliateBox
         placement="concert"
         productQuery={c.artists?.name ? { q: `${c.artists.name} ${isUpcoming ? 'CD' : 'Blu-ray'}`, artist: c.artists.name } : null}
         items={concertAffiliateItems({
           artist: c.artists?.name ?? null, tour: c.tours?.name ?? null, venue: c.venue_name,
           upcoming: c.date >= new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }),
         })}
-      />
+      />}
 
       {/* 記事への導線（定番曲ランキング） */}
       {standardSongsArticle && (
