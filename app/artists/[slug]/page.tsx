@@ -73,7 +73,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const keywords = [`${data.name} セトリ`, `${data.name} セットリスト`, `${data.name} ライブ`, `${data.name} コンサート`, `${data.name} 参戦`, 'セトリ', 'セットリスト', 'ライブ']
 
   const image = data.image_url ?? null
+  // 公演が1つもないアーティストは検索結果に出さない（中身のないページになるため。公演が入れば自動で解除）
+  const [{ count: hostCount }, { count: perfCount }] = await Promise.all([
+    supabase.from('concerts').select('id', { count: 'exact', head: true }).eq('artist_id', data.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('concert_artists').select('id', { count: 'exact', head: true }).eq('artist_id', data.id),
+  ])
+  const noConcerts = (hostCount ?? 0) === 0 && (perfCount ?? 0) === 0
   return {
+    ...(noConcerts ? { robots: { index: false, follow: true } } : {}),
     title,
     description,
     keywords,

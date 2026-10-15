@@ -1,3 +1,4 @@
+import { activeArtistIds } from '@/lib/activeArtists'
 import type { MetadataRoute } from 'next'
 import { createPublicClient } from '@/lib/supabase/public'
 import { siteUrl } from '@/lib/site'
@@ -26,10 +27,10 @@ async function buildSitemapUncached(id: number): Promise<MetadataRoute.Sitemap> 
 
   // 1: アーティスト
   if (id === 1) {
-    const artists = await fetchAllRows<{ id: string }>((from, to) =>
-      supabase.from('artists').select('id').order('id').range(from, to))
-    return artists.map(a => ({
-      url: `${siteUrl}/artists/${a.id.slice(0, 8)}`, lastModified: now, changeFrequency: 'weekly', priority: 0.7,
+    // 公演があるアーティストだけ（公演のないアーティストのページは noindex）
+    const ids = await activeArtistIds()
+    return ids.sort().map(id => ({
+      url: `${siteUrl}/artists/${id.slice(0, 8)}`, lastModified: now, changeFrequency: 'weekly', priority: 0.7,
     }))
   }
 
