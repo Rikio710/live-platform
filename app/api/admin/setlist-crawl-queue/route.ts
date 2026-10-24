@@ -17,7 +17,8 @@ const DELAY_MS = 400
 // 3回目失敗 → 終了
 const RETRY_HOURS = [24, 48]
 
-async function scrapeSetlist(eventId: number): Promise<{ songs: { song_name: string; is_encore: boolean; order_num: number }[] }> {
+// status: LiveFans の応答（HTTP ステータス。通信エラーは 0）。403 などは「セトリなし」と区別する（2026-10 拒否に気づけなかったため）
+async function scrapeSetlist(eventId: number): Promise<{ songs: { song_name: string; is_encore: boolean; order_num: number }[]; status: number }> {
   const url = `${BASE}/events/${eventId}`
   const headers = {
     'User-Agent': UA,
@@ -26,16 +27,16 @@ async function scrapeSetlist(eventId: number): Promise<{ songs: { song_name: str
   }
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) })
-    if (!res.ok) return { songs: [] }
+    if (!res.ok) return { songs: [], status: res.status }
     const html = await res.text()
     const cookies = res.headers.get('set-cookie') ?? ''
 
     // 曲順のシャッフル（旧形式）・新形式の両方に対応した共通処理
     const songs = await parseLivefansSetlist(html, { url, cookies, headers })
-    if (!songs) return { songs: [] } // 並べ替えモードが取れず曲順を保証できない → 次回再試行
-    return { songs }
+    if (!songs) return { songs: [], status: res.status } // 並べ替えモードが取れず曲順を保証できない → 次回再試行
+    return { songs, status: res.status }
   } catch {
-    return { songs: [] }
+    return { songs: [], status: 0 }
   }
 }
 
@@ -120,6 +121,8 @@ export async function GET(req: NextRequest) {
 
   let found = 0, not_found = 0, skipped = 0
   const foundIds: string[] = []
+  const statuses: Record<string, number> = {}
+  let blocked = false
 
   for (const concert of dueList) {
     // 既にセトリあり → キューから外す
@@ -134,7 +137,15 @@ export async function GET(req: NextRequest) {
 
     if (found + not_found > 0) await new Promise(r => setTimeout(r, DELAY_MS))
 
-    const { songs } = await scrapeSetlist(concert.livefans_event_id)
+    const { songs, status } = await scrapeSetlist(concert.livefans_event_id)
+    statuses[status] = (statuses[status] ?? 0) + 1
+
+    if (status !== 200) {
+      // 拒否・エラー（403・429・5xx・通信エラーなど）: 「セトリなし」と数えず、この回はここで止める（繰り返しアクセスしない）
+      console.error(`[setlist-crawl] LiveFans status ${status} for event ${concert.livefans_event_id}; stopping this run`)
+      blocked = true
+      break
+    }
 
     if (songs.length > 0) {
       // セトリ取得成功 → 登録してキューから外す
@@ -187,5 +198,7 @@ export async function GET(req: NextRequest) {
     found,
     not_found,
     skipped,
+    statuses,
+    blocked,
   })
 }
