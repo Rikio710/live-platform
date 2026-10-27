@@ -1,8 +1,9 @@
 name: Setlist Auto Crawl
 
 on:
-  schedule:
-    - cron: '0 */2 * * *'  # 2時間おき（UTC）
+  # 2026-10-27 一旦停止: LiveFans が Vercel からのアクセスも 403 で拒否しているため（再開するときは下の2行を戻す）
+  # schedule:
+  #   - cron: '0 */2 * * *'  # 2時間おき（UTC）
   workflow_dispatch:         # 手動実行も可能
 
 jobs:
